@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { IconSearch, IconTeam } from "./icons";
 
 type NavItem =
@@ -69,6 +69,18 @@ function HeaderMaskIcon({ src }: { src: string }) {
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
@@ -77,18 +89,35 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="admin-app">
-      <aside className="admin-sidebar">
-        <Link href="/admin" className="admin-brand">
-          <Image
-            src="/logo.png"
-            alt="Long Story Short"
-            width={140}
-            height={28}
-            className="admin-brand-logo"
-            priority
-          />
-        </Link>
+    <div className={menuOpen ? "admin-app is-menu-open" : "admin-app"}>
+      <button
+        type="button"
+        className="admin-backdrop"
+        aria-label="Zavřít menu"
+        onClick={() => setMenuOpen(false)}
+      />
+
+      <aside className="admin-sidebar" id="admin-sidebar">
+        <div className="admin-sidebar-top">
+          <Link href="/admin" className="admin-brand">
+            <Image
+              src="/logo.png"
+              alt="Long Story Short"
+              width={140}
+              height={28}
+              className="admin-brand-logo"
+              priority
+            />
+          </Link>
+          <button
+            type="button"
+            className="admin-icon-btn admin-menu-close"
+            aria-label="Zavřít menu"
+            onClick={() => setMenuOpen(false)}
+          >
+            <span className="admin-menu-close-icon" aria-hidden />
+          </button>
+        </div>
 
         <nav className="admin-nav" aria-label="Administrace">
           {NAV.map((item) => {
@@ -124,6 +153,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       <div className="admin-main">
         <header className="admin-topbar">
+          <button
+            type="button"
+            className="admin-icon-btn admin-menu-toggle"
+            aria-label="Otevřít menu"
+            aria-expanded={menuOpen}
+            aria-controls="admin-sidebar"
+            onClick={() => setMenuOpen(true)}
+          >
+            <span className="admin-burger" aria-hidden>
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
+
           <label className="admin-search">
             <IconSearch className="admin-search-icon" />
             <input

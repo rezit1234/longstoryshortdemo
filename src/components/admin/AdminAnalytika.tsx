@@ -267,26 +267,17 @@ export function AdminAnalytika() {
           <div className="admin-panel-head">
             <h2>Přehled variant</h2>
           </div>
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Varianta</th>
-                  <th>Počet prodejů</th>
-                  <th>Tržby</th>
-                </tr>
-              </thead>
-              <tbody>
-                {VARIANTS.map((row) => (
-                  <tr key={row.name}>
-                    <td>{row.name}</td>
-                    <td>{row.sales}</td>
-                    <td>{row.revenue}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="admin-variant-list">
+            {VARIANTS.map((row) => (
+              <li key={row.name}>
+                <div className="admin-variant-main">
+                  <strong>{row.name}</strong>
+                  <span>{row.sales} prodejů</span>
+                </div>
+                <strong className="admin-variant-revenue">{row.revenue}</strong>
+              </li>
+            ))}
+          </ul>
         </article>
 
         <article className="admin-panel">
