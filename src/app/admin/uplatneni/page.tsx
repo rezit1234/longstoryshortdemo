@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { AdminUplatneni } from "@/components/admin/AdminUplatneni";
 
 export default function AdminUplatneniPage() {
-  return <AdminUplatneni />;
+  return (
+    <Suspense fallback={null}>
+      <AdminUplatneni />
+    </Suspense>
+  );
 }

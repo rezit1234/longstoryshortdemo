@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { AdminCommandPalette } from "./AdminCommandPalette";
+import { AdminVoucherDrawerProvider } from "./AdminVoucherDrawer";
 import { IconSearch, IconTeam } from "./icons";
 
 type NavItem =
@@ -26,7 +28,7 @@ const NAV: NavItem[] = [
     label: "Uplatnění poukazu",
     iconSrc: "/icons/uplatneni.svg",
   },
-  { href: "/admin/obchod", label: "Můj obchod", iconSrc: "/icons/obchod.svg" },
+  { href: "/admin/obchod", label: "Nastavení poukazů", iconSrc: "/icons/nastaveni.svg" },
   {
     href: "/admin/analytika",
     label: "Analytika",
@@ -70,10 +72,30 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [searchShortcut, setSearchShortcut] = useState("Ctrl K");
 
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    setSearchShortcut(
+      /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? "⌘K" : "Ctrl K",
+    );
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -89,6 +111,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
+    <AdminVoucherDrawerProvider>
     <div className={menuOpen ? "admin-app is-menu-open" : "admin-app"}>
       <button
         type="button"
@@ -168,14 +191,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </span>
           </button>
 
-          <label className="admin-search">
+          <button
+            type="button"
+            className="admin-search"
+            aria-label="Otevřít vyhledávání"
+            onClick={() => setCommandOpen(true)}
+          >
             <IconSearch className="admin-search-icon" />
-            <input
-              type="search"
-              placeholder="Hledat poukazy, zákazníky…"
-              aria-label="Hledat poukazy, zákazníky"
-            />
-          </label>
+            <span className="admin-search-placeholder">
+              Hledat poukazy, zákazníky…
+            </span>
+            <kbd className="admin-search-kbd">{searchShortcut}</kbd>
+          </button>
 
           <div className="admin-topbar-actions">
             <button type="button" className="admin-icon-btn" aria-label="Oznámení">
@@ -189,6 +216,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
         <div className="admin-content">{children}</div>
       </div>
+
+      <AdminCommandPalette
+        open={commandOpen}
+        onClose={() => setCommandOpen(false)}
+      />
     </div>
+    </AdminVoucherDrawerProvider>
   );
 }

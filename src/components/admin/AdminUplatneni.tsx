@@ -1,36 +1,36 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import { getAdminVoucherByCode } from "@/data/admin-vouchers";
 
 type VerifyState =
   | { kind: "idle" }
   | { kind: "found"; code: string; customer: string; value: string; validUntil: string }
   | { kind: "missing"; code: string };
 
-const MOCK_CODES: Record<
-  string,
-  { customer: string; value: string; validUntil: string }
-> = {
-  BRX4K9: {
-    customer: "Jana Nováková",
-    value: "1 290 Kč",
-    validUntil: "22. 4. 2027",
-  },
-  TOA1B2C: {
-    customer: "Petr Svoboda",
-    value: "2 490 Kč",
-    validUntil: "21. 4. 2027",
-  },
-  PW5J6A: {
-    customer: "Eva Horáková",
-    value: "1 100 Kč",
-    validUntil: "18. 4. 2027",
-  },
-};
-
 export function AdminUplatneni() {
+  const searchParams = useSearchParams();
   const [code, setCode] = useState("");
   const [result, setResult] = useState<VerifyState>({ kind: "idle" });
+
+  useEffect(() => {
+    const initialCode = searchParams.get("code");
+    if (!initialCode) return;
+
+    const match = getAdminVoucherByCode(initialCode);
+    setCode(initialCode.toUpperCase());
+
+    if (match) {
+      setResult({
+        kind: "found",
+        code: match.code,
+        customer: match.customer,
+        value: match.value,
+        validUntil: match.validUntil,
+      });
+    }
+  }, [searchParams]);
 
   function handleVerify(event: FormEvent) {
     event.preventDefault();
@@ -40,9 +40,15 @@ export function AdminUplatneni() {
       return;
     }
 
-    const match = MOCK_CODES[normalized];
+    const match = getAdminVoucherByCode(normalized);
     if (match) {
-      setResult({ kind: "found", code: normalized, ...match });
+      setResult({
+        kind: "found",
+        code: match.code,
+        customer: match.customer,
+        value: match.value,
+        validUntil: match.validUntil,
+      });
     } else {
       setResult({ kind: "missing", code: normalized });
     }

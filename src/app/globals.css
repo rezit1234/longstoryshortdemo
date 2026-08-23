@@ -11,6 +11,12 @@
   --control-h: 50px;
   --font-display: var(--font-plus-jakarta), "Helvetica Neue", sans-serif;
   --font-body: var(--font-plus-jakarta), "Helvetica Neue", sans-serif;
+  --readable-letter-spacing: 0.015em;
+  --readable-letter-spacing-relaxed: 0.025em;
+  --readable-word-spacing: 0.12em;
+  --readable-word-spacing-muted: 0.06em;
+  --readable-line-height: 1.6;
+  --readable-line-height-relaxed: 1.7;
 }
 
 @theme inline {
@@ -35,6 +41,24 @@ body {
 body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  letter-spacing: var(--readable-letter-spacing);
+  word-spacing: var(--readable-word-spacing);
+}
+
+input,
+textarea,
+select {
+  letter-spacing: inherit;
+  word-spacing: inherit;
+}
+
+textarea {
+  letter-spacing: var(--readable-letter-spacing-relaxed);
+  line-height: var(--readable-line-height-relaxed);
+}
+
+p {
+  line-height: var(--readable-line-height);
 }
 
 button {
@@ -210,7 +234,7 @@ button {
   font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  word-spacing: 0.12em;
+  word-spacing: var(--readable-word-spacing);
 }
 
 .amount-grid {
@@ -334,7 +358,7 @@ button {
   font-size: 0.92rem;
   font-weight: 500;
   letter-spacing: 0.015em;
-  word-spacing: 0.12em;
+  word-spacing: var(--readable-word-spacing);
   transition:
     background 160ms ease,
     color 160ms ease,
@@ -550,7 +574,7 @@ button {
   font-size: 0.9rem;
   line-height: 1.4;
   letter-spacing: 0.015em;
-  word-spacing: 0.06em;
+  word-spacing: var(--readable-word-spacing-muted);
   color: var(--muted);
 }
 
@@ -561,7 +585,7 @@ button {
   font-weight: 700;
   font-size: 1.08rem;
   letter-spacing: 0.015em;
-  word-spacing: 0.12em;
+  word-spacing: var(--readable-word-spacing);
   line-height: 1.25;
   white-space: nowrap;
 }
@@ -571,7 +595,7 @@ button {
   font-size: 0.9rem;
   line-height: 1.4;
   letter-spacing: 0.015em;
-  word-spacing: 0.06em;
+  word-spacing: var(--readable-word-spacing-muted);
   color: var(--muted);
 }
 
@@ -652,8 +676,8 @@ button {
   padding-top: 0.85rem;
   font-size: 0.92rem;
   line-height: 1.7;
-  letter-spacing: 0.025em;
-  word-spacing: 0.12em;
+  letter-spacing: var(--readable-letter-spacing-relaxed);
+  word-spacing: var(--readable-word-spacing);
   color: #333;
 }
 

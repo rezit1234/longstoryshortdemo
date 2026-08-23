@@ -7,7 +7,7 @@ const SELLING_TIPS = [
     id: "tip-1",
     question: "Jak nastavit nabídku poukazů?",
     answer:
-      "V sekci Můj obchod → Poukaz nastavíte částky i zážitkové varianty. Změny se projeví na prodejní stránce a ve widgetu.",
+      "V sekci Nastavení poukazů upravíte částky, zážitkové varianty, platnost i vzhled poukazu. Změny se projeví na prodejní stránce a ve widgetu.",
   },
   {
     id: "tip-2",
@@ -43,9 +43,9 @@ const FAQ = [
   },
   {
     id: "faq-4",
-    question: "Jak upravit texty FAQ na prodejní stránce?",
+    question: "Kde nastavím prefix kódu a platnost poukazu?",
     answer:
-      "Jděte do Můj obchod → Časté dotazy. Tam spravujete otázky, které se zobrazují zákazníkům.",
+      "V sekci Nastavení poukazů najdete prefix kódů, délku platnosti, PDF šablonu i přepínače pro částky a zážitky.",
   },
 ];
 
