@@ -93,6 +93,22 @@ function isLogoImage(src: string) {
   return src.includes("logo.png");
 }
 
+function useMaxWidth(maxWidth: number) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const onChange = () => setMatches(media.matches);
+
+    onChange();
+    media.addEventListener("change", onChange);
+
+    return () => media.removeEventListener("change", onChange);
+  }, [maxWidth]);
+
+  return matches;
+}
+
 function GalleryThumbImage({
   src,
   alt,
@@ -141,6 +157,8 @@ function LightboxSlideImage({
 }
 
 function ExperienceGallery({ images }: { images: ExperienceGalleryImage[] }) {
+  const isMobileGallery = useMaxWidth(519);
+
   const loopSlides =
     images.length > 1
       ? [images[images.length - 1], ...images, images[0]]
@@ -417,11 +435,27 @@ function ExperienceGallery({ images }: { images: ExperienceGalleryImage[] }) {
             onClick={() => openLightbox(index)}
             aria-label={`Zobrazit fotografii ${index + 1}`}
           >
-            <GalleryThumbImage
-              src={image.src}
-              alt={image.alt}
-              isLogo={isLogoImage(image.src)}
-            />
+            {isMobileGallery ? (
+              <GalleryThumbImage
+                src={image.src}
+                alt={image.alt}
+                isLogo={isLogoImage(image.src)}
+              />
+            ) : (
+              <Image
+                src={image.src}
+                alt={image.alt}
+                fill
+                sizes="(max-width: 590px) calc((100vw - 3rem) / 4), 150px"
+                quality={90}
+                loading="eager"
+                className={
+                  isLogoImage(image.src)
+                    ? "experience-gallery-image is-logo"
+                    : "experience-gallery-image"
+                }
+              />
+            )}
           </button>
         ))}
       </div>
@@ -875,6 +909,17 @@ function ExperienceItem({
   open: boolean;
   onToggle: () => void;
 }) {
+  const isMobileGallery = useMaxWidth(519);
+
+  useEffect(() => {
+    if (!open || !voucher.gallery || isMobileGallery) return;
+
+    voucher.gallery.forEach((image) => {
+      const preload = new window.Image();
+      preload.src = image.src;
+    });
+  }, [open, voucher.gallery, isMobileGallery]);
+
   return (
     <li className={open ? "experience-item is-open" : "experience-item"}>
       <div className="experience-top">
