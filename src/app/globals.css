@@ -224,11 +224,10 @@ button {
 }
 
 .amount-chip-scroller {
-  margin-inline: -0.9rem;
-  padding-inline: 0.9rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
 }
 
 .amount-chip-scroller::-webkit-scrollbar {
@@ -251,9 +250,7 @@ button {
     border-radius: inherit;
     background: var(--fg);
     opacity: 0.35;
-    transition:
-      margin-left 120ms ease,
-      width 120ms ease;
+    will-change: margin-left, width;
   }
 }
 
@@ -280,17 +277,13 @@ button {
     letter-spacing: 0.03em;
   }
 
-  .amount-chip-scroller {
-    margin-inline: -0.9rem;
-    padding-inline: 0.9rem;
-  }
-
   .amount-chip-scroller .amount-grid {
     display: flex;
     flex-wrap: nowrap;
     gap: 0.5rem;
     width: max-content;
     min-width: min(100%, max-content);
+    padding-inline-end: 0.25rem;
   }
 
   .amount-chip-scroller .amount-chip {
@@ -299,13 +292,19 @@ button {
     padding: 0 0.85rem;
     white-space: nowrap;
   }
+
+  .amount-chip-scroller .amount-chip.is-active {
+    transform: none;
+  }
 }
 
 @media (min-width: 520px) {
   .amount-chip-scroller {
-    margin-inline: 0;
-    padding-inline: 0;
     overflow: visible;
+  }
+
+  .amount-chip-scroll-track {
+    display: none;
   }
 }
 
@@ -351,7 +350,6 @@ button {
   background: var(--fg);
   color: var(--bg);
   border-color: var(--fg);
-  transform: translateY(-1px);
 }
 
 .amount-custom {
@@ -638,6 +636,12 @@ button {
   grid-template-rows: 1fr;
 }
 
+@media (max-width: 519px) {
+  .experience-gallery-thumb:hover {
+    transform: none;
+  }
+}
+
 .experience-details-inner {
   overflow: hidden;
   min-height: 0;
@@ -682,6 +686,10 @@ button {
 }
 
 .experience-gallery-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 

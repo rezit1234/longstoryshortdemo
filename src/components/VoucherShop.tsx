@@ -93,6 +93,29 @@ function isLogoImage(src: string) {
   return src.includes("logo.png");
 }
 
+function GalleryThumbImage({
+  src,
+  alt,
+  isLogo,
+}: {
+  src: string;
+  alt: string;
+  isLogo: boolean;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      className={
+        isLogo ? "experience-gallery-image is-logo" : "experience-gallery-image"
+      }
+      loading="lazy"
+      decoding="async"
+    />
+  );
+}
+
 function LightboxSlideImage({
   src,
   alt,
@@ -394,17 +417,10 @@ function ExperienceGallery({ images }: { images: ExperienceGalleryImage[] }) {
             onClick={() => openLightbox(index)}
             aria-label={`Zobrazit fotografii ${index + 1}`}
           >
-            <Image
+            <GalleryThumbImage
               src={image.src}
               alt={image.alt}
-              fill
-              sizes="(max-width: 590px) calc((100vw - 3rem) / 4), 150px"
-              quality={90}
-              className={
-                isLogoImage(image.src)
-                  ? "experience-gallery-image is-logo"
-                  : "experience-gallery-image"
-              }
+              isLogo={isLogoImage(image.src)}
             />
           </button>
         ))}
@@ -640,14 +656,10 @@ function AmountPanel({
 }) {
   const [isCustom, setIsCustom] = useState(false);
   const [customInput, setCustomInput] = useState("");
-  const [chipScrollState, setChipScrollState] = useState<
-    "none" | "start" | "middle" | "end"
-  >("none");
-  const [chipScrollThumb, setChipScrollThumb] = useState({
-    width: 100,
-    offset: 0,
-  });
   const chipScrollerRef = useRef<HTMLDivElement>(null);
+  const chipTrackRef = useRef<HTMLDivElement>(null);
+  const chipThumbRef = useRef<HTMLSpanElement>(null);
+  const chipScrollRaf = useRef<number | null>(null);
 
   const minAmount = AMOUNT_VOUCHERS[0]?.amount ?? 1000;
   const customAmount = Number(customInput.replace(/\s/g, ""));
@@ -661,54 +673,59 @@ function AmountPanel({
       : 0
     : selectedAmount;
 
-  const updateChipScrollState = () => {
+  const updateChipScrollIndicator = () => {
     const scroller = chipScrollerRef.current;
-    if (!scroller) return;
+    const track = chipTrackRef.current;
+    const thumb = chipThumbRef.current;
+    if (!scroller || !track || !thumb) return;
 
     const maxScroll = scroller.scrollWidth - scroller.clientWidth;
+    if (maxScroll <= 4) {
+      track.hidden = true;
+      return;
+    }
+
+    track.hidden = false;
     const thumbWidth = (scroller.clientWidth / scroller.scrollWidth) * 100;
     const maxThumbOffset = 100 - thumbWidth;
     const thumbOffset =
       maxScroll > 0 ? (scroller.scrollLeft / maxScroll) * maxThumbOffset : 0;
 
-    setChipScrollThumb({ width: thumbWidth, offset: thumbOffset });
+    thumb.style.width = `${thumbWidth}%`;
+    thumb.style.marginLeft = `${thumbOffset}%`;
+  };
 
-    if (maxScroll <= 4) {
-      setChipScrollState("none");
-      return;
-    }
+  const scheduleChipScrollUpdate = () => {
+    if (chipScrollRaf.current !== null) return;
 
-    if (scroller.scrollLeft <= 4) {
-      setChipScrollState("start");
-      return;
-    }
-
-    if (scroller.scrollLeft >= maxScroll - 4) {
-      setChipScrollState("end");
-      return;
-    }
-
-    setChipScrollState("middle");
+    chipScrollRaf.current = window.requestAnimationFrame(() => {
+      chipScrollRaf.current = null;
+      updateChipScrollIndicator();
+    });
   };
 
   useEffect(() => {
-    updateChipScrollState();
+    updateChipScrollIndicator();
 
     const scroller = chipScrollerRef.current;
     if (!scroller) return;
 
-    scroller.addEventListener("scroll", updateChipScrollState, {
+    scroller.addEventListener("scroll", scheduleChipScrollUpdate, {
       passive: true,
     });
 
-    const observer = new ResizeObserver(updateChipScrollState);
+    const observer = new ResizeObserver(updateChipScrollIndicator);
     observer.observe(scroller);
-    window.addEventListener("resize", updateChipScrollState);
+    window.addEventListener("resize", updateChipScrollIndicator);
 
     return () => {
-      scroller.removeEventListener("scroll", updateChipScrollState);
+      scroller.removeEventListener("scroll", scheduleChipScrollUpdate);
       observer.disconnect();
-      window.removeEventListener("resize", updateChipScrollState);
+      window.removeEventListener("resize", updateChipScrollIndicator);
+
+      if (chipScrollRaf.current !== null) {
+        window.cancelAnimationFrame(chipScrollRaf.current);
+      }
     };
   }, []);
 
@@ -730,7 +747,6 @@ function AmountPanel({
         <div
           ref={chipScrollerRef}
           className="amount-chip-scroller"
-          onScroll={updateChipScrollState}
         >
           <div className="amount-grid">
         {AMOUNT_VOUCHERS.map((voucher) => {
@@ -760,17 +776,14 @@ function AmountPanel({
         </button>
           </div>
         </div>
-        {chipScrollState !== "none" ? (
-          <div className="amount-chip-scroll-track" aria-hidden>
-            <span
-              className="amount-chip-scroll-thumb"
-              style={{
-                width: `${chipScrollThumb.width}%`,
-                marginLeft: `${chipScrollThumb.offset}%`,
-              }}
-            />
-          </div>
-        ) : null}
+        <div
+          ref={chipTrackRef}
+          className="amount-chip-scroll-track"
+          aria-hidden
+          hidden
+        >
+          <span ref={chipThumbRef} className="amount-chip-scroll-thumb" />
+        </div>
       </div>
 
       {isCustom ? (
@@ -900,7 +913,7 @@ function ExperienceItem({
       >
         <div className="experience-details-inner">
           <p>{voucher.description}</p>
-          {voucher.gallery && voucher.gallery.length > 0 ? (
+          {open && voucher.gallery && voucher.gallery.length > 0 ? (
             <ExperienceGallery images={voucher.gallery} />
           ) : null}
           {voucher.infoLinks && voucher.infoLinks.length > 0 ? (
