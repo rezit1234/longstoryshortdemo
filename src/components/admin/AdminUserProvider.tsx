@@ -55,7 +55,7 @@ export function AdminUserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AdminUser>(INITIAL_USER);
   const [password, setPassword] = useState(MOCK_PASSWORD);
 
-  const updateName = useCallback((name: string) => {
+  const updateName = useCallback((name: string): AdminUserUpdateResult => {
     const trimmed = name.trim();
     if (!trimmed) {
       return { ok: false, message: "Jméno nemůže být prázdné." };
@@ -66,7 +66,7 @@ export function AdminUserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateUsername = useCallback(
-    (username: string, currentPassword: string) => {
+    (username: string, currentPassword: string): AdminUserUpdateResult => {
       const trimmed = username.trim();
       if (!trimmed) {
         return { ok: false, message: "Přihlašovací jméno nemůže být prázdné." };
@@ -87,7 +87,7 @@ export function AdminUserProvider({ children }: { children: ReactNode }) {
   );
 
   const updatePassword = useCallback(
-    (oldPassword: string, newPassword: string) => {
+    (oldPassword: string, newPassword: string): AdminUserUpdateResult => {
       if (!oldPassword.trim()) {
         return { ok: false, message: "Zadejte současné heslo." };
       }
