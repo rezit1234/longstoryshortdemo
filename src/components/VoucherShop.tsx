@@ -435,27 +435,11 @@ function ExperienceGallery({ images }: { images: ExperienceGalleryImage[] }) {
             onClick={() => openLightbox(index)}
             aria-label={`Zobrazit fotografii ${index + 1}`}
           >
-            {isMobileGallery ? (
-              <GalleryThumbImage
-                src={image.src}
-                alt={image.alt}
-                isLogo={isLogoImage(image.src)}
-              />
-            ) : (
-              <Image
-                src={image.src}
-                alt={image.alt}
-                fill
-                sizes="(max-width: 590px) calc((100vw - 3rem) / 4), 150px"
-                quality={90}
-                loading="eager"
-                className={
-                  isLogoImage(image.src)
-                    ? "experience-gallery-image is-logo"
-                    : "experience-gallery-image"
-                }
-              />
-            )}
+            <GalleryThumbImage
+              src={image.src}
+              alt={image.alt}
+              isLogo={isLogoImage(image.src)}
+            />
           </button>
         ))}
       </div>
