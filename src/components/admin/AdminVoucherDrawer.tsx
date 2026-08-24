@@ -142,6 +142,14 @@ function AdminVoucherDrawerPanel({
               className="admin-voucher-drawer-cta"
               onClick={() => onRedeem(voucher.code)}
             >
+              <span
+                className="admin-voucher-drawer-cta-icon is-redeem"
+                style={{
+                  WebkitMaskImage: "url(/icons/uplatneni.svg)",
+                  maskImage: "url(/icons/uplatneni.svg)",
+                }}
+                aria-hidden
+              />
               Uplatnit poukaz
             </button>
           </div>

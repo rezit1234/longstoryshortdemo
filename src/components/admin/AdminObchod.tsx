@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import {
+  createEmptyExperience,
   createInitialVoucherSettings,
   MAX_AMOUNT_SLOTS,
   VOUCHER_CODE_PREFIX,
@@ -36,9 +37,14 @@ export function AdminObchod() {
     createInitialVoucherSettings(),
   );
   const [activeExperienceId, setActiveExperienceId] = useState<string | null>(null);
+  const [pendingExperience, setPendingExperience] = useState<AdminExperienceForm | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const draggingIndexRef = useRef<number | null>(null);
 
   const activeExperience =
+    pendingExperience ??
     settings.experiences.find((experience) => experience.id === activeExperienceId) ??
     null;
 
@@ -61,10 +67,83 @@ export function AdminObchod() {
   function saveExperience(updated: AdminExperienceForm) {
     setSettings((current) => ({
       ...current,
-      experiences: current.experiences.map((experience) =>
-        experience.id === updated.id ? updated : experience,
-      ),
+      experiences: pendingExperience
+        ? [...current.experiences, updated]
+        : current.experiences.map((experience) =>
+            experience.id === updated.id ? updated : experience,
+          ),
     }));
+    setPendingExperience(null);
+    setActiveExperienceId(null);
+  }
+
+  function openAddExperience() {
+    const created = createEmptyExperience();
+    setPendingExperience(created);
+    setActiveExperienceId(created.id);
+  }
+
+  function closeExperienceDrawer() {
+    setPendingExperience(null);
+    setActiveExperienceId(null);
+  }
+
+  function handleExperienceDragStart(index: number, event: DragEvent<HTMLButtonElement>) {
+    draggingIndexRef.current = index;
+    setDraggingIndex(index);
+    setDragOverIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+
+    const row = event.currentTarget.closest(".admin-experience-row");
+    if (row instanceof HTMLElement) {
+      const rect = row.getBoundingClientRect();
+      const ghost = row.cloneNode(true) as HTMLElement;
+      ghost.classList.add("admin-experience-drag-ghost");
+      ghost.style.position = "fixed";
+      ghost.style.top = "-1000px";
+      ghost.style.left = "0";
+      ghost.style.width = `${rect.width}px`;
+      ghost.style.pointerEvents = "none";
+      document.body.appendChild(ghost);
+      event.dataTransfer.setDragImage(
+        ghost,
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+      );
+      window.setTimeout(() => ghost.remove(), 0);
+    }
+  }
+
+  function handleExperienceDragOver(targetIndex: number, event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+
+    const sourceIndex = draggingIndexRef.current;
+    if (sourceIndex === null) return;
+
+    setDragOverIndex(targetIndex);
+    if (sourceIndex === targetIndex) return;
+
+    setSettings((current) => {
+      const experiences = [...current.experiences];
+      const [moved] = experiences.splice(sourceIndex, 1);
+      experiences.splice(targetIndex, 0, moved);
+      return { ...current, experiences };
+    });
+    draggingIndexRef.current = targetIndex;
+    setDraggingIndex(targetIndex);
+  }
+
+  function clearExperienceDragState() {
+    draggingIndexRef.current = null;
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+  }
+
+  function handleExperienceDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    clearExperienceDragState();
   }
 
   return (
@@ -109,34 +188,84 @@ export function AdminObchod() {
       <section className="admin-panel admin-shop-panel">
         <h2>Zážitkové varianty</h2>
         <p className="admin-section-lead">
-          Kliknutím na variantu upravíte texty, galerii, odkazy a PDF šablonu daného poukazu.
+          Přetáhněte varianty pro změnu pořadí. Kliknutím upravíte texty, galerii, odkazy a PDF
+          šablonu.
         </p>
 
         <div className="admin-experience-list">
-          {settings.experiences.map((experience) => (
-            <button
+          {settings.experiences.map((experience, index) => (
+            <div
               key={experience.id}
-              type="button"
-              className={
-                activeExperienceId === experience.id
-                  ? "admin-experience-row is-active"
-                  : "admin-experience-row"
-              }
-              onClick={() => setActiveExperienceId(experience.id)}
+              className={[
+                "admin-experience-row",
+                activeExperienceId === experience.id ? "is-active" : "",
+                draggingIndex === index ? "is-dragging" : "",
+                dragOverIndex === index && draggingIndex !== null ? "is-drop-target" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onDragOver={(event) => handleExperienceDragOver(index, event)}
+              onDrop={handleExperienceDrop}
             >
-              <div className="admin-experience-row-copy">
-                <strong>{experience.title}</strong>
-                <span>
-                  {experience.subtitle || "Bez krátkého popisu"}
-                  {" · "}
-                  {formatCzk(experience.price)}
-                  {" · "}
-                  {experience.suitableFor}
-                </span>
-              </div>
-              <MaskIcon src="/icons/Edit.svg" />
-            </button>
+              <button
+                type="button"
+                className="admin-experience-drag-handle"
+                draggable
+                aria-label={`Přetáhnout variantu ${experience.title}`}
+                onClick={(event) => event.stopPropagation()}
+                onDragStart={(event) => handleExperienceDragStart(index, event)}
+                onDragEnd={clearExperienceDragState}
+              >
+                <MaskIcon src="/icons/drag.svg" />
+              </button>
+
+              <button
+                type="button"
+                className="admin-experience-row-open"
+                onClick={() => {
+                  setPendingExperience(null);
+                  setActiveExperienceId(experience.id);
+                }}
+              >
+                <div className="admin-experience-row-copy">
+                  <strong>{experience.title}</strong>
+                  <span>
+                    {experience.subtitle || "Bez krátkého popisu"}
+                    {" · "}
+                    {formatCzk(experience.price)}
+                    {" · "}
+                    {experience.suitableFor || "—"}
+                  </span>
+                </div>
+                <MaskIcon src="/icons/Edit.svg" />
+              </button>
+            </div>
           ))}
+
+          <button
+            type="button"
+            className="admin-experience-row admin-experience-row-add"
+            onClick={openAddExperience}
+          >
+            <span className="admin-experience-row-add-label">
+              <svg
+                className="admin-page-head-btn-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M7 2v10M2 7h10"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Přidat variantu
+            </span>
+          </button>
         </div>
       </section>
 
@@ -180,7 +309,8 @@ export function AdminObchod() {
       {activeExperience ? (
         <AdminExperienceSettingsDrawer
           experience={activeExperience}
-          onClose={() => setActiveExperienceId(null)}
+          isNew={pendingExperience !== null}
+          onClose={closeExperienceDrawer}
           onSave={saveExperience}
         />
       ) : null}

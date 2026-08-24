@@ -20,6 +20,27 @@ export type AdminExperienceForm = {
   infoLinks: ExperienceInfoLink[];
 };
 
+function createExperienceId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `experience-${crypto.randomUUID()}`;
+  }
+
+  return `experience-${Date.now()}`;
+}
+
+export function createEmptyExperience(): AdminExperienceForm {
+  return {
+    id: createExperienceId(),
+    title: "",
+    subtitle: "",
+    suitableFor: "",
+    price: 0,
+    description: "",
+    gallery: [],
+    infoLinks: [{ label: "", href: "" }],
+  };
+}
+
 export type AdminVoucherSettings = {
   validityMonths: number;
   amountSlots: (number | null)[];

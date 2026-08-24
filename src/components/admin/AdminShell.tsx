@@ -3,8 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminCommandPalette } from "./AdminCommandPalette";
+import { AdminUserProvider, getInitials, useAdminUser } from "./AdminUserProvider";
 import { AdminVoucherDrawerProvider } from "./AdminVoucherDrawer";
 import { IconSearch, IconTeam } from "./icons";
 
@@ -35,11 +36,6 @@ const NAV: NavItem[] = [
     iconSrc: "/icons/analytika.svg",
   },
   { href: "/admin/tym", label: "Tým", icon: IconTeam },
-  {
-    href: "/admin/napoveda",
-    label: "Nápověda",
-    iconSrc: "/icons/napoveda.svg",
-  },
 ];
 
 function NavMaskIcon({ src }: { src: string }) {
@@ -55,29 +51,50 @@ function NavMaskIcon({ src }: { src: string }) {
   );
 }
 
-function HeaderMaskIcon({ src }: { src: string }) {
+export function AdminShell({ children }: { children: ReactNode }) {
   return (
-    <span
-      className="admin-mask-icon"
-      style={{
-        WebkitMaskImage: `url(${src})`,
-        maskImage: `url(${src})`,
-      }}
-      aria-hidden
-    />
+    <AdminUserProvider>
+      <AdminShellInner>{children}</AdminShellInner>
+    </AdminUserProvider>
   );
 }
 
-export function AdminShell({ children }: { children: ReactNode }) {
+function AdminShellInner({ children }: { children: ReactNode }) {
+  const { user } = useAdminUser();
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [searchShortcut, setSearchShortcut] = useState("Ctrl K");
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMenuOpen(false);
+    setAccountOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setAccountOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setAccountOpen(false);
+    }
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [accountOpen]);
 
   useEffect(() => {
     setSearchShortcut(
@@ -205,12 +222,40 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </button>
 
           <div className="admin-topbar-actions">
-            <button type="button" className="admin-icon-btn" aria-label="Oznámení">
-              <HeaderMaskIcon src="/icons/bell.svg" />
-            </button>
-            <button type="button" className="admin-avatar" aria-label="Účet">
-              A
-            </button>
+            <div
+              className={accountOpen ? "admin-account-menu is-open" : "admin-account-menu"}
+              ref={accountMenuRef}
+            >
+              <button
+                type="button"
+                className="admin-avatar"
+                aria-label="Účet"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+              >
+                {getInitials(user.name)}
+              </button>
+
+              {accountOpen ? (
+                <div className="admin-account-dropdown" role="menu">
+                  <div className="admin-account-dropdown-head">
+                    <strong>{user.name}</strong>
+                    <span>{user.email}</span>
+                  </div>
+                  <div className="admin-account-dropdown-divider" aria-hidden />
+                  <Link
+                    href="/admin/ucet"
+                    className="admin-account-dropdown-item"
+                    role="menuitem"
+                    onClick={() => setAccountOpen(false)}
+                  >
+                    <NavMaskIcon src="/icons/nastaveni.svg" />
+                    <span>Nastavení účtu</span>
+                  </Link>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 

@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AdminAddMemberDrawer,
+  type NewMemberPayload,
+} from "./AdminAddMemberDrawer";
 
 type TeamRole = "owner" | "admin" | "staff";
-type MemberStatus = "active" | "invited";
 
 type TeamMember = {
   id: string;
   name: string;
-  email: string;
+  username: string;
   role: TeamRole;
-  status: MemberStatus;
   joinedAt: string;
 };
 
@@ -20,87 +22,75 @@ const ROLE_LABELS: Record<TeamRole, string> = {
   staff: "Obsluha",
 };
 
+const TOAST_MS = 3400;
+
 const INITIAL_MEMBERS: TeamMember[] = [
   {
     id: "1",
     name: "Long Story Short",
-    email: "eatery@longstoryshort.cz",
+    username: "owner",
     role: "owner",
-    status: "active",
     joinedAt: "1. 3. 2026",
   },
   {
     id: "2",
     name: "Jana Nováková",
-    email: "jana@longstoryshort.cz",
+    username: "jana",
     role: "admin",
-    status: "active",
     joinedAt: "12. 3. 2026",
   },
   {
     id: "3",
     name: "Petr Svoboda",
-    email: "petr@longstoryshort.cz",
+    username: "petr",
     role: "staff",
-    status: "active",
     joinedAt: "4. 4. 2026",
   },
   {
     id: "4",
     name: "Lucie Dvořáková",
-    email: "lucie@example.cz",
+    username: "lucie",
     role: "staff",
-    status: "invited",
     joinedAt: "10. 8. 2026",
   },
 ];
 
-function createInviteToken() {
-  return Math.random().toString(36).slice(2, 10).toUpperCase();
-}
-
 export function AdminTym() {
   const [members, setMembers] = useState(INITIAL_MEMBERS);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteRole, setInviteRole] = useState<Exclude<TeamRole, "owner">>("staff");
-  const [inviteLink, setInviteLink] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastLeaving, setToastLeaving] = useState(false);
 
-  const activeCount = useMemo(
-    () => members.filter((member) => member.status === "active").length,
-    [members],
-  );
+  const memberCount = useMemo(() => members.length, [members]);
 
-  function handleCreateInvite() {
-    const token = createInviteToken();
-    const origin = typeof window === "undefined" ? "" : window.location.origin;
-    const link = `${origin}/admin/pozvanka?token=${token}&role=${inviteRole}`;
-    setInviteLink(link);
-    setInviteOpen(true);
-    setCopied(false);
+  useEffect(() => {
+    if (!toastVisible) return;
 
+    const leaveTimer = window.setTimeout(() => setToastLeaving(true), TOAST_MS - 280);
+    const hideTimer = window.setTimeout(() => {
+      setToastVisible(false);
+      setToastLeaving(false);
+    }, TOAST_MS);
+
+    return () => {
+      window.clearTimeout(leaveTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, [toastVisible]);
+
+  function handleMemberAdded({ name, username, role }: NewMemberPayload) {
     setMembers((prev) => [
       {
-        id: token,
-        name: "Čeká na přijetí",
-        email: `pozvánka · ${ROLE_LABELS[inviteRole].toLowerCase()}`,
-        role: inviteRole,
-        status: "invited",
+        id: `${Date.now()}`,
+        name,
+        username,
+        role,
         joinedAt: new Date().toLocaleDateString("cs-CZ"),
       },
       ...prev,
     ]);
-  }
-
-  async function handleCopy() {
-    if (!inviteLink) return;
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
+    setToastLeaving(false);
+    setToastVisible(true);
   }
 
   return (
@@ -109,58 +99,34 @@ export function AdminTym() {
         <div>
           <h1>Tým</h1>
           <p>
-            Správa uživatelů s přístupem do administrace. Aktivní členové:{" "}
-            {activeCount}.
+            Správa uživatelů s přístupem do administrace. Členů: {memberCount}.
           </p>
         </div>
-        <button type="button" className="admin-primary-btn" onClick={handleCreateInvite}>
-          Vytvořit odkaz na pozvánku
-        </button>
-      </div>
-
-      {inviteOpen ? (
-        <section className="admin-panel admin-invite-panel">
-          <div className="admin-invite-head">
-            <div>
-              <h2>Odkaz na pozvánku</h2>
-              <p>Pošlete odkaz kolegovi. Po přijetí získá zvolenou roli.</p>
-            </div>
-            <label className="admin-invite-role">
-              <span>Role</span>
-              <select
-                value={inviteRole}
-                onChange={(event) => {
-                  const role = event.target.value as Exclude<TeamRole, "owner">;
-                  setInviteRole(role);
-                  const token = inviteLink.split("token=")[1]?.split("&")[0] ?? createInviteToken();
-                  const origin =
-                    typeof window === "undefined" ? "" : window.location.origin;
-                  setInviteLink(
-                    `${origin}/admin/pozvanka?token=${token}&role=${role}`,
-                  );
-                }}
-              >
-                <option value="admin">Admin</option>
-                <option value="staff">Obsluha</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="admin-invite-row">
-            <input type="text" readOnly value={inviteLink} aria-label="Odkaz na pozvánku" />
-            <button type="button" className="admin-outline-btn" onClick={handleCopy}>
-              {copied ? "Zkopírováno" : "Kopírovat"}
-            </button>
-            <button
-              type="button"
-              className="admin-outline-btn"
-              onClick={() => setInviteOpen(false)}
+        <div className="admin-page-head-actions">
+          <button
+            type="button"
+            className="admin-primary-btn admin-page-head-primary"
+            onClick={() => setAddOpen(true)}
+          >
+            <svg
+              className="admin-page-head-btn-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              aria-hidden
             >
-              Zavřít
-            </button>
-          </div>
-        </section>
-      ) : null}
+              <path
+                d="M7 2v10M2 7h10"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+            </svg>
+            Přidat člena
+          </button>
+        </div>
+      </div>
 
       <section className="admin-panel">
         <div className="admin-table-wrap">
@@ -168,9 +134,8 @@ export function AdminTym() {
             <thead>
               <tr>
                 <th>Uživatel</th>
-                <th>E-mail</th>
+                <th>Přihlašovací jméno</th>
                 <th>Role</th>
-                <th>Stav</th>
                 <th>Přidán</th>
               </tr>
             </thead>
@@ -190,21 +155,10 @@ export function AdminTym() {
                       <strong>{member.name}</strong>
                     </div>
                   </td>
-                  <td>{member.email}</td>
+                  <td>{member.username}</td>
                   <td>
                     <span className={`admin-role-pill is-${member.role}`}>
                       {ROLE_LABELS[member.role]}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      className={
-                        member.status === "active"
-                          ? "admin-status is-active"
-                          : "admin-status is-cancelled"
-                      }
-                    >
-                      {member.status === "active" ? "Aktivní" : "Pozván"}
                     </span>
                   </td>
                   <td>{member.joinedAt}</td>
@@ -214,6 +168,37 @@ export function AdminTym() {
           </table>
         </div>
       </section>
+
+      {addOpen ? (
+        <AdminAddMemberDrawer
+          onClose={() => setAddOpen(false)}
+          onMemberAdded={handleMemberAdded}
+        />
+      ) : null}
+
+      {toastVisible ? (
+        <div
+          className={toastLeaving ? "admin-toast is-leaving" : "admin-toast"}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="admin-toast-check" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M3.2 8.2 6.4 11.4 12.8 4.6"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+          <div className="admin-toast-copy">
+            <strong>Člen přidán</strong>
+            <span>Účet byl úspěšně vytvořen.</span>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

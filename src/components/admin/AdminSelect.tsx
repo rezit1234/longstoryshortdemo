@@ -59,7 +59,9 @@ export function AdminSelect({
         onClick={() => setOpen((current) => !current)}
       >
         <span>{selected?.label}</span>
-        <span className="admin-select-chevron" aria-hidden />
+        <span className="admin-select-chevron-wrap" aria-hidden>
+          <span className="admin-select-chevron" />
+        </span>
       </button>
 
       {open ? (

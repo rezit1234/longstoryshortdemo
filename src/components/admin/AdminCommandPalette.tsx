@@ -42,7 +42,6 @@ const NAV_LINKS = [
   ...QUICK_LINKS,
   { href: "/admin/obchod", label: "Nastavení poukazů", description: "Vzhled a varianty poukazů", iconSrc: "/icons/nastaveni.svg" },
   { href: "/admin/tym", label: "Tým" },
-  { href: "/admin/napoveda", label: "Nápověda" },
 ] as const;
 
 const VOUCHER_ICON = "/icons/poukazy.svg";
@@ -282,6 +281,9 @@ export function AdminCommandPalette({
                     ? `${item.voucher.customer} · ${item.voucher.value}`
                     : `${item.voucher.code} · ${item.voucher.product}`}
                 </span>
+              </span>
+              <span className={`admin-status is-${item.voucher.status}`}>
+                {item.voucher.statusLabel}
               </span>
             </span>
           )}
