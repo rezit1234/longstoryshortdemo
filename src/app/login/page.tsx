@@ -32,8 +32,8 @@ function LoginForm() {
         return;
       }
 
-      const next = searchParams.get("next") || "/admin";
-      router.replace(next.startsWith("/admin") ? next : "/admin");
+      const next = searchParams.get("next") || "/admin/prehled";
+      router.replace(next.startsWith("/admin") ? next : "/admin/prehled");
       router.refresh();
     } catch {
       setError("Přihlášení se nepovedlo. Zkuste to znovu.");

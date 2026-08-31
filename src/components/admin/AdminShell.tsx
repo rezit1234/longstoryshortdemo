@@ -5,37 +5,46 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminCommandPalette } from "./AdminCommandPalette";
-import { AdminUserProvider, getInitials, useAdminUser } from "./AdminUserProvider";
+import { AdminUserProvider, useAdminUser } from "./AdminUserProvider";
 import { AdminVoucherDrawerProvider } from "./AdminVoucherDrawer";
 import { IconSearch, IconTeam } from "./icons";
+import { canAccessAdminPath, canManageTeam, resolveAvatarUrl } from "@/lib/auth";
 
 type NavItem =
   | {
       href: string;
       label: string;
       iconSrc: string;
+      requiresManageTeam?: boolean;
     }
   | {
       href: string;
       label: string;
       icon: typeof IconTeam;
+      requiresManageTeam?: boolean;
     };
 
 const NAV: NavItem[] = [
-  { href: "/admin", label: "Přehled", iconSrc: "/icons/prehled.svg" },
+  { href: "/admin/prehled", label: "Přehled", iconSrc: "/icons/prehled.svg" },
   { href: "/admin/poukazy", label: "Poukazy", iconSrc: "/icons/poukazy.svg" },
   {
     href: "/admin/uplatneni",
     label: "Uplatnění poukazu",
     iconSrc: "/icons/uplatneni.svg",
   },
-  { href: "/admin/obchod", label: "Nastavení poukazů", iconSrc: "/icons/nastaveni.svg" },
+  {
+    href: "/admin/nastavenipoukazu",
+    label: "Nastavení poukazů",
+    iconSrc: "/icons/nastaveni.svg",
+    requiresManageTeam: true,
+  },
   {
     href: "/admin/analytika",
     label: "Analytika",
     iconSrc: "/icons/analytika.svg",
+    requiresManageTeam: true,
   },
-  { href: "/admin/tym", label: "Tým", icon: IconTeam },
+  { href: "/admin/tym", label: "Tým", icon: IconTeam, requiresManageTeam: true },
 ];
 
 function NavMaskIcon({ src }: { src: string }) {
@@ -60,14 +69,25 @@ export function AdminShell({ children }: { children: ReactNode }) {
 }
 
 function AdminShellInner({ children }: { children: ReactNode }) {
-  const { user } = useAdminUser();
+  const { user, loading: userLoading } = useAdminUser();
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [searchShortcut, setSearchShortcut] = useState("Ctrl K");
+  const [modifierKey, setModifierKey] = useState("Ctrl");
   const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  const visibleNav = NAV.filter(
+    (item) => !item.requiresManageTeam || canManageTeam(user.role),
+  );
+
+  useEffect(() => {
+    if (userLoading || !user.id) return;
+    if (!canAccessAdminPath(user.role, pathname)) {
+      router.replace("/admin/prehled");
+    }
+  }, [pathname, router, user.id, user.role, userLoading]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -97,8 +117,8 @@ function AdminShellInner({ children }: { children: ReactNode }) {
   }, [accountOpen]);
 
   useEffect(() => {
-    setSearchShortcut(
-      /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? "⌘K" : "Ctrl K",
+    setModifierKey(
+      /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? "⌘" : "Ctrl",
     );
   }, []);
 
@@ -139,7 +159,7 @@ function AdminShellInner({ children }: { children: ReactNode }) {
 
       <aside className="admin-sidebar" id="admin-sidebar">
         <div className="admin-sidebar-top">
-          <Link href="/admin" className="admin-brand">
+          <Link href="/admin/prehled" className="admin-brand">
             <Image
               src="/logo.png"
               alt="Long Story Short"
@@ -160,11 +180,8 @@ function AdminShellInner({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="admin-nav" aria-label="Administrace">
-          {NAV.map((item) => {
-            const active =
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
+          {visibleNav.map((item) => {
+            const active = pathname.startsWith(item.href);
 
             return (
               <Link
@@ -218,7 +235,20 @@ function AdminShellInner({ children }: { children: ReactNode }) {
             <span className="admin-search-placeholder">
               Hledat poukazy, zákazníky…
             </span>
-            <kbd className="admin-search-kbd">{searchShortcut}</kbd>
+            <kbd className="admin-search-kbd">
+              <span>{modifierKey}</span>
+              <span className="admin-search-kbd-plus" aria-hidden>
+                <svg width="7" height="7" viewBox="0 0 8 8" fill="none">
+                  <path
+                    d="M4 1.25v5.5M1.25 4h5.5"
+                    stroke="currentColor"
+                    strokeWidth="1.35"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              <span>K</span>
+            </kbd>
           </button>
 
           <div className="admin-topbar-actions">
@@ -228,20 +258,25 @@ function AdminShellInner({ children }: { children: ReactNode }) {
             >
               <button
                 type="button"
-                className="admin-avatar"
+                className="admin-avatar has-image"
                 aria-label="Účet"
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
                 onClick={() => setAccountOpen((open) => !open)}
               >
-                {getInitials(user.name)}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={resolveAvatarUrl(user.avatarUrl)}
+                  alt=""
+                  className="admin-avatar-img"
+                />
               </button>
 
               {accountOpen ? (
                 <div className="admin-account-dropdown" role="menu">
                   <div className="admin-account-dropdown-head">
                     <strong>{user.name}</strong>
-                    <span>{user.email}</span>
+                    <span>@{user.username}</span>
                   </div>
                   <div className="admin-account-dropdown-divider" aria-hidden />
                   <Link

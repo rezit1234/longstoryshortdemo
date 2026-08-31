@@ -1,16 +1,23 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from "react";
 import {
+  MAX_CHECKOUT_PREVIEW_IMAGES,
   MAX_GALLERY_IMAGES,
+  formatCodePositionLabel,
   type AdminExperienceForm,
+  type ExperiencePdfTemplate,
+  type VoucherCodePosition,
 } from "@/data/admin-voucher-settings";
 import type { ExperienceGalleryImage } from "@/data/vouchers";
 import { formatCzk } from "@/data/vouchers";
 import { AdminDismissButton } from "./AdminDismissButton";
+import { AdminPdfCodePositionEditor } from "./AdminPdfCodePositionEditor";
+import { AdminPdfQrPositionEditor } from "./AdminPdfQrPositionEditor";
 
 const DRAWER_ANIMATION_MS = 220;
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
 function MaskIcon({ src }: { src: string }) {
   return (
@@ -22,6 +29,41 @@ function MaskIcon({ src }: { src: string }) {
       }}
       aria-hidden
     />
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      className="admin-page-head-btn-icon"
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M7 2v10M2 7h10"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TargetIcon() {
+  return (
+    <svg
+      className="admin-page-head-btn-icon"
+      width="14"
+      height="14"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M221.87,83.16A104.1,104.1,0,1,1,195.67,49l22.67-22.68a8,8,0,0,1,11.32,11.32l-96,96a8,8,0,0,1-11.32-11.32l27.72-27.72a40,40,0,1,0,17.87,31.09,8,8,0,1,1,16-.9,56,56,0,1,1-22.38-41.65L184.3,60.39a87.88,87.88,0,1,0,23.13,29.67,8,8,0,0,1,14.44-6.9Z" />
+    </svg>
   );
 }
 
@@ -96,6 +138,57 @@ function GalleryLightbox({
   );
 }
 
+function PdfPreviewLightbox({
+  pdf,
+  onClose,
+}: {
+  pdf: ExperiencePdfTemplate;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="admin-pdf-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Náhled ${pdf.fileName}`}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="admin-pdf-lightbox-panel">
+        <div className="admin-pdf-lightbox-toolbar">
+          <p className="admin-pdf-lightbox-title">{pdf.fileName}</p>
+          <div className="admin-pdf-lightbox-actions">
+            <a
+              href={pdf.url}
+              target="_blank"
+              rel="noreferrer"
+              className="admin-outline-btn"
+            >
+              Otevřít v novém okně
+            </a>
+            <AdminDismissButton label="Zavřít náhled PDF" onClick={onClose} />
+          </div>
+        </div>
+        <iframe
+          src={pdf.url}
+          title={pdf.fileName}
+          className="admin-pdf-lightbox-frame"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function AdminExperienceSettingsDrawer({
   experience,
   isNew = false,
@@ -111,12 +204,51 @@ export function AdminExperienceSettingsDrawer({
   const [draft, setDraft] = useState(experience);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [previewDraggingIndex, setPreviewDraggingIndex] = useState<number | null>(
+    null,
+  );
+  const [previewDragOverIndex, setPreviewDragOverIndex] = useState<number | null>(
+    null,
+  );
   const [lightboxImage, setLightboxImage] = useState<ExperienceGalleryImage | null>(null);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
+  const [qrEditorOpen, setQrEditorOpen] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [uploadingPreview, setUploadingPreview] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [galleryDropActive, setGalleryDropActive] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const previewInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputId = useId();
+  const previewInputId = useId();
+  const pdfInputId = useId();
   const draggingIndexRef = useRef<number | null>(null);
+  const previewDraggingIndexRef = useRef<number | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
+  // Jen při přepnutí varianty — ne při každém novém settings objektu z rodiče
+  // (autosave / load by jinak tiše přepsaly lokální galerii).
   useEffect(() => {
-    setDraft(experience);
-  }, [experience]);
+    setDraft({
+      ...experience,
+      checkoutPreview: experience.checkoutPreview ?? [],
+    });
+    setGalleryError(null);
+    setPreviewError(null);
+    setPdfError(null);
+    setUploadingGallery(false);
+    setUploadingPreview(false);
+    setUploadingPdf(false);
+    setPdfPreviewOpen(false);
+    setCodeEditorOpen(false);
+    setQrEditorOpen(false);
+  }, [experience.id]);
 
   const requestClose = useCallback(() => {
     setIsClosing(true);
@@ -131,7 +263,15 @@ export function AdminExperienceSettingsDrawer({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !lightboxImage) requestClose();
+      if (
+        event.key === "Escape" &&
+        !lightboxImage &&
+        !pdfPreviewOpen &&
+        !codeEditorOpen &&
+        !qrEditorOpen
+      ) {
+        requestClose();
+      }
     };
 
     document.body.style.overflow = "hidden";
@@ -141,7 +281,7 @@ export function AdminExperienceSettingsDrawer({
       document.body.style.overflow = "";
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [lightboxImage, requestClose]);
+  }, [lightboxImage, pdfPreviewOpen, codeEditorOpen, qrEditorOpen, requestClose]);
 
   function updateDraft(patch: Partial<AdminExperienceForm>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -175,6 +315,258 @@ export function AdminExperienceSettingsDrawer({
       ...current,
       gallery: current.gallery.filter((_, imageIndex) => imageIndex !== index),
     }));
+  }
+
+  function removeCheckoutPreviewImage(index: number) {
+    setDraft((current) => ({
+      ...current,
+      checkoutPreview: (current.checkoutPreview ?? []).filter(
+        (_, imageIndex) => imageIndex !== index,
+      ),
+    }));
+  }
+
+  async function uploadCheckoutPreviewFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList).map(
+      (file) =>
+        new File([file], file.name, {
+          type: file.type,
+          lastModified: file.lastModified,
+        }),
+    );
+
+    if (files.length === 0) {
+      setPreviewError("Soubor se nepodařilo načíst. Zkuste jiný obrázek.");
+      return;
+    }
+
+    const current = draftRef.current;
+    const preview = current.checkoutPreview ?? [];
+    const remaining = MAX_CHECKOUT_PREVIEW_IMAGES - preview.length;
+    if (remaining <= 0) {
+      setPreviewError(
+        `Náhled může mít maximálně ${MAX_CHECKOUT_PREVIEW_IMAGES} obrázky.`,
+      );
+      return;
+    }
+
+    const selected = files.slice(0, remaining);
+    setPreviewError(null);
+    setUploadingPreview(true);
+
+    try {
+      const uploaded: ExperienceGalleryImage[] = [];
+
+      for (const file of selected) {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("experienceId", current.id);
+
+        const response = await fetch("/api/voucher-images", {
+          method: "POST",
+          body: form,
+        });
+
+        const data = (await response.json().catch(() => null)) as {
+          image?: ExperienceGalleryImage;
+          error?: string;
+        } | null;
+
+        if (!response.ok || !data?.image) {
+          throw new Error(data?.error || "Obrázek se nepodařilo nahrát.");
+        }
+
+        uploaded.push(data.image);
+      }
+
+      setDraft((latest) => ({
+        ...latest,
+        checkoutPreview: [...(latest.checkoutPreview ?? []), ...uploaded].slice(
+          0,
+          MAX_CHECKOUT_PREVIEW_IMAGES,
+        ),
+      }));
+    } catch (err) {
+      setPreviewError(
+        err instanceof Error ? err.message : "Obrázek se nepodařilo nahrát.",
+      );
+    } finally {
+      setUploadingPreview(false);
+    }
+  }
+
+  async function uploadGalleryFiles(fileList: FileList | File[]) {
+    // FileList je „live“ — zkopírujeme File objekty hned, než se input vyresetuje.
+    const files = Array.from(fileList).map(
+      (file) =>
+        new File([file], file.name, {
+          type: file.type,
+          lastModified: file.lastModified,
+        }),
+    );
+
+    if (files.length === 0) {
+      setGalleryError("Soubor se nepodařilo načíst. Zkuste jiný obrázek.");
+      return;
+    }
+
+    const current = draftRef.current;
+    const remaining = MAX_GALLERY_IMAGES - current.gallery.length;
+    if (remaining <= 0) {
+      setGalleryError(
+        `Galerie může mít maximálně ${MAX_GALLERY_IMAGES} obrázky.`,
+      );
+      return;
+    }
+
+    const selected = files.slice(0, remaining);
+    setGalleryError(null);
+    setUploadingGallery(true);
+
+    try {
+      const uploaded: ExperienceGalleryImage[] = [];
+
+      for (const file of selected) {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("experienceId", current.id);
+
+        const response = await fetch("/api/voucher-images", {
+          method: "POST",
+          body: form,
+        });
+
+        const data = (await response.json().catch(() => null)) as {
+          image?: ExperienceGalleryImage;
+          error?: string;
+        } | null;
+
+        if (!response.ok || !data?.image) {
+          throw new Error(data?.error || "Obrázek se nepodařilo nahrát.");
+        }
+
+        uploaded.push(data.image);
+      }
+
+      setDraft((latest) => ({
+        ...latest,
+        gallery: [...latest.gallery, ...uploaded].slice(0, MAX_GALLERY_IMAGES),
+      }));
+
+      if (files.length > remaining) {
+        setGalleryError(
+          `Přidány jen ${remaining} obrázky — maximum je ${MAX_GALLERY_IMAGES}.`,
+        );
+      }
+    } catch (err) {
+      setGalleryError(
+        err instanceof Error ? err.message : "Obrázek se nepodařilo nahrát.",
+      );
+    } finally {
+      setUploadingGallery(false);
+    }
+  }
+
+  async function uploadPdfFile(file: File | undefined) {
+    if (!file) {
+      setPdfError("Soubor se nepodařilo načíst. Zkuste jiné PDF.");
+      return;
+    }
+
+    const type = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "");
+    if (type !== "application/pdf") {
+      setPdfError("Povolený formát je pouze PDF.");
+      return;
+    }
+
+    if (file.size > MAX_PDF_BYTES) {
+      setPdfError("PDF může mít maximálně 10 MB.");
+      return;
+    }
+
+    const copied = new File([file], file.name, {
+      type: "application/pdf",
+      lastModified: file.lastModified,
+    });
+
+    setPdfError(null);
+    setUploadingPdf(true);
+
+    try {
+      const form = new FormData();
+      form.append("file", copied);
+      form.append("experienceId", draftRef.current.id);
+
+      const response = await fetch("/api/voucher-pdfs", {
+        method: "POST",
+        body: form,
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        pdf?: ExperiencePdfTemplate;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !data?.pdf) {
+        throw new Error(data?.error || "PDF se nepodařilo nahrát.");
+      }
+
+      setDraft((current) => ({
+        ...current,
+        pdfTemplate: data.pdf!,
+      }));
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "PDF se nepodařilo nahrát.");
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
+  function removePdfTemplate() {
+    setPdfPreviewOpen(false);
+    setCodeEditorOpen(false);
+    setQrEditorOpen(false);
+    setPdfError(null);
+    setDraft((current) => ({
+      ...current,
+      pdfTemplate: null,
+      codePosition: null,
+      qrPosition: null,
+    }));
+  }
+
+  function removeCodePosition() {
+    setCodeEditorOpen(false);
+    setQrEditorOpen(false);
+    setDraft((current) => ({
+      ...current,
+      codePosition: null,
+      qrPosition: null,
+    }));
+  }
+
+  function removeQrPosition() {
+    setQrEditorOpen(false);
+    setDraft((current) => ({
+      ...current,
+      qrPosition: null,
+    }));
+  }
+
+  function saveCodePosition(position: VoucherCodePosition) {
+    setDraft((current) => ({
+      ...current,
+      codePosition: position,
+    }));
+    setCodeEditorOpen(false);
+  }
+
+  function saveQrPosition(position: VoucherCodePosition) {
+    setDraft((current) => ({
+      ...current,
+      qrPosition: position,
+    }));
+    setQrEditorOpen(false);
   }
 
   function handleGalleryDragStart(index: number, event: DragEvent<HTMLButtonElement>) {
@@ -235,11 +627,73 @@ export function AdminExperienceSettingsDrawer({
     clearGalleryDragState();
   }
 
+  function handlePreviewDragStart(index: number, event: DragEvent<HTMLButtonElement>) {
+    previewDraggingIndexRef.current = index;
+    setPreviewDraggingIndex(index);
+    setPreviewDragOverIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `preview-${index}`);
+
+    const item = event.currentTarget.closest(".admin-gallery-item");
+    if (item instanceof HTMLElement) {
+      const rect = item.getBoundingClientRect();
+      const ghost = item.cloneNode(true) as HTMLElement;
+      ghost.classList.add("admin-gallery-drag-ghost");
+      ghost.style.position = "fixed";
+      ghost.style.top = "-1000px";
+      ghost.style.left = "0";
+      ghost.style.width = `${rect.width}px`;
+      ghost.style.pointerEvents = "none";
+      document.body.appendChild(ghost);
+      event.dataTransfer.setDragImage(
+        ghost,
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+      );
+      window.setTimeout(() => ghost.remove(), 0);
+    }
+  }
+
+  function handlePreviewDragOver(targetIndex: number, event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+
+    const sourceIndex = previewDraggingIndexRef.current;
+    if (sourceIndex === null) return;
+
+    setPreviewDragOverIndex(targetIndex);
+    if (sourceIndex === targetIndex) return;
+
+    setDraft((current) => {
+      const checkoutPreview = [...(current.checkoutPreview ?? [])];
+      const [moved] = checkoutPreview.splice(sourceIndex, 1);
+      checkoutPreview.splice(targetIndex, 0, moved);
+      return { ...current, checkoutPreview };
+    });
+    previewDraggingIndexRef.current = targetIndex;
+    setPreviewDraggingIndex(targetIndex);
+  }
+
+  function clearPreviewDragState() {
+    previewDraggingIndexRef.current = null;
+    setPreviewDraggingIndex(null);
+    setPreviewDragOverIndex(null);
+  }
+
+  function handlePreviewDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    clearPreviewDragState();
+  }
+
   function handleSave() {
     onSave({
       ...draft,
       title: draft.title.trim() || "Nová varianta",
       price: Math.max(0, draft.price),
+      checkoutPreview: (draft.checkoutPreview ?? []).slice(
+        0,
+        MAX_CHECKOUT_PREVIEW_IMAGES,
+      ),
       gallery: draft.gallery.slice(0, MAX_GALLERY_IMAGES),
       infoLinks: draft.infoLinks.filter((link) => link.label.trim() || link.href.trim()),
     });
@@ -344,15 +798,148 @@ export function AdminExperienceSettingsDrawer({
 
           <div className="admin-field">
             <span className="admin-field-label">
-              Galerie
-              <FieldTooltip
-                text={`Maximálně ${MAX_GALLERY_IMAGES} obrázky. Přetáhněte pro změnu pořadí, klikněte pro náhled.`}
-              />
+              Náhled objednávky
+              <FieldTooltip text="Obrázek nahoře v checkoutu. 1 obrázek = celá šířka, 2 obrázky = rozdělení 50/50. Pořadí změníte přetažením." />
             </span>
-            <div className="admin-gallery-grid">
+            <div className="admin-gallery-grid admin-checkout-preview-grid">
+              {(draft.checkoutPreview ?? []).map((image, index) => {
+                const previewCount = (draft.checkoutPreview ?? []).length;
+
+                return (
+                  <div
+                    key={`${image.src}-${index}`}
+                    className={[
+                      "admin-gallery-item",
+                      previewDraggingIndex === index ? "is-dragging" : "",
+                      previewDragOverIndex === index && previewDraggingIndex !== null
+                        ? "is-drop-target"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onDragOver={(event) => handlePreviewDragOver(index, event)}
+                    onDrop={handlePreviewDrop}
+                  >
+                    <button
+                      type="button"
+                      className="admin-gallery-open"
+                      onClick={() => setLightboxImage(image)}
+                      aria-label={`Zvětšit náhled ${index + 1}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={image.src}
+                        alt={image.alt || `Náhled ${index + 1}`}
+                        className="admin-gallery-image"
+                        draggable={false}
+                      />
+                    </button>
+                    {previewCount > 1 ? (
+                      <button
+                        type="button"
+                        className="admin-gallery-drag-handle"
+                        draggable
+                        aria-label="Přetáhnout náhled"
+                        onClick={(event) => event.stopPropagation()}
+                        onDragStart={(event) => handlePreviewDragStart(index, event)}
+                        onDragEnd={clearPreviewDragState}
+                      >
+                        <MaskIcon src="/icons/drag.svg" />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="admin-gallery-remove"
+                      onClick={() => removeCheckoutPreviewImage(index)}
+                      aria-label={`Odebrat náhled ${index + 1}`}
+                    >
+                      <MaskIcon src="/icons/kos.svg" />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {(draft.checkoutPreview ?? []).length < MAX_CHECKOUT_PREVIEW_IMAGES ? (
+                <label
+                  className={
+                    uploadingPreview
+                      ? "admin-gallery-add is-uploading"
+                      : "admin-gallery-add"
+                  }
+                  htmlFor={previewInputId}
+                >
+                  <input
+                    id={previewInputId}
+                    ref={previewInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
+                    hidden
+                    disabled={uploadingPreview}
+                    onChange={(event) => {
+                      const files = event.target.files;
+                      if (files?.length) {
+                        void uploadCheckoutPreviewFiles(files);
+                      }
+                      event.target.value = "";
+                    }}
+                  />
+                  {uploadingPreview ? (
+                    <span className="admin-gallery-add-label">Nahrávám…</span>
+                  ) : (
+                    <span className="admin-gallery-add-label">Přidat</span>
+                  )}
+                </label>
+              ) : null}
+            </div>
+            {previewError ? <p className="admin-drawer-error">{previewError}</p> : null}
+          </div>
+
+          <div className="admin-field">
+            <span className="admin-field-label">
+              Galerie
+                  <FieldTooltip
+                    text={`Maximálně ${MAX_GALLERY_IMAGES} obrázky. Další přidáte přes „+“, nebo přetažením souborů. Pořadí změníte přetažením náhledů.`}
+                  />
+            </span>
+            <div
+              className={
+                galleryDropActive
+                  ? "admin-gallery-grid is-file-drop"
+                  : "admin-gallery-grid"
+              }
+              onDragEnter={(event) => {
+                if (!event.dataTransfer.types.includes("Files")) return;
+                event.preventDefault();
+                setGalleryDropActive(true);
+              }}
+              onDragOver={(event) => {
+                if (!event.dataTransfer.types.includes("Files")) return;
+                event.preventDefault();
+                setGalleryDropActive(true);
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node)) {
+                  return;
+                }
+                setGalleryDropActive(false);
+              }}
+              onDrop={(event) => {
+                if (!event.dataTransfer.files?.length) {
+                  handleGalleryDrop(event);
+                  return;
+                }
+                event.preventDefault();
+                setGalleryDropActive(false);
+                if (uploadingGallery || draft.gallery.length >= MAX_GALLERY_IMAGES) {
+                  return;
+                }
+                void uploadGalleryFiles(Array.from(event.dataTransfer.files));
+              }}
+            >
               {draft.gallery.map((image, index) => (
                 <div
-                  key={image.src}
+                  key={`${image.src}-${index}`}
                   className={[
                     "admin-gallery-item",
                     draggingIndex === index ? "is-dragging" : "",
@@ -360,8 +947,28 @@ export function AdminExperienceSettingsDrawer({
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  onDragOver={(event) => handleGalleryDragOver(index, event)}
-                  onDrop={handleGalleryDrop}
+                  onDragOver={(event) => {
+                    if (event.dataTransfer.types.includes("Files")) {
+                      event.preventDefault();
+                      setGalleryDropActive(true);
+                      return;
+                    }
+                    handleGalleryDragOver(index, event);
+                  }}
+                  onDrop={(event) => {
+                    if (event.dataTransfer.files?.length) {
+                      event.preventDefault();
+                      setGalleryDropActive(false);
+                      if (
+                        !uploadingGallery &&
+                        draft.gallery.length < MAX_GALLERY_IMAGES
+                      ) {
+                        void uploadGalleryFiles(Array.from(event.dataTransfer.files));
+                      }
+                      return;
+                    }
+                    handleGalleryDrop(event);
+                  }}
                 >
                   <button
                     type="button"
@@ -383,6 +990,7 @@ export function AdminExperienceSettingsDrawer({
                     className="admin-gallery-drag-handle"
                     draggable
                     aria-label="Přetáhnout obrázek"
+                    onClick={(event) => event.stopPropagation()}
                     onDragStart={(event) => handleGalleryDragStart(index, event)}
                     onDragEnd={clearGalleryDragState}
                   >
@@ -398,12 +1006,60 @@ export function AdminExperienceSettingsDrawer({
                   </button>
                 </div>
               ))}
+
+              {draft.gallery.length < MAX_GALLERY_IMAGES ? (
+                <label
+                  className={
+                    uploadingGallery
+                      ? "admin-gallery-add is-uploading"
+                      : "admin-gallery-add"
+                  }
+                  aria-label={
+                    uploadingGallery ? "Nahrávám obrázek" : "Přidat obrázek"
+                  }
+                  aria-busy={uploadingGallery}
+                >
+                  <input
+                    id={galleryInputId}
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    multiple
+                    disabled={uploadingGallery}
+                    tabIndex={-1}
+                    className="admin-file-input-hidden"
+                    onChange={(event) => {
+                      const input = event.currentTarget;
+                      const files = input.files ? Array.from(input.files) : [];
+                      input.value = "";
+                      void uploadGalleryFiles(files);
+                    }}
+                  />
+                  {uploadingGallery ? (
+                    <span className="admin-gallery-add-label">Nahrávám…</span>
+                  ) : (
+                    <>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        aria-hidden
+                      >
+                        <path
+                          d="M7 2v10M2 7h10"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <span className="admin-gallery-add-label">Přidat</span>
+                    </>
+                  )}
+                </label>
+              ) : null}
             </div>
-            {draft.gallery.length < MAX_GALLERY_IMAGES ? (
-              <button type="button" className="admin-outline-btn">
-                + Přidat obrázek
-              </button>
-            ) : null}
+            {galleryError ? <p className="admin-drawer-error">{galleryError}</p> : null}
           </div>
 
           <div className="admin-field">
@@ -454,21 +1110,164 @@ export function AdminExperienceSettingsDrawer({
             <div className="admin-pdf-steps">
               <div className="admin-upload-zone is-compact">
                 <strong>1. Nahrajte poukaz ve formátu PDF</strong>
-                <button type="button" className="admin-outline-btn">
-                  + Nahrát PDF
-                </button>
+
+                {draft.pdfTemplate ? (
+                  <div className="admin-pdf-file">
+                    <button
+                      type="button"
+                      className="admin-pdf-file-preview"
+                      onClick={() => setPdfPreviewOpen(true)}
+                      aria-label={`Zobrazit náhled ${draft.pdfTemplate.fileName}`}
+                    >
+                      <span className="admin-pdf-file-badge" aria-hidden>
+                        PDF
+                      </span>
+                      <span className="admin-pdf-file-name">
+                        {draft.pdfTemplate.fileName}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-pdf-file-remove"
+                      aria-label="Odebrat PDF"
+                      onClick={removePdfTemplate}
+                    >
+                      <MaskIcon src="/icons/kos.svg" />
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    className={
+                      uploadingPdf
+                        ? "admin-outline-btn is-uploading"
+                        : "admin-outline-btn"
+                    }
+                    aria-busy={uploadingPdf}
+                  >
+                    <input
+                      id={pdfInputId}
+                      ref={pdfInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      disabled={uploadingPdf}
+                      tabIndex={-1}
+                      className="admin-file-input-hidden"
+                      onChange={(event) => {
+                        const input = event.currentTarget;
+                        const file = input.files?.[0];
+                        input.value = "";
+                        void uploadPdfFile(file);
+                      }}
+                    />
+                    {uploadingPdf ? (
+                      "Nahrávám…"
+                    ) : (
+                      <>
+                        <PlusIcon />
+                        Nahrát PDF
+                      </>
+                    )}
+                  </label>
+                )}
+
+                {pdfError ? <p className="admin-drawer-error">{pdfError}</p> : null}
               </div>
-              <div className="admin-upload-zone is-compact is-disabled">
+              <div
+                className={
+                  draft.pdfTemplate
+                    ? "admin-upload-zone is-compact"
+                    : "admin-upload-zone is-compact is-disabled"
+                }
+              >
                 <strong>2. Zvolte pozici kódu na poukazu</strong>
-                <button type="button" className="admin-outline-btn" disabled>
-                  + Nastavit pozici
-                </button>
+
+                {draft.codePosition ? (
+                  <div className="admin-pdf-file">
+                    <div className="admin-pdf-file-preview is-static">
+                      <span className="admin-pdf-file-badge" aria-hidden>
+                        POZICE
+                      </span>
+                      <span className="admin-pdf-file-name">
+                        {formatCodePositionLabel(draft.codePosition)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-pdf-file-edit"
+                      aria-label="Upravit pozici kódu"
+                      onClick={() => setCodeEditorOpen(true)}
+                    >
+                      <MaskIcon src="/icons/Edit.svg" />
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-pdf-file-remove"
+                      aria-label="Odebrat pozici kódu"
+                      onClick={removeCodePosition}
+                    >
+                      <MaskIcon src="/icons/kos.svg" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="admin-outline-btn"
+                    disabled={!draft.pdfTemplate}
+                    onClick={() => setCodeEditorOpen(true)}
+                  >
+                    <TargetIcon />
+                    Nastavit pozici
+                  </button>
+                )}
               </div>
-              <div className="admin-upload-zone is-compact is-disabled">
+              <div
+                className={
+                  draft.codePosition
+                    ? "admin-upload-zone is-compact"
+                    : "admin-upload-zone is-compact is-disabled"
+                }
+              >
                 <strong>3. Zvolte pozici QR kódu (volitelné)</strong>
-                <button type="button" className="admin-outline-btn" disabled>
-                  + Nastavit pozici
-                </button>
+
+                {draft.qrPosition ? (
+                  <div className="admin-pdf-file">
+                    <div className="admin-pdf-file-preview is-static">
+                      <span className="admin-pdf-file-badge" aria-hidden>
+                        QR
+                      </span>
+                      <span className="admin-pdf-file-name">
+                        {formatCodePositionLabel(draft.qrPosition)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-pdf-file-edit"
+                      aria-label="Upravit pozici QR kódu"
+                      disabled={!draft.codePosition}
+                      onClick={() => setQrEditorOpen(true)}
+                    >
+                      <MaskIcon src="/icons/Edit.svg" />
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-pdf-file-remove"
+                      aria-label="Odebrat pozici QR kódu"
+                      onClick={removeQrPosition}
+                    >
+                      <MaskIcon src="/icons/kos.svg" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="admin-outline-btn"
+                    disabled={!draft.codePosition}
+                    onClick={() => setQrEditorOpen(true)}
+                  >
+                    <TargetIcon />
+                    Nastavit pozici
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -499,6 +1298,31 @@ export function AdminExperienceSettingsDrawer({
 
       {lightboxImage ? (
         <GalleryLightbox image={lightboxImage} onClose={() => setLightboxImage(null)} />
+      ) : null}
+
+      {pdfPreviewOpen && draft.pdfTemplate ? (
+        <PdfPreviewLightbox
+          pdf={draft.pdfTemplate}
+          onClose={() => setPdfPreviewOpen(false)}
+        />
+      ) : null}
+
+      {codeEditorOpen && draft.pdfTemplate ? (
+        <AdminPdfCodePositionEditor
+          pdfUrl={draft.pdfTemplate.url}
+          initialPosition={draft.codePosition}
+          onClose={() => setCodeEditorOpen(false)}
+          onSave={saveCodePosition}
+        />
+      ) : null}
+
+      {qrEditorOpen && draft.pdfTemplate ? (
+        <AdminPdfQrPositionEditor
+          pdfUrl={draft.pdfTemplate.url}
+          initialPosition={draft.qrPosition}
+          onClose={() => setQrEditorOpen(false)}
+          onSave={saveQrPosition}
+        />
       ) : null}
     </>
   );

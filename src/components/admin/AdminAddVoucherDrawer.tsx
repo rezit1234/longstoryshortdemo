@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createInitialVoucherSettings,
+  type AdminVoucherSettings,
   VOUCHER_CODE_PREFIX,
+  VOUCHER_CODE_SUFFIX_LENGTH,
+  extractVoucherCodeSuffix,
+  normalizeVoucherCode,
 } from "@/data/admin-voucher-settings";
 import { formatCzk } from "@/data/vouchers";
 import { AdminDismissButton } from "./AdminDismissButton";
@@ -13,17 +17,20 @@ const DRAWER_ANIMATION_MS = 220;
 
 type VoucherKind = "experience" | "amount";
 
-function generateVoucherCode() {
+function generateVoucherSuffix() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let suffix = "";
-  for (let index = 0; index < 6; index += 1) {
+  for (let index = 0; index < VOUCHER_CODE_SUFFIX_LENGTH; index += 1) {
     suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
-  return `${VOUCHER_CODE_PREFIX}${suffix}`;
+  return suffix;
 }
 
 export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
-  const settings = useMemo(() => createInitialVoucherSettings(), []);
+  const fallbackSettings = useRef(createInitialVoucherSettings()).current;
+  const [settings, setSettings] = useState<AdminVoucherSettings>(fallbackSettings);
+  const [settingsHydrated, setSettingsHydrated] = useState(false);
+
   const amountOptions = useMemo(
     () => settings.amountSlots.filter((amount): amount is number => amount !== null),
     [settings.amountSlots],
@@ -59,11 +66,62 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState(() => generateVoucherCode());
+  const [codeSuffix, setCodeSuffix] = useState(() => generateVoucherSuffix());
 
   const requestClose = useCallback(() => {
     setIsClosing(true);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/voucher-settings");
+        const data = (await response.json().catch(() => null)) as {
+          settings?: AdminVoucherSettings;
+          error?: string;
+        } | null;
+
+        if (!response.ok || !data?.settings) {
+          throw new Error(data?.error || "Nepodařilo se načíst nastavení.");
+        }
+
+        if (cancelled) return;
+        setSettings(data.settings);
+      } catch {
+        // Ponecháme fallback z createInitialVoucherSettings().
+      } finally {
+        if (!cancelled) setSettingsHydrated(true);
+      }
+    }
+
+    void loadSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!settingsHydrated) return;
+
+    setExperienceId((current) => {
+      const ids = settings.experiences.map((experience) => experience.id);
+      return ids.includes(current) ? current : (ids[0] ?? "");
+    });
+
+    setAmountValue((current) => {
+      if (current === "custom") return current;
+      const amounts = settings.amountSlots.filter(
+        (amount): amount is number => amount !== null,
+      );
+      return amounts.some((amount) => String(amount) === current)
+        ? current
+        : amounts[0]
+          ? String(amounts[0])
+          : "custom";
+    });
+  }, [settings, settingsHydrated]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -164,9 +222,11 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
                 ariaLabel="Vyberte zážitek"
                 value={experienceId}
                 options={
-                  experienceOptions.length > 0
-                    ? experienceOptions
-                    : [{ value: "", label: "Žádné zážitky nejsou nastavené" }]
+                  !settingsHydrated
+                    ? [{ value: "", label: "Načítám zážitky…" }]
+                    : experienceOptions.length > 0
+                      ? experienceOptions
+                      : [{ value: "", label: "Žádné zážitky nejsou nastavené" }]
                 }
                 onChange={setExperienceId}
               />
@@ -177,7 +237,11 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
               <AdminSelect
                 ariaLabel="Vyberte částku"
                 value={amountValue}
-                options={amountSelectOptions}
+                options={
+                  !settingsHydrated
+                    ? [{ value: amountValue, label: "Načítám částky…" }]
+                    : amountSelectOptions
+                }
                 onChange={setAmountValue}
               />
               {amountValue === "custom" ? (
@@ -230,15 +294,30 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
             />
           </label>
 
-          <label className="admin-field">
+          <div className="admin-field">
             <span>Kód poukazu</span>
-            <input
-              type="text"
-              value={code}
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
-            />
-            <em>Předvyplněný unikátní kód můžete přepsat na vlastní.</em>
-          </label>
+            <div className="admin-redeem-code-control">
+              <span className="admin-redeem-code-prefix" aria-hidden>
+                {VOUCHER_CODE_PREFIX}
+              </span>
+              <input
+                type="text"
+                value={codeSuffix}
+                onChange={(event) =>
+                  setCodeSuffix(extractVoucherCodeSuffix(event.target.value))
+                }
+                placeholder="1A2B3C"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={VOUCHER_CODE_SUFFIX_LENGTH}
+                aria-label={`Kód poukazu, prefix ${VOUCHER_CODE_PREFIX}`}
+              />
+            </div>
+            <em>
+              Předvyplněný kód můžete přepsat. Uloží se jako{" "}
+              {normalizeVoucherCode(codeSuffix) || `${VOUCHER_CODE_PREFIX}-XXXXXX`}.
+            </em>
+          </div>
         </div>
 
         <div className="admin-voucher-drawer-footer admin-add-voucher-footer">

@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { getRecentAdminVouchers } from "@/data/admin-vouchers";
 import { formatCzk } from "@/data/vouchers";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
-import { IconCopy } from "./icons";
+import { useAdminUser } from "./AdminUserProvider";
+import { AdminShopQrModal } from "./AdminShopQrModal";
+import { IconCheck, IconCopy, IconQr } from "./icons";
 
 const STATS = [
   {
@@ -58,17 +60,10 @@ type ChartPoint = {
   y: number;
 };
 
-function HeaderMaskIcon({ src }: { src: string }) {
-  return (
-    <span
-      className="admin-mask-icon"
-      style={{
-        WebkitMaskImage: `url(${src})`,
-        maskImage: `url(${src})`,
-      }}
-      aria-hidden
-    />
-  );
+function getGreetingFirstName(fullName: string) {
+  const trimmed = fullName.trim();
+  if (!trimmed || trimmed === "…") return null;
+  return trimmed.split(/\s+/)[0] ?? null;
 }
 
 function buildLast30DaysSeries(endDate: Date) {
@@ -312,11 +307,14 @@ function RevenueChart({ series }: { series: { date: Date; value: number }[] }) {
 }
 
 export function AdminOverview() {
+  const { user } = useAdminUser();
   const { openVoucher, activeVoucherCode, vouchers } = useAdminVoucherDrawer();
   const [copied, setCopied] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [shopUrl, setShopUrl] = useState("/");
   const recentSales = useMemo(() => getRecentAdminVouchers(5, vouchers), [vouchers]);
   const chartSeries = useMemo(() => buildLast30DaysSeries(new Date(2026, 7, 24)), []);
+  const greetingName = getGreetingFirstName(user.name);
 
   useEffect(() => {
     setShopUrl(`${window.location.origin}/`);
@@ -336,8 +334,8 @@ export function AdminOverview() {
     <div className="admin-overview">
       <div className="admin-overview-head">
         <div>
-          <h1>Vítejte, Long Story Short</h1>
-          <p>Přehled vašeho obchodu.</p>
+          <h1>{greetingName ? `Vítejte, ${greetingName}` : "Vítejte"}</h1>
+          <p>Přehled dárkových poukazů Long Story Short.</p>
         </div>
 
         <div className="admin-shop-link">
@@ -346,24 +344,34 @@ export function AdminOverview() {
             <input type="text" readOnly value={shopUrl} aria-label="Odkaz na obchod" />
             <button
               type="button"
-              className="admin-icon-btn"
+              className={
+                copied ? "admin-icon-btn is-copied" : "admin-icon-btn"
+              }
               onClick={copyLink}
-              aria-label="Kopírovat odkaz"
+              aria-label={copied ? "Zkopírováno" : "Kopírovat odkaz"}
               title={copied ? "Zkopírováno" : "Kopírovat"}
             >
-              <IconCopy className="admin-icon" />
+              <span className="admin-copy-icon-wrap" aria-hidden>
+                <IconCopy className="admin-icon admin-copy-icon is-copy" />
+                <IconCheck className="admin-icon admin-copy-icon is-check" />
+              </span>
             </button>
             <button
               type="button"
               className="admin-icon-btn"
               aria-label="QR kód obchodu"
               title="QR kód"
+              onClick={() => setQrOpen(true)}
             >
-              <HeaderMaskIcon src="/icons/qrcode.svg" />
+              <IconQr className="admin-icon" />
             </button>
           </div>
         </div>
       </div>
+
+      {qrOpen ? (
+        <AdminShopQrModal shopUrl={shopUrl} onClose={() => setQrOpen(false)} />
+      ) : null}
 
       <section className="admin-stats" aria-label="Statistiky">
         {STATS.map((stat) => (
@@ -400,6 +408,9 @@ export function AdminOverview() {
               <h2>Nejoblíbenější varianty</h2>
               <p>Podle počtu prodejů.</p>
             </div>
+            <Link href="/admin/nastavenipoukazu" className="admin-text-link">
+              Spravovat
+            </Link>
           </div>
           <ul className="admin-popular-list">
             {POPULAR_VARIANTS.map((variant) => (

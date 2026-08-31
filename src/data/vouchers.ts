@@ -3,6 +3,67 @@ export type AmountVoucher = {
   amount: number;
 };
 
+export type AmountPreviewSettings = {
+  slotPreviews: (ExperienceGalleryImage | null)[];
+  customPreview: ExperienceGalleryImage | null;
+};
+
+export const AMOUNT_PREVIEW_DIR = "/poukazycastkanahled";
+export const AMOUNT_PREVIEW_FALLBACK = "/poukazimg.jpeg";
+
+export function amountPreviewSrcForValue(amount: number) {
+  return `${AMOUNT_PREVIEW_DIR}/${amount}kc.webp`;
+}
+
+export function amountCustomPreviewSrc() {
+  return `${AMOUNT_PREVIEW_DIR}/custom.webp`;
+}
+
+export function defaultAmountPreviewForValue(amount: number): ExperienceGalleryImage {
+  return {
+    src: amountPreviewSrcForValue(amount),
+    alt: `Dárkový poukaz ${formatCzk(amount)}`,
+  };
+}
+
+export function defaultAmountCustomPreview(): ExperienceGalleryImage {
+  return {
+    src: amountCustomPreviewSrc(),
+    alt: "Dárkový poukaz na vlastní částku",
+  };
+}
+
+export function createDefaultAmountPreviews(
+  amountSlots: (number | null)[],
+): AmountPreviewSettings {
+  void amountSlots;
+  return {
+    slotPreviews: [null, null, null, null],
+    customPreview: null,
+  };
+}
+
+export function resolveAmountCheckoutPreview(
+  amount: number,
+  amountVouchers: AmountVoucher[],
+  previews?: AmountPreviewSettings | null,
+): ExperienceGalleryImage {
+  const slotIndex = amountVouchers.findIndex((voucher) => voucher.amount === amount);
+  const isPreset = slotIndex >= 0;
+
+  if (isPreset) {
+    const override = previews?.slotPreviews?.[slotIndex];
+    if (override?.src) return override;
+    return defaultAmountPreviewForValue(amount);
+  }
+
+  if (previews?.customPreview?.src) {
+    return previews.customPreview;
+  }
+
+  return defaultAmountCustomPreview();
+}
+
 export type ExperienceInfoLink = {
   label: string;
   href: string;
@@ -22,6 +83,7 @@ export type ExperienceVoucher = {
   suitableFor: string;
   infoLinks?: ExperienceInfoLink[];
   gallery?: ExperienceGalleryImage[];
+  checkoutPreview?: ExperienceGalleryImage[];
 };
 
 export const AMOUNT_VOUCHERS: AmountVoucher[] = [

@@ -2,6 +2,12 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  VOUCHER_CODE_PREFIX,
+  VOUCHER_CODE_SUFFIX_LENGTH,
+  extractVoucherCodeSuffix,
+  normalizeVoucherCode,
+} from "@/data/admin-voucher-settings";
 import { getAdminVoucherByCode } from "@/data/admin-vouchers";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 
@@ -13,16 +19,16 @@ type ResultState =
 export function AdminUplatneni() {
   const searchParams = useSearchParams();
   const { openVoucher, vouchers } = useAdminVoucherDrawer();
-  const [code, setCode] = useState("");
+  const [suffix, setSuffix] = useState("");
   const [result, setResult] = useState<ResultState>({ kind: "idle" });
 
   useEffect(() => {
     const initialCode = searchParams.get("code");
     if (!initialCode) return;
 
-    const normalized = initialCode.trim().toUpperCase();
-    setCode(normalized);
-    openByCode(normalized);
+    const nextSuffix = extractVoucherCodeSuffix(initialCode);
+    setSuffix(nextSuffix);
+    openByCode(normalizeVoucherCode(nextSuffix));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to URL prefill
   }, [searchParams]);
 
@@ -52,9 +58,14 @@ export function AdminUplatneni() {
     openVoucher(match);
   }
 
+  function handleSuffixChange(raw: string) {
+    setSuffix(extractVoucherCodeSuffix(raw));
+    if (result.kind !== "idle") setResult({ kind: "idle" });
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    openByCode(code.trim().toUpperCase());
+    openByCode(normalizeVoucherCode(suffix));
   }
 
   return (
@@ -62,7 +73,7 @@ export function AdminUplatneni() {
       <div className="admin-page-head">
         <div>
           <h1>Uplatnění poukazu</h1>
-          <p>Zadejte kód poukazu a otevřete jeho detail.</p>
+          <p>Zadejte šest znaků kódu a otevřete detail poukazu.</p>
         </div>
       </div>
 
@@ -70,17 +81,21 @@ export function AdminUplatneni() {
         <form className="admin-redeem-form" onSubmit={handleSubmit}>
           <label className="admin-redeem-field">
             <span className="admin-redeem-label">Kód poukazu</span>
-            <input
-              type="text"
-              value={code}
-              onChange={(event) => {
-                setCode(event.target.value);
-                if (result.kind !== "idle") setResult({ kind: "idle" });
-              }}
-              placeholder="např. TOA1B2C"
-              autoComplete="off"
-              spellCheck={false}
-            />
+            <div className="admin-redeem-code-control">
+              <span className="admin-redeem-code-prefix" aria-hidden>
+                {VOUCHER_CODE_PREFIX}
+              </span>
+              <input
+                type="text"
+                value={suffix}
+                onChange={(event) => handleSuffixChange(event.target.value)}
+                placeholder="1A2B3C"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={VOUCHER_CODE_SUFFIX_LENGTH}
+                aria-label={`Kód poukazu, prefix ${VOUCHER_CODE_PREFIX}`}
+              />
+            </div>
           </label>
           <button type="submit" className="admin-primary-btn admin-redeem-submit">
             <span

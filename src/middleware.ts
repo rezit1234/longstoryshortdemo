@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { AUTH_COOKIE } from "@/lib/auth";
+import { NextResponse, type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const session = request.cookies.get(AUTH_COOKIE)?.value;
-  const isLoggedIn = session === "ok";
+  const { user, supabaseResponse } = await updateSession(request);
+  const isLoggedIn = Boolean(user);
 
   if (pathname.startsWith("/admin") && !isLoggedIn) {
     const loginUrl = new URL("/login", request.url);
@@ -14,12 +13,16 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname === "/login" && isLoggedIn) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+    return NextResponse.redirect(new URL("/admin/prehled", request.url));
   }
 
-  return NextResponse.next();
+  if (pathname === "/admin" && isLoggedIn) {
+    return NextResponse.redirect(new URL("/admin/prehled", request.url));
+  }
+
+  return supabaseResponse;
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/login"],
+  matcher: ["/admin", "/admin/:path*", "/login"],
 };

@@ -1,15 +1,23 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   AMOUNT_VOUCHERS,
   EXPERIENCE_VOUCHERS,
   formatCzk,
+  resolveAmountCheckoutPreview,
+  type AmountPreviewSettings,
+  type AmountVoucher,
   type ExperienceGalleryImage,
   type ExperienceVoucher,
 } from "@/data/vouchers";
+import type { AdminVoucherSettings } from "@/data/admin-voucher-settings";
 import { setBlobOrigin } from "@/lib/blobOrigin";
+import {
+  settingsToAmountVouchers,
+  settingsToExperienceVouchers,
+} from "@/lib/voucher-settings";
 
 function CartIcon({ className }: { className?: string }) {
   return (
@@ -27,6 +35,211 @@ function CartIcon({ className }: { className?: string }) {
     >
       <path d="M104,216a16,16,0,1,1-16-16A16,16,0,0,1,104,216Zm88-16a16,16,0,1,0,16,16A16,16,0,0,0,192,200ZM239.71,74.14l-25.64,92.28A24.06,24.06,0,0,1,191,184H92.16A24.06,24.06,0,0,1,69,166.42L33.92,40H16a8,8,0,0,1,0-16H40a8,8,0,0,1,7.71,5.86L57.19,64H232a8,8,0,0,1,7.71,10.14ZM221.47,80H61.64l22.81,82.14A8,8,0,0,0,92.16,168H191a8,8,0,0,0,7.71-5.86Z" />
     </svg>
+  );
+}
+
+function CardIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="10"
+      strokeLinejoin="round"
+      width="24"
+      height="24"
+      aria-hidden
+    >
+      <path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,16V88H32V64Zm0,128H32V104H224v88Zm-16-24a8,8,0,0,1-8,8H168a8,8,0,0,1,0-16h32A8,8,0,0,1,208,168Zm-64,0a8,8,0,0,1-8,8H120a8,8,0,0,1,0-16h16A8,8,0,0,1,144,168Z" />
+    </svg>
+  );
+}
+
+function GiftIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="10"
+      strokeLinejoin="round"
+      width="20"
+      height="20"
+      aria-hidden
+    >
+      <path d="M216,72H180.92c.39-.33.79-.65,1.17-1A29.53,29.53,0,0,0,192,49.57,32.62,32.62,0,0,0,158.44,16,29.53,29.53,0,0,0,137,25.91a54.94,54.94,0,0,0-9,14.48,54.94,54.94,0,0,0-9-14.48A29.53,29.53,0,0,0,97.56,16,32.62,32.62,0,0,0,64,49.57,29.53,29.53,0,0,0,73.91,71c.38.33.78.65,1.17,1H40A16,16,0,0,0,24,88v32a16,16,0,0,0,16,16v64a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V136a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72ZM149,36.51a13.69,13.69,0,0,1,10-4.5h.49A16.62,16.62,0,0,1,176,49.08a13.69,13.69,0,0,1-4.5,10c-9.49,8.4-25.24,11.36-35,12.4C137.7,60.89,141,45.5,149,36.51Zm-64.09.36A16.63,16.63,0,0,1,96.59,32h.49a13.69,13.69,0,0,1,10,4.5c8.39,9.48,11.35,25.2,12.39,34.92-9.72-1-25.44-4-34.92-12.39a13.69,13.69,0,0,1-4.5-10A16.6,16.6,0,0,1,84.87,36.87ZM40,88h80v32H40Zm16,48h64v64H56Zm144,64H136V136h64Zm16-80H136V88h80v32Z" />
+    </svg>
+  );
+}
+
+function UserIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="10"
+      strokeLinejoin="round"
+      width="20"
+      height="20"
+      aria-hidden
+    >
+      <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.76,66.41a79.66,79.66,0,0,0-36.06-28.75,48,48,0,1,0-59.4,0,79.66,79.66,0,0,0-36.06,28.75,88,88,0,1,1,131.52,0Z" />
+    </svg>
+  );
+}
+
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="10"
+      strokeLinejoin="round"
+      width="18"
+      height="18"
+      aria-hidden
+    >
+      <path d="M128,24a104,104,0,0,0,0,208c21.51,0,44.1-6.48,60.43-17.33a8,8,0,0,0-8.86-13.33C166,210.38,146.21,216,128,216a88,88,0,1,1,88-88c0,26.45-10.88,32-20,32s-20-5.55-20-32V88a8,8,0,0,0-16,0v4.26a48,48,0,1,0,5.93,65.1c6,12,16.35,18.64,30.07,18.64,22.54,0,36-17.94,36-48A104.11,104.11,0,0,0,128,24Zm0,136a32,32,0,1,1,32-32A32,32,0,0,1,128,160Z" />
+    </svg>
+  );
+}
+
+function PostIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="10"
+      strokeLinejoin="round"
+      width="18"
+      height="18"
+      aria-hidden
+    >
+      <path d="M246,106.65,212.33,69.3A16,16,0,0,0,200.44,64H136V32a8,8,0,0,0-16,0V64H40A16,16,0,0,0,24,80v64a16,16,0,0,0,16,16h80v64a8,8,0,0,0,16,0V160h64.44a16,16,0,0,0,11.89-5.3L246,117.35A8,8,0,0,0,246,106.65ZM200.44,144H40V80H200.44l28.8,32Z" />
+    </svg>
+  );
+}
+
+function PickupIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="10"
+      strokeLinejoin="round"
+      width="18"
+      height="18"
+      aria-hidden
+    >
+      <path d="M230.33,141.06a24.4,24.4,0,0,0-21.24-4.23l-41.84,9.62A28,28,0,0,0,140,112H89.94a31.82,31.82,0,0,0-22.63,9.37L44.69,144H16A16,16,0,0,0,0,160v40a16,16,0,0,0,16,16H120a7.93,7.93,0,0,0,1.94-.24l64-16a6.94,6.94,0,0,0,1.19-.4L226,182.82l.44-.2a24.6,24.6,0,0,0,3.93-41.56ZM16,160H40v40H16Zm203.43,8.21-38,16.18L119,200H56V155.31l22.63-22.62A15.86,15.86,0,0,1,89.94,128H140a12,12,0,0,1,0,24H112a8,8,0,0,0,0,16h32a8.32,8.32,0,0,0,1.79-.2l67-15.41.31-.08a8.6,8.6,0,0,1,6.3,15.9ZM154.34,77.66a8,8,0,0,1,11.32-11.32L184,84.69V24a8,8,0,0,1,16,0V84.69l18.34-18.35a8,8,0,0,1,11.32,11.32l-32,32a8,8,0,0,1-11.32,0Z" />
+    </svg>
+  );
+}
+
+type CheckoutSelectOption = {
+  value: string;
+  label: string;
+};
+
+function CheckoutSelect({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  options: CheckoutSelectOption[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  const listboxId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  const selected =
+    options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div
+      className={open ? "checkout-select is-open" : "checkout-select"}
+      ref={rootRef}
+    >
+      <button
+        type="button"
+        className="checkout-select-trigger"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selected?.label}</span>
+        <ChevronIcon className="checkout-select-chevron" />
+      </button>
+
+      {open ? (
+        <ul className="checkout-select-menu" id={listboxId} role="listbox">
+          {options.map((option) => (
+            <li key={option.value}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                className={
+                  option.value === value
+                    ? "checkout-select-option is-selected"
+                    : "checkout-select-option"
+                }
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -68,7 +281,152 @@ function ChevronIcon({ className }: { className?: string }) {
   );
 }
 
+function ChevronLeftIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="10"
+      strokeLinejoin="round"
+      width="16"
+      height="16"
+      aria-hidden
+    >
+      <path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z" />
+    </svg>
+  );
+}
+
 type ShopTab = "amount" | "experience";
+
+type CheckoutItem =
+  | {
+      kind: "amount";
+      amount: number;
+      preview: ExperienceGalleryImage;
+    }
+  | {
+      kind: "experience";
+      id: string;
+      title: string;
+      subtitle?: string;
+      price: number;
+      checkoutPreview: ExperienceGalleryImage[];
+    };
+
+type CheckoutRecipient = "other" | "self";
+type CheckoutDelivery = "email" | "post" | "pickup";
+
+type CheckoutFormState = {
+  recipient: CheckoutRecipient;
+  quantity: number;
+  buyerName: string;
+  recipientName: string;
+  message: string;
+  phone: string;
+  delivery: CheckoutDelivery;
+  deliveryEmail: string;
+  shippingName: string;
+  addressLine1: string;
+  city: string;
+  postalCode: string;
+  country: string;
+};
+
+const QUANTITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const POST_SHIPPING_FEE = 105;
+const PICKUP_FEE = 20;
+
+const EMPTY_CHECKOUT_FORM: CheckoutFormState = {
+  recipient: "other",
+  quantity: 1,
+  buyerName: "",
+  recipientName: "",
+  message: "",
+  phone: "",
+  delivery: "email",
+  deliveryEmail: "",
+  shippingName: "",
+  addressLine1: "",
+  city: "",
+  postalCode: "",
+  country: "CZ",
+};
+
+type CheckoutHeroImage = {
+  src: string;
+  alt: string;
+};
+
+type CheckoutHero =
+  | { mode: "single"; image: CheckoutHeroImage }
+  | { mode: "split"; left: CheckoutHeroImage; right: CheckoutHeroImage };
+
+const EATERY_HERO: CheckoutHeroImage = {
+  src: "/eatery-bakery.webp",
+  alt: "Dárkový poukaz Eatery Bakery",
+};
+
+const HOSTEL_HERO: CheckoutHeroImage = {
+  src: "/hostel.webp",
+  alt: "Dárkový poukaz Hostel",
+};
+
+const ROOM_ID_MARKERS = [
+  "the-arc",
+  "the-nook",
+  "the-big-one",
+  "the-flat",
+] as const;
+
+function experienceHasRoom(id: string) {
+  const normalized = id.toLowerCase();
+  return ROOM_ID_MARKERS.some((marker) => normalized.includes(marker));
+}
+
+function experienceHasChefsTable(id: string) {
+  return id.toLowerCase().includes("chefs-table");
+}
+
+function getCheckoutHero(item: CheckoutItem): CheckoutHero {
+  if (item.kind === "amount") {
+    return {
+      mode: "single",
+      image: { src: item.preview.src, alt: item.preview.alt },
+    };
+  }
+
+  const preview = item.checkoutPreview.filter((image) => image.src);
+  if (preview.length >= 2) {
+    return {
+      mode: "split",
+      left: { src: preview[0].src, alt: preview[0].alt },
+      right: { src: preview[1].src, alt: preview[1].alt },
+    };
+  }
+  if (preview.length === 1) {
+    return {
+      mode: "single",
+      image: { src: preview[0].src, alt: preview[0].alt },
+    };
+  }
+
+  const hasRoom = experienceHasRoom(item.id);
+  const hasChefs = experienceHasChefsTable(item.id);
+
+  if (hasRoom && hasChefs) {
+    return { mode: "split", left: EATERY_HERO, right: HOSTEL_HERO };
+  }
+
+  if (hasChefs) {
+    return { mode: "single", image: EATERY_HERO };
+  }
+
+  return { mode: "single", image: HOSTEL_HERO };
+}
 
 function GalleryNavIcon({ direction }: { direction: "prev" | "next" }) {
   return (
@@ -128,6 +486,7 @@ function GalleryThumbImage({
       }
       loading="lazy"
       decoding="async"
+      draggable={false}
     />
   );
 }
@@ -596,68 +955,158 @@ function ExperienceGallery({ images }: { images: ExperienceGalleryImage[] }) {
 
 export function VoucherShop() {
   const [tab, setTab] = useState<ShopTab>("experience");
+  const [amountVouchers, setAmountVouchers] = useState<AmountVoucher[]>(AMOUNT_VOUCHERS);
+  const [amountPreviews, setAmountPreviews] = useState<AmountPreviewSettings | null>(
+    null,
+  );
+  const [experienceVouchers, setExperienceVouchers] =
+    useState<ExperienceVoucher[]>(EXPERIENCE_VOUCHERS);
   const [selectedAmount, setSelectedAmount] = useState(
     AMOUNT_VOUCHERS[0]?.amount ?? 1000,
   );
   const [openId, setOpenId] = useState<string | null>(null);
+  const [checkoutItem, setCheckoutItem] = useState<CheckoutItem | null>(null);
+  const shopRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/voucher-settings");
+        const data = (await response.json().catch(() => null)) as {
+          settings?: AdminVoucherSettings;
+        } | null;
+        if (!response.ok || !data?.settings || cancelled) return;
+
+        const nextAmounts = settingsToAmountVouchers(data.settings);
+        const nextExperiences = settingsToExperienceVouchers(data.settings);
+        setAmountVouchers(nextAmounts.length > 0 ? nextAmounts : AMOUNT_VOUCHERS);
+        setAmountPreviews(data.settings.amountPreviews);
+        setExperienceVouchers(
+          nextExperiences.length > 0 ? nextExperiences : EXPERIENCE_VOUCHERS,
+        );
+        setSelectedAmount((current) => {
+          if (nextAmounts.some((voucher) => voucher.amount === current)) {
+            return current;
+          }
+          return nextAmounts[0]?.amount ?? AMOUNT_VOUCHERS[0]?.amount ?? 1000;
+        });
+      } catch {
+        // Keep hardcoded fallback.
+      }
+    }
+
+    void loadSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!checkoutItem) return;
+    shopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [checkoutItem]);
 
   return (
-    <div className="voucher-shop">
+    <div className="voucher-shop" ref={shopRef}>
       <div className="shop-box">
-        <section className="shop-hero" aria-label="Dárkové poukazy Long Story Short">
-          <div className="shop-hero-media">
-            <Image
-              src="/poukazimg.jpeg"
-              alt="Fyzické dárkové poukazy Long Story Short"
-              fill
-              priority
-              sizes="(max-width: 720px) 100vw, 720px"
-              className="shop-hero-image"
-            />
-          </div>
-        </section>
+        {checkoutItem ? (
+          <CheckoutHeroSection
+            item={checkoutItem}
+            onBack={() => setCheckoutItem(null)}
+          />
+        ) : (
+          <section className="shop-hero" aria-label="Dárkové poukazy Long Story Short">
+            <div className="shop-hero-media">
+              <Image
+                src="/poukazimg.jpeg"
+                alt="Fyzické dárkové poukazy Long Story Short"
+                fill
+                priority
+                sizes="(max-width: 720px) 100vw, 720px"
+                className="shop-hero-image"
+                draggable={false}
+              />
+            </div>
+          </section>
+        )}
 
-        <div className="shop-box-body">
-          <p className="shop-hero-brand">Long Story Short</p>
-          <p className="shop-hero-copy">
-            Vyberte poukaz na konkrétní zážitek, nebo na částku.
-          </p>
-
-          <div
-            className={
-              tab === "amount" ? "shop-tabs is-amount" : "shop-tabs is-experience"
-            }
-            role="tablist"
-            aria-label="Typ poukazu"
-          >
-            <span className="shop-tabs-indicator" aria-hidden />
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "experience"}
-              className={tab === "experience" ? "is-active" : undefined}
-              onClick={() => setTab("experience")}
-            >
-              Zážitky
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "amount"}
-              className={tab === "amount" ? "is-active" : undefined}
-              onClick={() => setTab("amount")}
-            >
-              Na částku
-            </button>
-          </div>
-
-          {tab === "experience" ? (
-            <ExperiencePanel openId={openId} onToggle={setOpenId} />
+        <div className={checkoutItem ? "shop-box-body is-checkout" : "shop-box-body"}>
+          {checkoutItem ? (
+            <CheckoutPanel item={checkoutItem} />
           ) : (
-            <AmountPanel
-              selectedAmount={selectedAmount}
-              onSelect={setSelectedAmount}
-            />
+            <>
+              <p className="shop-hero-brand">Long Story Short</p>
+              <p className="shop-hero-copy">
+                Vyberte poukaz na konkrétní zážitek, nebo na částku.
+              </p>
+
+              <div
+                className={
+                  tab === "amount"
+                    ? "shop-tabs is-amount"
+                    : "shop-tabs is-experience"
+                }
+                role="tablist"
+                aria-label="Typ poukazu"
+              >
+                <span className="shop-tabs-indicator" aria-hidden />
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "experience"}
+                  className={tab === "experience" ? "is-active" : undefined}
+                  onClick={() => setTab("experience")}
+                >
+                  Zážitky
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "amount"}
+                  className={tab === "amount" ? "is-active" : undefined}
+                  onClick={() => setTab("amount")}
+                >
+                  Na částku
+                </button>
+              </div>
+
+              {tab === "experience" ? (
+                <ExperiencePanel
+                  vouchers={experienceVouchers}
+                  openId={openId}
+                  onToggle={setOpenId}
+                  onBuy={(voucher) =>
+                    setCheckoutItem({
+                      kind: "experience",
+                      id: voucher.id,
+                      title: voucher.title,
+                      subtitle: voucher.subtitle,
+                      price: voucher.price,
+                      checkoutPreview: voucher.checkoutPreview ?? [],
+                    })
+                  }
+                />
+              ) : (
+                <AmountPanel
+                  vouchers={amountVouchers}
+                  selectedAmount={selectedAmount}
+                  onSelect={setSelectedAmount}
+                  onBuy={(amount) =>
+                    setCheckoutItem({
+                      kind: "amount",
+                      amount,
+                      preview: resolveAmountCheckoutPreview(
+                        amount,
+                        amountVouchers,
+                        amountPreviews,
+                      ),
+                    })
+                  }
+                />
+              )}
+            </>
           )}
         </div>
       </div>
@@ -665,12 +1114,474 @@ export function VoucherShop() {
   );
 }
 
+function CheckoutHeroSection({
+  item,
+  onBack,
+}: {
+  item: CheckoutItem;
+  onBack: () => void;
+}) {
+  const hero = getCheckoutHero(item);
+
+  return (
+    <section className="checkout-hero" aria-label="Náhled poukazu">
+      {hero.mode === "single" ? (
+        <div className="checkout-hero-media is-single">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={hero.image.src}
+            alt={hero.image.alt}
+            className="checkout-hero-image"
+            draggable={false}
+          />
+        </div>
+      ) : (
+        <div className="checkout-hero-media is-split" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={hero.left.src}
+            alt=""
+            className="checkout-hero-image is-left"
+            draggable={false}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={hero.right.src}
+            alt=""
+            className="checkout-hero-image is-right"
+            draggable={false}
+          />
+        </div>
+      )}
+
+      <button type="button" className="checkout-back" onClick={onBack}>
+        <ChevronLeftIcon className="checkout-back-icon" />
+        Zpět k výběru
+      </button>
+    </section>
+  );
+}
+
+function CheckoutPanel({ item }: { item: CheckoutItem }) {
+  const [form, setForm] = useState<CheckoutFormState>(EMPTY_CHECKOUT_FORM);
+  const [touched, setTouched] = useState(false);
+
+  const unitPrice = item.kind === "amount" ? item.amount : item.price;
+  const shippingFee =
+    form.delivery === "post"
+      ? POST_SHIPPING_FEE
+      : form.delivery === "pickup"
+        ? PICKUP_FEE
+        : 0;
+  const itemsTotal = unitPrice * form.quantity;
+  const total = itemsTotal + shippingFee;
+  const title =
+    item.kind === "amount"
+      ? `Poukaz na částku ${formatCzk(item.amount)}`
+      : item.title;
+  const subtitle =
+    item.kind === "experience"
+      ? item.subtitle
+      : "Dárkový poukaz Long Story Short";
+
+  const deliveryEmailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    form.deliveryEmail.trim(),
+  );
+  const recipientNameOk =
+    form.recipient === "self" || form.recipientName.trim().length > 0;
+  const postAddressOk =
+    form.shippingName.trim().length > 0 &&
+    form.addressLine1.trim().length > 0 &&
+    form.city.trim().length > 0 &&
+    form.postalCode.trim().length > 0;
+  const canPay =
+    form.buyerName.trim().length > 0 &&
+    form.phone.trim().length > 0 &&
+    recipientNameOk &&
+    (form.delivery !== "email" || deliveryEmailOk) &&
+    (form.delivery !== "post" || postAddressOk);
+
+  function updateForm<K extends keyof CheckoutFormState>(
+    key: K,
+    value: CheckoutFormState[K],
+  ) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handlePay() {
+    setTouched(true);
+    if (!canPay) return;
+    // Platba zatím jen UI — napojení platební brány přijde později.
+    console.info("checkout", {
+      item,
+      form,
+      unitPrice,
+      itemsTotal,
+      shippingFee,
+      total,
+    });
+  }
+
+  return (
+    <section className="checkout-panel" aria-label="Objednávka poukazu">
+      <p className="shop-hero-brand">Objednávka</p>
+      <p className="shop-hero-copy">
+        Doplňte údaje k objednávce a pokračujte k platbě.
+      </p>
+
+      <div className="checkout-summary" aria-label="Souhrn objednávky">
+        <div className="checkout-summary-main">
+          <span className="checkout-summary-kicker">
+            {item.kind === "amount" ? "Na částku" : "Zážitek"}
+          </span>
+          <strong className="checkout-summary-title">{title}</strong>
+          {subtitle ? (
+            <span className="checkout-summary-subtitle">{subtitle}</span>
+          ) : null}
+        </div>
+
+        <p className="checkout-summary-total">
+          <span>
+            Celkem
+            {form.quantity > 1 ? ` · ${form.quantity}×` : ""}
+            {shippingFee > 0
+              ? ` · ${form.delivery === "pickup" ? "balné" : "poštovné"} ${formatCzk(shippingFee)}`
+              : ""}
+          </span>
+          <strong>{formatCzk(total)}</strong>
+        </p>
+      </div>
+
+      <div className="checkout-section">
+        <p className="checkout-section-label">Pro koho poukaz je</p>
+        <div
+          className={
+            form.recipient === "self"
+              ? "checkout-choice-tabs is-self"
+              : "checkout-choice-tabs is-other"
+          }
+          role="tablist"
+          aria-label="Pro koho poukaz je"
+        >
+          <span className="checkout-choice-tabs-indicator" aria-hidden />
+          <button
+            type="button"
+            role="tab"
+            aria-selected={form.recipient === "other"}
+            className={form.recipient === "other" ? "is-active" : undefined}
+            onClick={() => updateForm("recipient", "other")}
+          >
+            <GiftIcon className="checkout-choice-icon" />
+            Někdo jiný
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={form.recipient === "self"}
+            className={form.recipient === "self" ? "is-active" : undefined}
+            onClick={() => updateForm("recipient", "self")}
+          >
+            <UserIcon className="checkout-choice-icon" />
+            Vy
+          </button>
+        </div>
+      </div>
+
+      <div className="checkout-fields">
+        <div className="checkout-field">
+          <span>Množství</span>
+          <CheckoutSelect
+            ariaLabel="Množství"
+            value={String(form.quantity)}
+            options={QUANTITY_OPTIONS.map((value) => ({
+              value: String(value),
+              label: String(value),
+            }))}
+            onChange={(value) => updateForm("quantity", Number(value) || 1)}
+          />
+        </div>
+
+        <label className="checkout-field">
+          <span>Vaše jméno</span>
+          <input
+            type="text"
+            autoComplete="name"
+            value={form.buyerName}
+            placeholder="Jan Novák"
+            aria-invalid={touched && !form.buyerName.trim()}
+            onChange={(event) => updateForm("buyerName", event.target.value)}
+          />
+        </label>
+
+        {form.recipient === "other" ? (
+          <>
+            <label className="checkout-field">
+              <span>Jméno příjemce</span>
+              <input
+                type="text"
+                autoComplete="off"
+                value={form.recipientName}
+                placeholder="Anna Nováková"
+                aria-invalid={touched && !form.recipientName.trim()}
+                onChange={(event) =>
+                  updateForm("recipientName", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="checkout-field">
+              <span>Osobní zpráva <em>(volitelná)</em></span>
+              <textarea
+                rows={3}
+                value={form.message}
+                placeholder="Přání k poukazu…"
+                onChange={(event) => updateForm("message", event.target.value)}
+              />
+            </label>
+          </>
+        ) : null}
+
+        <label className="checkout-field">
+          <span>Telefonní číslo</span>
+          <input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={form.phone}
+            placeholder="+420 777 000 000"
+            aria-invalid={touched && !form.phone.trim()}
+            onChange={(event) =>
+              updateForm("phone", event.target.value.replace(/[^\d+\s]/g, ""))
+            }
+          />
+        </label>
+      </div>
+
+      <div className="checkout-section">
+        <p className="checkout-section-label">Jak poukaz doručit</p>
+        <div
+          className={
+            form.delivery === "post"
+              ? "checkout-delivery-tabs is-post"
+              : form.delivery === "pickup"
+                ? "checkout-delivery-tabs is-pickup"
+                : "checkout-delivery-tabs is-email"
+          }
+          role="tablist"
+          aria-label="Způsob doručení"
+        >
+          <span className="checkout-delivery-tabs-indicator" aria-hidden />
+          <button
+            type="button"
+            role="tab"
+            aria-selected={form.delivery === "email"}
+            className={form.delivery === "email" ? "is-active" : undefined}
+            onClick={() => updateForm("delivery", "email")}
+          >
+            <MailIcon className="checkout-choice-icon" />
+            E-mail
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={form.delivery === "post"}
+            className={form.delivery === "post" ? "is-active" : undefined}
+            onClick={() => updateForm("delivery", "post")}
+          >
+            <PostIcon className="checkout-choice-icon" />
+            Pošta
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={form.delivery === "pickup"}
+            className={form.delivery === "pickup" ? "is-active" : undefined}
+            onClick={() => updateForm("delivery", "pickup")}
+          >
+            <PickupIcon className="checkout-choice-icon" />
+            Pobočka
+          </button>
+        </div>
+
+        {form.delivery === "email" ? (
+          <label className="checkout-field">
+            <span>Na jaký e-mail to máme poslat?</span>
+            <input
+              type="email"
+              autoComplete="email"
+              value={form.deliveryEmail}
+              placeholder="jan@email.cz"
+              aria-invalid={touched && !deliveryEmailOk}
+              onChange={(event) =>
+                updateForm("deliveryEmail", event.target.value)
+              }
+            />
+          </label>
+        ) : form.delivery === "post" ? (
+          <div className="checkout-post-fields">
+            <label className="checkout-field">
+              <span>Jméno</span>
+              <input
+                type="text"
+                autoComplete="shipping name"
+                value={form.shippingName}
+                placeholder="Jan Novák"
+                aria-invalid={touched && !form.shippingName.trim()}
+                onChange={(event) =>
+                  updateForm("shippingName", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="checkout-field">
+              <span>Adresa</span>
+              <input
+                type="text"
+                autoComplete="shipping address-line1"
+                value={form.addressLine1}
+                placeholder="Ulice a číslo popisné"
+                aria-invalid={touched && !form.addressLine1.trim()}
+                onChange={(event) =>
+                  updateForm("addressLine1", event.target.value)
+                }
+              />
+            </label>
+
+            <div className="checkout-post-row">
+              <label className="checkout-field">
+                <span>Město</span>
+                <input
+                  type="text"
+                  autoComplete="shipping address-level2"
+                  value={form.city}
+                  placeholder="Olomouc"
+                  aria-invalid={touched && !form.city.trim()}
+                  onChange={(event) => updateForm("city", event.target.value)}
+                />
+              </label>
+              <label className="checkout-field">
+                <span>PSČ</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="shipping postal-code"
+                  value={form.postalCode}
+                  placeholder="779 00"
+                  aria-invalid={touched && !form.postalCode.trim()}
+                  onChange={(event) =>
+                    updateForm(
+                      "postalCode",
+                      event.target.value.replace(/[^\d\s]/g, ""),
+                    )
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="checkout-field">
+              <span>Země</span>
+              <CheckoutSelect
+                ariaLabel="Země"
+                value={form.country}
+                options={[
+                  { value: "CZ", label: "Česko" },
+                  { value: "SK", label: "Slovensko" },
+                ]}
+                onChange={(value) => updateForm("country", value)}
+              />
+            </div>
+
+            <div
+              className="checkout-shipping-option is-selected"
+              role="radio"
+              aria-checked="true"
+            >
+              <span className="checkout-shipping-option-check" aria-hidden />
+              <div className="checkout-shipping-option-body">
+                <div className="checkout-shipping-option-head">
+                  <strong>Dárkové balení - Česká pošta</strong>
+                  <span>{formatCzk(POST_SHIPPING_FEE)}</span>
+                </div>
+                <p>
+                  Chodíme na poštu v úterý ráno. Odesíláme poukazy objednané
+                  nejpozději předešlý den do 22:00. Přes státní svátky a víkend
+                  na poštu nechodíme. Cena zahrnuje poštovné a balné.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="checkout-shipping-option is-selected"
+            role="radio"
+            aria-checked="true"
+          >
+            <span className="checkout-shipping-option-check" aria-hidden />
+            <div className="checkout-shipping-option-body">
+              <div className="checkout-shipping-option-head">
+                <strong>Dárkové balení - vyzvednutí na recepci</strong>
+                <span>{formatCzk(PICKUP_FEE)}</span>
+              </div>
+              <p>
+                Do 30 minut budete mít objednávku připravenou na recepci Long
+                Story Short Hostel v Olomouci. Cena zahrnuje balné. Je možné
+                také vypsat poukaz přímo na místě na libovolnou částku. Platit
+                lze hotově i kartou.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {touched && !canPay ? (
+        <p className="checkout-error" role="alert">
+          {form.delivery === "post" && !postAddressOk
+            ? "Vyplňte jméno, adresu, město a PSČ pro zaslání."
+            : form.delivery === "email" && !deliveryEmailOk
+              ? "Vyplňte jméno, telefon a platný e-mail pro doručení."
+              : !form.phone.trim()
+                ? "Vyplňte telefonní číslo."
+                : form.recipient === "other"
+                  ? "Vyplňte vaše jméno a jméno příjemce."
+                  : "Vyplňte vaše jméno."}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        className="buy-button"
+        onMouseEnter={setBlobOrigin}
+        onClick={handlePay}
+      >
+        <CardIcon className="buy-button-icon" />
+        Zaplatit {formatCzk(total)}
+      </button>
+
+      <p className="checkout-legal">
+        Odesláním objednávky souhlasíte s{" "}
+        <a
+          href="https://www.longstoryshort.cz/pravidla-a-podminky"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          obchodními podmínkami
+        </a>
+        .
+      </p>
+    </section>
+  );
+}
+
 function AmountPanel({
+  vouchers,
   selectedAmount,
   onSelect,
+  onBuy,
 }: {
+  vouchers: AmountVoucher[];
   selectedAmount: number;
   onSelect: (amount: number) => void;
+  onBuy: (amount: number) => void;
 }) {
   const [isCustom, setIsCustom] = useState(false);
   const [customInput, setCustomInput] = useState("");
@@ -679,7 +1590,7 @@ function AmountPanel({
   const chipThumbRef = useRef<HTMLSpanElement>(null);
   const chipScrollRaf = useRef<number | null>(null);
 
-  const minAmount = AMOUNT_VOUCHERS[0]?.amount ?? 1000;
+  const minAmount = vouchers[0]?.amount ?? 1000;
   const customAmount = Number(customInput.replace(/\s/g, ""));
   const hasCustomAmount =
     customInput.trim() !== "" && Number.isFinite(customAmount);
@@ -767,7 +1678,7 @@ function AmountPanel({
           className="amount-chip-scroller"
         >
           <div className="amount-grid">
-        {AMOUNT_VOUCHERS.map((voucher) => {
+        {vouchers.map((voucher) => {
           const active = !isCustom && voucher.amount === selectedAmount;
           return (
             <button
@@ -849,6 +1760,10 @@ function AmountPanel({
         className="buy-button"
         onMouseEnter={setBlobOrigin}
         disabled={isCustom && !hasValidCustom}
+        onClick={() => {
+          if (isCustom && !hasValidCustom) return;
+          onBuy(displayAmount);
+        }}
       >
         <CartIcon className="buy-button-icon" />
         {isCustom && !hasValidCustom
@@ -860,16 +1775,20 @@ function AmountPanel({
 }
 
 function ExperiencePanel({
+  vouchers,
   openId,
   onToggle,
+  onBuy,
 }: {
+  vouchers: ExperienceVoucher[];
   openId: string | null;
   onToggle: (id: string | null) => void;
+  onBuy: (voucher: ExperienceVoucher) => void;
 }) {
   return (
     <section className="experience-panel" aria-label="Zážitkové poukazy">
       <ul className="experience-list">
-        {EXPERIENCE_VOUCHERS.map((voucher) => (
+        {vouchers.map((voucher) => (
           <ExperienceItem
             key={voucher.id}
             voucher={voucher}
@@ -877,6 +1796,7 @@ function ExperiencePanel({
             onToggle={() =>
               onToggle(openId === voucher.id ? null : voucher.id)
             }
+            onBuy={() => onBuy(voucher)}
           />
         ))}
       </ul>
@@ -888,10 +1808,12 @@ function ExperienceItem({
   voucher,
   open,
   onToggle,
+  onBuy,
 }: {
   voucher: ExperienceVoucher;
   open: boolean;
   onToggle: () => void;
+  onBuy: () => void;
 }) {
   const isMobileGallery = useMaxWidth(519);
 
@@ -921,6 +1843,7 @@ function ExperienceItem({
           type="button"
           className="buy-button buy-button-compact"
           onMouseEnter={setBlobOrigin}
+          onClick={onBuy}
         >
           <CartIcon className="buy-button-icon" />
           Koupit

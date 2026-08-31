@@ -9,11 +9,13 @@ import {
 } from "@/data/admin-vouchers";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 import { AdminDismissButton } from "./AdminDismissButton";
+import { useAdminUser } from "./AdminUserProvider";
 import { IconSearch } from "./icons";
+import { canManageTeam } from "@/lib/auth";
 
 const QUICK_LINKS = [
   {
-    href: "/admin",
+    href: "/admin/prehled",
     label: "Přehled",
     description: "Přehled obchodu",
     iconSrc: "/icons/prehled.svg",
@@ -30,6 +32,9 @@ const QUICK_LINKS = [
     description: "Ověření a uplatnění kódu",
     iconSrc: "/icons/uplatneni.svg",
   },
+] as const;
+
+const MANAGE_QUICK_LINKS = [
   {
     href: "/admin/analytika",
     label: "Analytika",
@@ -38,9 +43,13 @@ const QUICK_LINKS = [
   },
 ] as const;
 
-const NAV_LINKS = [
-  ...QUICK_LINKS,
-  { href: "/admin/obchod", label: "Nastavení poukazů", description: "Vzhled a varianty poukazů", iconSrc: "/icons/nastaveni.svg" },
+const MANAGE_NAV_LINKS = [
+  {
+    href: "/admin/nastavenipoukazu",
+    label: "Nastavení poukazů",
+    description: "Vzhled a varianty poukazů",
+    iconSrc: "/icons/nastaveni.svg",
+  },
   { href: "/admin/tym", label: "Tým" },
 ] as const;
 
@@ -112,11 +121,24 @@ export function AdminCommandPalette({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { user } = useAdminUser();
+  const manageAccess = canManageTeam(user.role);
   const { openVoucher, vouchers } = useAdminVoucherDrawer();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+
+  const quickLinks = useMemo(
+    () =>
+      manageAccess ? [...QUICK_LINKS, ...MANAGE_QUICK_LINKS] : [...QUICK_LINKS],
+    [manageAccess],
+  );
+
+  const navLinks = useMemo(
+    () => (manageAccess ? [...quickLinks, ...MANAGE_NAV_LINKS] : [...quickLinks]),
+    [manageAccess, quickLinks],
+  );
 
   const recentVouchers = useMemo(() => getRecentAdminVouchers(4, vouchers), [vouchers]);
 
@@ -125,9 +147,9 @@ export function AdminCommandPalette({
     if (!trimmed) return [];
 
     const normalized = trimmed.toLowerCase();
-    const navMatches = NAV_LINKS.filter((item) =>
-      item.label.toLowerCase().includes(normalized),
-    ).map((item) => ({ type: "nav" as const, ...item }));
+    const navMatches = navLinks
+      .filter((item) => item.label.toLowerCase().includes(normalized))
+      .map((item) => ({ type: "nav" as const, ...item }));
 
     const voucherMatches = searchAdminVouchers(trimmed, vouchers).map((voucher) => ({
       type: "voucher" as const,
@@ -136,11 +158,11 @@ export function AdminCommandPalette({
     }));
 
     return [...navMatches, ...voucherMatches];
-  }, [query, vouchers]);
+  }, [navLinks, query, vouchers]);
 
   const defaultItems = useMemo<SearchItem[]>(
     () => [
-      ...QUICK_LINKS.map((item) => ({ type: "nav" as const, ...item })),
+      ...quickLinks.map((item) => ({ type: "nav" as const, ...item })),
       ...recentVouchers.map((voucher) => ({
         type: "voucher" as const,
         voucher,
@@ -148,11 +170,11 @@ export function AdminCommandPalette({
         showProductAsLabel: true,
       })),
     ],
-    [recentVouchers],
+    [quickLinks, recentVouchers],
   );
 
   const selectableItems = query.trim() ? searchItems : defaultItems;
-  const quickLinkCount = query.trim() ? 0 : QUICK_LINKS.length;
+  const quickLinkCount = query.trim() ? 0 : quickLinks.length;
 
   useEffect(() => {
     if (!open) return;

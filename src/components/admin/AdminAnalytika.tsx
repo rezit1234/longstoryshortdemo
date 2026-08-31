@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCzk } from "@/data/vouchers";
 
 type PeriodKey = "7d" | "30d" | "3m" | "1y";
@@ -153,6 +153,67 @@ function formatTooltipDate(date: Date) {
   return `${date.getDate()}. ${MONTH_GENITIVE[date.getMonth()]}`;
 }
 
+function capitalizeMonthLabel(value: string) {
+  if (!value) return value;
+  return value.charAt(0).toLocaleUpperCase("cs-CZ") + value.slice(1);
+}
+
+function formatMonthShort(date: Date) {
+  return capitalizeMonthLabel(
+    date.toLocaleDateString("cs-CZ", { month: "short" }),
+  );
+}
+
+function formatMonthLong(date: Date) {
+  return capitalizeMonthLabel(
+    date.toLocaleDateString("cs-CZ", { month: "long", year: "numeric" }),
+  );
+}
+
+function desktopLabelStep(count: number) {
+  return count > 14 ? 2 : 1;
+}
+
+function useChartLabelStep(count: number) {
+  const [labelStep, setLabelStep] = useState(() => desktopLabelStep(count));
+
+  useEffect(() => {
+    const mqCompact = window.matchMedia("(max-width: 960px)");
+    const mqTiny = window.matchMedia("(max-width: 560px)");
+
+    function updateLabelStep() {
+      if (mqTiny.matches) {
+        setLabelStep(Math.max(1, Math.ceil(count / 4)));
+        return;
+      }
+
+      if (mqCompact.matches) {
+        setLabelStep(Math.max(1, Math.ceil(count / 5)));
+        return;
+      }
+
+      setLabelStep(desktopLabelStep(count));
+    }
+
+    updateLabelStep();
+    mqCompact.addEventListener("change", updateLabelStep);
+    mqTiny.addEventListener("change", updateLabelStep);
+
+    return () => {
+      mqCompact.removeEventListener("change", updateLabelStep);
+      mqTiny.removeEventListener("change", updateLabelStep);
+    };
+  }, [count]);
+
+  return labelStep;
+}
+
+function pickChartLabels<T>(items: T[], labelStep: number) {
+  return items.filter(
+    (_, index) => index % labelStep === 0 || index === items.length - 1,
+  );
+}
+
 function buildSeriesDates(count: number, period: PeriodKey) {
   const end = new Date(2026, 7, 24);
   end.setHours(12, 0, 0, 0);
@@ -198,11 +259,11 @@ function buildChartPoints(
       y,
       label:
         period === "1y"
-          ? date.toLocaleDateString("cs-CZ", { month: "short" })
+          ? formatMonthShort(date)
           : formatDayLabel(date),
       tooltipLabel:
         period === "1y"
-          ? date.toLocaleDateString("cs-CZ", { month: "long", year: "numeric" })
+          ? formatMonthLong(date)
           : formatTooltipDate(date),
     };
   });
@@ -282,11 +343,11 @@ function SoldBarChart({
         cx: x + barW / 2,
         label:
           period === "1y"
-            ? date.toLocaleDateString("cs-CZ", { month: "short" })
+            ? formatMonthShort(date)
             : formatDayLabel(date),
         tooltipLabel:
           period === "1y"
-            ? date.toLocaleDateString("cs-CZ", { month: "long", year: "numeric" })
+            ? formatMonthLong(date)
             : formatTooltipDate(date),
       };
     });
@@ -295,9 +356,10 @@ function SoldBarChart({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const active = activeIndex === null ? null : bars[activeIndex];
 
-  const labelStep = values.length > 14 ? 2 : 1;
-  const xLabels = bars.filter(
-    (_, index) => index % labelStep === 0 || index === bars.length - 1,
+  const labelStep = useChartLabelStep(values.length);
+  const xLabels = useMemo(
+    () => pickChartLabels(bars, labelStep),
+    [bars, labelStep],
   );
 
   return (
@@ -381,7 +443,9 @@ function SoldBarChart({
                 top: `${(Math.max(active.y, 18) / height) * 100}%`,
               }}
             >
-              <strong>Den: {active.tooltipLabel}</strong>
+              <strong>
+                {period === "1y" ? "Měsíc" : "Den"}: {active.tooltipLabel}
+              </strong>
               <span>Prodeje: {active.value}</span>
             </div>
           ) : null}
@@ -434,9 +498,10 @@ function RevenueLineChart({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const active = activeIndex === null ? null : points[activeIndex];
 
-  const labelStep = values.length > 14 ? 2 : 1;
-  const xLabels = points.filter(
-    (_, index) => index % labelStep === 0 || index === points.length - 1,
+  const labelStep = useChartLabelStep(values.length);
+  const xLabels = useMemo(
+    () => pickChartLabels(points, labelStep),
+    [points, labelStep],
   );
 
   return (
@@ -522,7 +587,9 @@ function RevenueLineChart({
                 top: `${(active.y / height) * 100}%`,
               }}
             >
-              <strong>Den: {active.tooltipLabel}</strong>
+              <strong>
+                {period === "1y" ? "Měsíc" : "Den"}: {active.tooltipLabel}
+              </strong>
               <span>Tržby: {formatCzk(active.value)}</span>
             </div>
           ) : null}

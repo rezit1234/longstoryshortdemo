@@ -16,12 +16,13 @@ const ROLE_OPTIONS = [
 export type NewMemberPayload = {
   name: string;
   username: string;
+  password: string;
   role: MemberRole;
 };
 
 type AdminAddMemberDrawerProps = {
   onClose: () => void;
-  onMemberAdded: (payload: NewMemberPayload) => void;
+  onMemberAdded: (payload: NewMemberPayload) => Promise<void> | void;
 };
 
 export function AdminAddMemberDrawer({
@@ -33,11 +34,14 @@ export function AdminAddMemberDrawer({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<MemberRole>("staff");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const canSubmit =
     name.trim().length > 0 &&
     username.trim().length > 0 &&
-    password.trim().length > 0;
+    password.trim().length > 0 &&
+    !submitting;
 
   const requestClose = useCallback(() => {
     setIsClosing(true);
@@ -64,15 +68,24 @@ export function AdminAddMemberDrawer({
     return () => window.clearTimeout(timer);
   }, [isClosing, onClose]);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!canSubmit) return;
 
-    onMemberAdded({
-      name: name.trim(),
-      username: username.trim(),
-      role,
-    });
-    requestClose();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      await onMemberAdded({
+        name: name.trim(),
+        username: username.trim(),
+        password,
+        role,
+      });
+      requestClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Člena se nepodařilo přidat.");
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -151,6 +164,8 @@ export function AdminAddMemberDrawer({
               onChange={(value) => setRole(value as MemberRole)}
             />
           </div>
+
+          {error ? <p className="admin-drawer-error">{error}</p> : null}
         </div>
 
         <div className="admin-voucher-drawer-footer admin-add-voucher-footer">
@@ -161,7 +176,9 @@ export function AdminAddMemberDrawer({
             type="button"
             className="admin-voucher-drawer-cta"
             disabled={!canSubmit}
-            onClick={handleSubmit}
+            onClick={() => {
+              void handleSubmit();
+            }}
           >
             <svg
               className="admin-voucher-drawer-cta-icon"
@@ -178,7 +195,7 @@ export function AdminAddMemberDrawer({
                 strokeLinecap="round"
               />
             </svg>
-            Přidat člena
+            {submitting ? "Přidávám…" : "Přidat člena"}
           </button>
         </div>
       </aside>
