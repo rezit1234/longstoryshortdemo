@@ -170,11 +170,18 @@ export function createEmptyExperience(): AdminExperienceForm {
   };
 }
 
+export const DEFAULT_PICKUP_FEE = 20;
+export const DEFAULT_POST_SHIPPING_FEE = 105;
+
 export type AdminVoucherSettings = {
   validityMonths: number;
   amountSlots: (number | null)[];
   amountPreviews: AmountPreviewSettings;
   experiences: AdminExperienceForm[];
+  /** Příplatek za dárkové balení při vyzvednutí na recepci. */
+  pickupFee: number;
+  /** Poštovné a balné při odeslání poštou. */
+  postShippingFee: number;
 };
 
 export function createInitialVoucherSettings(): AdminVoucherSettings {
@@ -205,5 +212,7 @@ export function createInitialVoucherSettings(): AdminVoucherSettings {
     amountSlots,
     amountPreviews: createDefaultAmountPreviews(amountSlots),
     experiences,
+    pickupFee: DEFAULT_PICKUP_FEE,
+    postShippingFee: DEFAULT_POST_SHIPPING_FEE,
   };
 }

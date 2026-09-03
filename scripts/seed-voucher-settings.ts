@@ -32,8 +32,14 @@ async function main() {
         id: 1,
         validity_months: settings.validityMonths,
         amount_slots: settings.amountSlots,
-        amount_previews: settings.amountPreviews,
+        amount_previews: {
+          ...settings.amountPreviews,
+          pickupFee: settings.pickupFee,
+          postShippingFee: settings.postShippingFee,
+        },
         experiences: settings.experiences,
+        pickup_fee: settings.pickupFee,
+        post_shipping_fee: settings.postShippingFee,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },
@@ -42,8 +48,47 @@ async function main() {
     .single();
 
   if (error) {
-    console.error("SEED_ERROR", error.message, error.details, error.hint);
-    process.exit(1);
+    // Fallback if delivery fee columns are not migrated yet.
+    const legacy = await admin
+      .from("voucher_settings")
+      .upsert(
+        {
+          id: 1,
+          validity_months: settings.validityMonths,
+          amount_slots: settings.amountSlots,
+          amount_previews: {
+            ...settings.amountPreviews,
+            pickupFee: settings.pickupFee,
+            postShippingFee: settings.postShippingFee,
+          },
+          experiences: settings.experiences,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      )
+      .select("id, validity_months")
+      .single();
+
+    if (legacy.error) {
+      console.error("SEED_ERROR", legacy.error.message, legacy.error.details, legacy.error.hint);
+      process.exit(1);
+    }
+
+    console.log(
+      "SEEDED_LEGACY",
+      legacy.data.id,
+      "validity",
+      legacy.data.validity_months,
+      "experiences",
+      settings.experiences.length,
+      "amounts",
+      settings.amountSlots.filter((slot) => slot !== null).length,
+      "pickup",
+      settings.pickupFee,
+      "post",
+      settings.postShippingFee,
+    );
+    return;
   }
 
   console.log(
@@ -55,6 +100,10 @@ async function main() {
     settings.experiences.length,
     "amounts",
     settings.amountSlots.filter((slot) => slot !== null).length,
+    "pickup",
+    settings.pickupFee,
+    "post",
+    settings.postShippingFee,
   );
 }
 

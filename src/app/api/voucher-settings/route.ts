@@ -14,25 +14,68 @@ type SettingsRow = {
   amount_slots: unknown;
   amount_previews?: unknown;
   experiences: unknown;
+  pickup_fee?: number | null;
+  post_shipping_fee?: number | null;
 };
 
+const SETTINGS_SELECT =
+  "validity_months, amount_slots, amount_previews, experiences, pickup_fee, post_shipping_fee";
+
+const SETTINGS_SELECT_LEGACY =
+  "validity_months, amount_slots, amount_previews, experiences";
+
+function feesFromAmountPreviews(value: unknown): {
+  pickupFee?: number;
+  postShippingFee?: number;
+} {
+  if (!value || typeof value !== "object") return {};
+  const record = value as Record<string, unknown>;
+  return {
+    pickupFee:
+      typeof record.pickupFee === "number" ? record.pickupFee : undefined,
+    postShippingFee:
+      typeof record.postShippingFee === "number"
+        ? record.postShippingFee
+        : undefined,
+  };
+}
+
+function amountPreviewsForStorage(settings: VoucherSettingsPayload) {
+  return {
+    ...settings.amountPreviews,
+    pickupFee: settings.pickupFee,
+    postShippingFee: settings.postShippingFee,
+  };
+}
+
 function rowToPayload(row: SettingsRow): VoucherSettingsPayload {
+  const embedded = feesFromAmountPreviews(row.amount_previews);
   return normalizeVoucherSettings({
     validityMonths: row.validity_months,
     amountSlots: row.amount_slots as VoucherSettingsPayload["amountSlots"],
     amountPreviews: row.amount_previews as VoucherSettingsPayload["amountPreviews"],
     experiences: row.experiences as VoucherSettingsPayload["experiences"],
+    pickupFee: row.pickup_fee ?? embedded.pickupFee,
+    postShippingFee: row.post_shipping_fee ?? embedded.postShippingFee,
   });
 }
 
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("voucher_settings")
-      .select("validity_months, amount_slots, amount_previews, experiences")
+      .select(SETTINGS_SELECT)
       .eq("id", 1)
       .maybeSingle();
+
+    if (error) {
+      ({ data, error } = await supabase
+        .from("voucher_settings")
+        .select(SETTINGS_SELECT_LEGACY)
+        .eq("id", 1)
+        .maybeSingle());
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -94,21 +137,35 @@ export async function PUT(request: Request) {
     );
   }
 
-  const { data, error } = await admin
+  const baseRow = {
+    id: 1,
+    validity_months: settings.validityMonths,
+    amount_slots: settings.amountSlots,
+    amount_previews: amountPreviewsForStorage(settings),
+    experiences: settings.experiences,
+    updated_at: new Date().toISOString(),
+  };
+
+  let { data, error } = await admin
     .from("voucher_settings")
     .upsert(
       {
-        id: 1,
-        validity_months: settings.validityMonths,
-        amount_slots: settings.amountSlots,
-        amount_previews: settings.amountPreviews,
-        experiences: settings.experiences,
-        updated_at: new Date().toISOString(),
+        ...baseRow,
+        pickup_fee: settings.pickupFee,
+        post_shipping_fee: settings.postShippingFee,
       },
       { onConflict: "id" },
     )
-    .select("validity_months, amount_slots, amount_previews, experiences")
+    .select(SETTINGS_SELECT)
     .single();
+
+  if (error) {
+    ({ data, error } = await admin
+      .from("voucher_settings")
+      .upsert(baseRow, { onConflict: "id" })
+      .select(SETTINGS_SELECT_LEGACY)
+      .single());
+  }
 
   if (error || !data) {
     return NextResponse.json(

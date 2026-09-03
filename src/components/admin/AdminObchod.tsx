@@ -698,6 +698,66 @@ export function AdminObchod() {
         </div>
       </section>
 
+      <section className="admin-panel admin-shop-panel">
+        <h2>Příplatky za dopravu</h2>
+        <p className="admin-section-lead">
+          E-mail je vždy zdarma. Nastavte příplatek za vyzvednutí na recepci a za
+          odeslání poštou.
+        </p>
+
+        <div className="admin-field-row">
+          <label className="admin-field">
+            <span>Vyzvednutí na recepci</span>
+            <div className="admin-field-control has-suffix">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={settings.pickupFee === 0 ? "0" : String(settings.pickupFee || "")}
+                aria-label="Příplatek za vyzvednutí na recepci"
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "");
+                  setSettings((current) => ({
+                    ...current,
+                    pickupFee: digits === "" ? 0 : Number(digits),
+                  }));
+                }}
+              />
+              <span className="admin-field-control-suffix" aria-hidden>
+                Kč
+              </span>
+            </div>
+            <em>Dárkové balení při vyzvednutí na pobočce.</em>
+          </label>
+
+          <label className="admin-field">
+            <span>Pošta</span>
+            <div className="admin-field-control has-suffix">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={
+                  settings.postShippingFee === 0
+                    ? "0"
+                    : String(settings.postShippingFee || "")
+                }
+                aria-label="Příplatek za odeslání poštou"
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "");
+                  setSettings((current) => ({
+                    ...current,
+                    postShippingFee: digits === "" ? 0 : Number(digits),
+                  }));
+                }}
+              />
+              <span className="admin-field-control-suffix" aria-hidden>
+                Kč
+              </span>
+            </div>
+            <em>Poštovné a balné při odeslání Českou poštou.</em>
+          </label>
+        </div>
+      </section>
+
       {activeExperience ? (
         <AdminExperienceSettingsDrawer
           experience={activeExperience}

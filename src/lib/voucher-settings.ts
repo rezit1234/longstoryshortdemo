@@ -44,7 +44,18 @@ export function normalizeVoucherSettings(
       amountSlots,
     ),
     experiences,
+    pickupFee: normalizeFee(input?.pickupFee, fallback.pickupFee),
+    postShippingFee: normalizeFee(
+      input?.postShippingFee,
+      fallback.postShippingFee,
+    ),
   };
+}
+
+function normalizeFee(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.round(parsed));
 }
 
 function normalizeAmountPreviewImage(

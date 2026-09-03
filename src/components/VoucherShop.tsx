@@ -12,12 +12,21 @@ import {
   type ExperienceGalleryImage,
   type ExperienceVoucher,
 } from "@/data/vouchers";
-import type { AdminVoucherSettings } from "@/data/admin-voucher-settings";
+import {
+  DEFAULT_PICKUP_FEE,
+  DEFAULT_POST_SHIPPING_FEE,
+  type AdminVoucherSettings,
+} from "@/data/admin-voucher-settings";
 import { setBlobOrigin } from "@/lib/blobOrigin";
 import {
   settingsToAmountVouchers,
   settingsToExperienceVouchers,
 } from "@/lib/voucher-settings";
+
+type DeliveryFees = {
+  pickupFee: number;
+  postShippingFee: number;
+};
 
 function CartIcon({ className }: { className?: string }) {
   return (
@@ -337,8 +346,11 @@ type CheckoutFormState = {
 };
 
 const QUANTITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-const POST_SHIPPING_FEE = 105;
-const PICKUP_FEE = 20;
+
+const DEFAULT_DELIVERY_FEES: DeliveryFees = {
+  pickupFee: DEFAULT_PICKUP_FEE,
+  postShippingFee: DEFAULT_POST_SHIPPING_FEE,
+};
 
 const EMPTY_CHECKOUT_FORM: CheckoutFormState = {
   recipient: "other",
@@ -911,25 +923,11 @@ function ExperienceGallery({ images }: { images: ExperienceGalleryImage[] }) {
 
             {images.length > 1 ? (
               <div
-                className="gallery-lightbox-dots"
-                role="tablist"
-                aria-label="Pořadí fotografií"
+                className="gallery-lightbox-counter"
+                aria-live="polite"
+                aria-atomic="true"
               >
-                {images.map((image, index) => (
-                  <button
-                    key={`${image.src}-${index}-dot`}
-                    type="button"
-                    role="tab"
-                    className={
-                      index === realIndex
-                        ? "gallery-lightbox-dot is-active"
-                        : "gallery-lightbox-dot"
-                    }
-                    aria-label={`Fotografie ${index + 1}`}
-                    aria-selected={index === realIndex}
-                    onClick={() => goToSlide(index)}
-                  />
-                ))}
+                {realIndex + 1} / {images.length}
               </div>
             ) : null}
           </div>
@@ -959,6 +957,7 @@ export function VoucherShop() {
   const [amountPreviews, setAmountPreviews] = useState<AmountPreviewSettings | null>(
     null,
   );
+  const [deliveryFees, setDeliveryFees] = useState<DeliveryFees>(DEFAULT_DELIVERY_FEES);
   const [experienceVouchers, setExperienceVouchers] =
     useState<ExperienceVoucher[]>(EXPERIENCE_VOUCHERS);
   const [selectedAmount, setSelectedAmount] = useState(
@@ -983,6 +982,10 @@ export function VoucherShop() {
         const nextExperiences = settingsToExperienceVouchers(data.settings);
         setAmountVouchers(nextAmounts.length > 0 ? nextAmounts : AMOUNT_VOUCHERS);
         setAmountPreviews(data.settings.amountPreviews);
+        setDeliveryFees({
+          pickupFee: data.settings.pickupFee,
+          postShippingFee: data.settings.postShippingFee,
+        });
         setExperienceVouchers(
           nextExperiences.length > 0 ? nextExperiences : EXPERIENCE_VOUCHERS,
         );
@@ -1034,7 +1037,7 @@ export function VoucherShop() {
 
         <div className={checkoutItem ? "shop-box-body is-checkout" : "shop-box-body"}>
           {checkoutItem ? (
-            <CheckoutPanel item={checkoutItem} />
+            <CheckoutPanel item={checkoutItem} deliveryFees={deliveryFees} />
           ) : (
             <>
               <p className="shop-hero-brand">Long Story Short</p>
@@ -1162,16 +1165,22 @@ function CheckoutHeroSection({
   );
 }
 
-function CheckoutPanel({ item }: { item: CheckoutItem }) {
+function CheckoutPanel({
+  item,
+  deliveryFees,
+}: {
+  item: CheckoutItem;
+  deliveryFees: DeliveryFees;
+}) {
   const [form, setForm] = useState<CheckoutFormState>(EMPTY_CHECKOUT_FORM);
   const [touched, setTouched] = useState(false);
 
   const unitPrice = item.kind === "amount" ? item.amount : item.price;
   const shippingFee =
     form.delivery === "post"
-      ? POST_SHIPPING_FEE
+      ? deliveryFees.postShippingFee
       : form.delivery === "pickup"
-        ? PICKUP_FEE
+        ? deliveryFees.pickupFee
         : 0;
   const itemsTotal = unitPrice * form.quantity;
   const total = itemsTotal + shippingFee;
@@ -1500,7 +1509,7 @@ function CheckoutPanel({ item }: { item: CheckoutItem }) {
               <div className="checkout-shipping-option-body">
                 <div className="checkout-shipping-option-head">
                   <strong>Dárkové balení - Česká pošta</strong>
-                  <span>{formatCzk(POST_SHIPPING_FEE)}</span>
+                  <span>{formatCzk(deliveryFees.postShippingFee)}</span>
                 </div>
                 <p>
                   Chodíme na poštu v úterý ráno. Odesíláme poukazy objednané
@@ -1520,7 +1529,7 @@ function CheckoutPanel({ item }: { item: CheckoutItem }) {
             <div className="checkout-shipping-option-body">
               <div className="checkout-shipping-option-head">
                 <strong>Dárkové balení - vyzvednutí na recepci</strong>
-                <span>{formatCzk(PICKUP_FEE)}</span>
+                <span>{formatCzk(deliveryFees.pickupFee)}</span>
               </div>
               <p>
                 Do 30 minut budete mít objednávku připravenou na recepci Long

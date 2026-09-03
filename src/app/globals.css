@@ -1317,6 +1317,9 @@ button {
 .gallery-lightbox-stage {
   width: min(96vw, 1000px);
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .gallery-lightbox-viewport {
@@ -1362,34 +1365,24 @@ button {
   -webkit-user-drag: none;
 }
 
-.gallery-lightbox-dots {
-  display: flex;
-  justify-content: center;
+.gallery-lightbox-counter {
+  margin-top: 0.75rem;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.85rem;
-}
-
-.gallery-lightbox-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  padding: 0;
-  border: 0;
+  justify-content: center;
+  height: 1.5rem;
+  padding: 0 0.7rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
-  cursor: pointer;
-  transition:
-    transform 180ms ease,
-    background 180ms ease;
-}
-
-.gallery-lightbox-dot.is-active {
-  background: #fff;
-  transform: scale(1.2);
-}
-
-.gallery-lightbox-dot:hover {
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
 }
 
 .gallery-lightbox-nav,
