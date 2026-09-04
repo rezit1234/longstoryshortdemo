@@ -527,8 +527,9 @@ function LightboxSlideImage({
   );
 }
 
-function ExperienceGallery({ images }: { images: ExperienceGalleryImage[] }) {
+function ExperienceGallery({ images: allImages }: { images: ExperienceGalleryImage[] }) {
   const isMobileGallery = useMaxWidth(519);
+  const images = allImages.slice(0, 3);
 
   const loopSlides =
     images.length > 1
@@ -1023,7 +1024,7 @@ export function VoucherShop() {
           <section className="shop-hero" aria-label="Dárkové poukazy Long Story Short">
             <div className="shop-hero-media">
               <Image
-                src="/poukazimg.jpeg"
+                src="/LSSbanner.webp"
                 alt="Fyzické dárkové poukazy Long Story Short"
                 fill
                 priority
@@ -1825,6 +1826,9 @@ function ExperienceItem({
   onBuy: () => void;
 }) {
   const isMobileGallery = useMaxWidth(519);
+  const previewImage = voucher.gallery?.[0] ?? null;
+  const summaryMainRef = useRef<HTMLDivElement>(null);
+  const [thumbSize, setThumbSize] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open || !voucher.gallery || isMobileGallery) return;
@@ -1835,37 +1839,90 @@ function ExperienceItem({
     });
   }, [open, voucher.gallery, isMobileGallery]);
 
+  useLayoutEffect(() => {
+    if (!previewImage) {
+      setThumbSize(null);
+      return;
+    }
+
+    const main = summaryMainRef.current;
+    if (!main) return;
+
+    const updateSize = () => {
+      const height = Math.round(main.getBoundingClientRect().height);
+      setThumbSize(height > 0 ? height : null);
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(main);
+    return () => observer.disconnect();
+  }, [previewImage, voucher.title, voucher.subtitle, voucher.suitableFor]);
+
   return (
     <li className={open ? "experience-item is-open" : "experience-item"}>
-      <div className="experience-top">
-        <div className="experience-heading">
-          <h2>{voucher.title}</h2>
-          {voucher.subtitle ? <span>{voucher.subtitle}</span> : null}
+      <div className="experience-summary">
+        {previewImage ? (
+          <div
+            className="experience-thumb"
+            aria-hidden
+            style={
+              thumbSize
+                ? { width: thumbSize, height: thumbSize, flexBasis: thumbSize }
+                : undefined
+            }
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImage.src}
+              alt=""
+              className={
+                isLogoImage(previewImage.src)
+                  ? "experience-thumb-image is-logo"
+                  : "experience-thumb-image"
+              }
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
+          </div>
+        ) : null}
+
+        <div className="experience-summary-main" ref={summaryMainRef}>
+          <div className="experience-summary-copy">
+            <div className="experience-top">
+              <div className="experience-heading">
+                <h2>{voucher.title}</h2>
+                {voucher.subtitle ? <span>{voucher.subtitle}</span> : null}
+              </div>
+              <p className="experience-price">{formatCzk(voucher.price)}</p>
+            </div>
+
+            <p className="experience-suitable">Pro {voucher.suitableFor}</p>
+          </div>
+
+          <div className="experience-actions">
+            <button
+              type="button"
+              className="buy-button buy-button-compact"
+              onMouseEnter={setBlobOrigin}
+              onClick={onBuy}
+            >
+              <CartIcon className="buy-button-icon" />
+              Koupit
+            </button>
+            <button
+              type="button"
+              className="more-button"
+              aria-expanded={open}
+              onClick={onToggle}
+            >
+              {open ? "Méně" : "Více informací"}
+              <ChevronIcon className="more-button-chevron" />
+            </button>
+          </div>
         </div>
-        <p className="experience-price">{formatCzk(voucher.price)}</p>
-      </div>
-
-      <p className="experience-suitable">Pro {voucher.suitableFor}</p>
-
-      <div className="experience-actions">
-        <button
-          type="button"
-          className="buy-button buy-button-compact"
-          onMouseEnter={setBlobOrigin}
-          onClick={onBuy}
-        >
-          <CartIcon className="buy-button-icon" />
-          Koupit
-        </button>
-        <button
-          type="button"
-          className="more-button"
-          aria-expanded={open}
-          onClick={onToggle}
-        >
-          {open ? "Méně" : "Více informací"}
-          <ChevronIcon className="more-button-chevron" />
-        </button>
       </div>
 
       <div
