@@ -702,10 +702,10 @@ export function AdminObchod() {
         <h2>Příplatky za dopravu</h2>
         <p className="admin-section-lead">
           E-mail je vždy zdarma. Nastavte příplatek za vyzvednutí na recepci a za
-          odeslání poštou.
+          odeslání poštou v ČR a na Slovensko.
         </p>
 
-        <div className="admin-field-row">
+        <div className="admin-field-row is-triple">
           <label className="admin-field">
             <span>Vyzvednutí na recepci</span>
             <div className="admin-field-control has-suffix">
@@ -730,7 +730,7 @@ export function AdminObchod() {
           </label>
 
           <label className="admin-field">
-            <span>Pošta</span>
+            <span>Pošta ČR</span>
             <div className="admin-field-control has-suffix">
               <input
                 type="text"
@@ -740,7 +740,7 @@ export function AdminObchod() {
                     ? "0"
                     : String(settings.postShippingFee || "")
                 }
-                aria-label="Příplatek za odeslání poštou"
+                aria-label="Příplatek za odeslání poštou v ČR"
                 onChange={(event) => {
                   const digits = event.target.value.replace(/\D/g, "");
                   setSettings((current) => ({
@@ -753,7 +753,34 @@ export function AdminObchod() {
                 Kč
               </span>
             </div>
-            <em>Poštovné a balné při odeslání Českou poštou.</em>
+            <em>Poštovné a balné při odeslání po České republice.</em>
+          </label>
+
+          <label className="admin-field">
+            <span>Pošta Slovensko</span>
+            <div className="admin-field-control has-suffix">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={
+                  settings.postShippingFeeSk === 0
+                    ? "0"
+                    : String(settings.postShippingFeeSk || "")
+                }
+                aria-label="Příplatek za odeslání poštou na Slovensko"
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "");
+                  setSettings((current) => ({
+                    ...current,
+                    postShippingFeeSk: digits === "" ? 0 : Number(digits),
+                  }));
+                }}
+              />
+              <span className="admin-field-control-suffix" aria-hidden>
+                Kč
+              </span>
+            </div>
+            <em>Poštovné a balné při odeslání na Slovensko.</em>
           </label>
         </div>
       </section>

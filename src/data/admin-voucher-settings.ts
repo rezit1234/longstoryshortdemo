@@ -172,6 +172,7 @@ export function createEmptyExperience(): AdminExperienceForm {
 
 export const DEFAULT_PICKUP_FEE = 20;
 export const DEFAULT_POST_SHIPPING_FEE = 105;
+export const DEFAULT_POST_SHIPPING_FEE_SK = 145;
 
 export type AdminVoucherSettings = {
   validityMonths: number;
@@ -180,8 +181,10 @@ export type AdminVoucherSettings = {
   experiences: AdminExperienceForm[];
   /** Příplatek za dárkové balení při vyzvednutí na recepci. */
   pickupFee: number;
-  /** Poštovné a balné při odeslání poštou. */
+  /** Poštovné a balné při odeslání po ČR. */
   postShippingFee: number;
+  /** Poštovné a balné při odeslání na Slovensko. */
+  postShippingFeeSk: number;
 };
 
 export function createInitialVoucherSettings(): AdminVoucherSettings {
@@ -214,5 +217,6 @@ export function createInitialVoucherSettings(): AdminVoucherSettings {
     experiences,
     pickupFee: DEFAULT_PICKUP_FEE,
     postShippingFee: DEFAULT_POST_SHIPPING_FEE,
+    postShippingFeeSk: DEFAULT_POST_SHIPPING_FEE_SK,
   };
 }

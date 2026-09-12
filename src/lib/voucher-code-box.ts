@@ -1,7 +1,5 @@
 import type { VoucherCodePosition } from "@/data/admin-voucher-settings";
 
-export const CODE_BOX_FONT_FAMILY =
-  '"Helvetica Neue", Helvetica, Arial, sans-serif';
 export const CODE_BOX_FONT_WEIGHT = 700;
 /** Musí sedět s CSS `.admin-code-editor-box-label`. */
 export const CODE_BOX_LETTER_SPACING_EM = 0.08;
@@ -10,6 +8,14 @@ export const CODE_BOX_MIN_WIDTH_PERCENT = 12;
 export const CODE_BOX_PADDING_X_RATIO = 0.08;
 /** Vertikální padding rámečku jako podíl výšky boxu. */
 export const CODE_BOX_PADDING_Y_RATIO = 0.12;
+
+function resolveAppFontFamily() {
+  if (typeof document === "undefined") return "sans-serif";
+  const fromVar = getComputedStyle(document.documentElement)
+    .getPropertyValue("--font-maison-neue")
+    .trim();
+  return fromVar || "sans-serif";
+}
 
 function measureTextWidthPx(text: string, fontSizePx: number): number {
   if (typeof document === "undefined") {
@@ -20,7 +26,7 @@ function measureTextWidthPx(text: string, fontSizePx: number): number {
   const context = canvas.getContext("2d");
   if (!context) return fontSizePx * text.length * 0.62;
 
-  context.font = `${CODE_BOX_FONT_WEIGHT} ${fontSizePx}px ${CODE_BOX_FONT_FAMILY}`;
+  context.font = `${CODE_BOX_FONT_WEIGHT} ${fontSizePx}px ${resolveAppFontFamily()}`;
   const baseWidth = context.measureText(text).width;
   const spacing =
     text.length > 1

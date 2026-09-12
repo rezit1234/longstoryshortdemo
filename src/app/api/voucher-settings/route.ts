@@ -16,10 +16,11 @@ type SettingsRow = {
   experiences: unknown;
   pickup_fee?: number | null;
   post_shipping_fee?: number | null;
+  post_shipping_fee_sk?: number | null;
 };
 
 const SETTINGS_SELECT =
-  "validity_months, amount_slots, amount_previews, experiences, pickup_fee, post_shipping_fee";
+  "validity_months, amount_slots, amount_previews, experiences, pickup_fee, post_shipping_fee, post_shipping_fee_sk";
 
 const SETTINGS_SELECT_LEGACY =
   "validity_months, amount_slots, amount_previews, experiences";
@@ -27,6 +28,7 @@ const SETTINGS_SELECT_LEGACY =
 function feesFromAmountPreviews(value: unknown): {
   pickupFee?: number;
   postShippingFee?: number;
+  postShippingFeeSk?: number;
 } {
   if (!value || typeof value !== "object") return {};
   const record = value as Record<string, unknown>;
@@ -37,6 +39,10 @@ function feesFromAmountPreviews(value: unknown): {
       typeof record.postShippingFee === "number"
         ? record.postShippingFee
         : undefined,
+    postShippingFeeSk:
+      typeof record.postShippingFeeSk === "number"
+        ? record.postShippingFeeSk
+        : undefined,
   };
 }
 
@@ -45,6 +51,7 @@ function amountPreviewsForStorage(settings: VoucherSettingsPayload) {
     ...settings.amountPreviews,
     pickupFee: settings.pickupFee,
     postShippingFee: settings.postShippingFee,
+    postShippingFeeSk: settings.postShippingFeeSk,
   };
 }
 
@@ -57,6 +64,7 @@ function rowToPayload(row: SettingsRow): VoucherSettingsPayload {
     experiences: row.experiences as VoucherSettingsPayload["experiences"],
     pickupFee: row.pickup_fee ?? embedded.pickupFee,
     postShippingFee: row.post_shipping_fee ?? embedded.postShippingFee,
+    postShippingFeeSk: row.post_shipping_fee_sk ?? embedded.postShippingFeeSk,
   });
 }
 
@@ -153,6 +161,7 @@ export async function PUT(request: Request) {
         ...baseRow,
         pickup_fee: settings.pickupFee,
         post_shipping_fee: settings.postShippingFee,
+        post_shipping_fee_sk: settings.postShippingFeeSk,
       },
       { onConflict: "id" },
     )

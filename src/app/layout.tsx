@@ -1,11 +1,42 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin", "latin-ext"],
-  variable: "--font-plus-jakarta",
-  weight: ["400", "500", "600", "700", "800"],
+const maisonNeue = localFont({
+  src: [
+    {
+      path: "../fonts/MaisonNeue-Light.otf",
+      weight: "300",
+      style: "normal",
+    },
+    {
+      path: "../fonts/MaisonNeue-Light.otf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../fonts/MaisonNeue-Demi.otf",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../fonts/MaisonNeue-Demi.otf",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../fonts/MaisonNeue-Demi.otf",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "../fonts/MaisonNeue-Demi.otf",
+      weight: "800",
+      style: "normal",
+    },
+  ],
+  variable: "--font-maison-neue",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -29,7 +60,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="cs" className={plusJakartaSans.variable} suppressHydrationWarning>
+    <html lang="cs" className={maisonNeue.variable} suppressHydrationWarning>
       <body suppressHydrationWarning>{children}</body>
     </html>
   );

@@ -15,6 +15,7 @@ import {
 import {
   DEFAULT_PICKUP_FEE,
   DEFAULT_POST_SHIPPING_FEE,
+  DEFAULT_POST_SHIPPING_FEE_SK,
   type AdminVoucherSettings,
 } from "@/data/admin-voucher-settings";
 import { setBlobOrigin } from "@/lib/blobOrigin";
@@ -26,6 +27,7 @@ import {
 type DeliveryFees = {
   pickupFee: number;
   postShippingFee: number;
+  postShippingFeeSk: number;
 };
 
 function CartIcon({ className }: { className?: string }) {
@@ -252,6 +254,95 @@ function CheckoutSelect({
   );
 }
 
+function QuantityStepper({
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  function clamp(next: number) {
+    return Math.min(max, Math.max(min, next));
+  }
+
+  function setFromInput(raw: string) {
+    const digits = raw.replace(/\D/g, "");
+    if (digits === "") {
+      onChange(min);
+      return;
+    }
+    onChange(clamp(Number(digits)));
+  }
+
+  return (
+    <div className="checkout-quantity">
+      <input
+        type="text"
+        inputMode="numeric"
+        className="checkout-quantity-input"
+        aria-label="Množství"
+        value={String(value)}
+        onChange={(event) => setFromInput(event.target.value)}
+        onBlur={() => onChange(clamp(value || min))}
+      />
+      <div className="checkout-quantity-actions">
+        <button
+          type="button"
+          className="checkout-quantity-btn"
+          aria-label="Snížit množství"
+          disabled={value <= min}
+          onClick={() => onChange(clamp(value - 1))}
+        >
+          <QuantityMinusIcon />
+        </button>
+        <button
+          type="button"
+          className="checkout-quantity-btn"
+          aria-label="Zvýšit množství"
+          disabled={value >= max}
+          onClick={() => onChange(clamp(value + 1))}
+        >
+          <QuantityPlusIcon />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuantityMinusIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      width="16"
+      height="16"
+      aria-hidden
+    >
+      <path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z" />
+    </svg>
+  );
+}
+
+function QuantityPlusIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      width="16"
+      height="16"
+      aria-hidden
+    >
+      <path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z" />
+    </svg>
+  );
+}
+
 function ExternalLinkIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -333,11 +424,16 @@ type CheckoutFormState = {
   recipient: CheckoutRecipient;
   quantity: number;
   buyerName: string;
+  buyerEmail: string;
   recipientName: string;
   message: string;
   phone: string;
   delivery: CheckoutDelivery;
   deliveryEmail: string;
+  wantInvoice: boolean;
+  companyId: string;
+  vatId: string;
+  invoiceEmail: string;
   shippingName: string;
   addressLine1: string;
   city: string;
@@ -345,22 +441,29 @@ type CheckoutFormState = {
   country: string;
 };
 
-const QUANTITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const QUANTITY_MIN = 1;
+const QUANTITY_MAX = 15;
 
 const DEFAULT_DELIVERY_FEES: DeliveryFees = {
   pickupFee: DEFAULT_PICKUP_FEE,
   postShippingFee: DEFAULT_POST_SHIPPING_FEE,
+  postShippingFeeSk: DEFAULT_POST_SHIPPING_FEE_SK,
 };
 
 const EMPTY_CHECKOUT_FORM: CheckoutFormState = {
   recipient: "other",
   quantity: 1,
   buyerName: "",
+  buyerEmail: "",
   recipientName: "",
   message: "",
   phone: "",
   delivery: "email",
   deliveryEmail: "",
+  wantInvoice: false,
+  companyId: "",
+  vatId: "",
+  invoiceEmail: "",
   shippingName: "",
   addressLine1: "",
   city: "",
@@ -986,6 +1089,7 @@ export function VoucherShop() {
         setDeliveryFees({
           pickupFee: data.settings.pickupFee,
           postShippingFee: data.settings.postShippingFee,
+          postShippingFeeSk: data.settings.postShippingFeeSk,
         });
         setExperienceVouchers(
           nextExperiences.length > 0 ? nextExperiences : EXPERIENCE_VOUCHERS,
@@ -1177,9 +1281,13 @@ function CheckoutPanel({
   const [touched, setTouched] = useState(false);
 
   const unitPrice = item.kind === "amount" ? item.amount : item.price;
+  const isSlovakia = form.country === "SK";
+  const postShippingFee = isSlovakia
+    ? deliveryFees.postShippingFeeSk
+    : deliveryFees.postShippingFee;
   const shippingFee =
     form.delivery === "post"
-      ? deliveryFees.postShippingFee
+      ? postShippingFee
       : form.delivery === "pickup"
         ? deliveryFees.pickupFee
         : 0;
@@ -1194,9 +1302,14 @@ function CheckoutPanel({
       ? item.subtitle
       : "Dárkový poukaz Long Story Short";
 
-  const deliveryEmailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    form.deliveryEmail.trim(),
-  );
+  const isValidEmail = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const buyerEmailOk = isValidEmail(form.buyerEmail);
+  const deliveryEmailOk = isValidEmail(form.deliveryEmail);
+  const invoiceEmailOk = isValidEmail(form.invoiceEmail);
+  const invoiceOk =
+    !form.wantInvoice ||
+    (form.companyId.trim().length > 0 && invoiceEmailOk);
   const recipientNameOk =
     form.recipient === "self" || form.recipientName.trim().length > 0;
   const postAddressOk =
@@ -1207,7 +1320,9 @@ function CheckoutPanel({
   const canPay =
     form.buyerName.trim().length > 0 &&
     form.phone.trim().length > 0 &&
+    buyerEmailOk &&
     recipientNameOk &&
+    invoiceOk &&
     (form.delivery !== "email" || deliveryEmailOk) &&
     (form.delivery !== "post" || postAddressOk);
 
@@ -1215,7 +1330,71 @@ function CheckoutPanel({
     key: K,
     value: CheckoutFormState[K],
   ) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key === "buyerEmail") {
+        const buyerEmail = value as string;
+        return {
+          ...current,
+          buyerEmail,
+          deliveryEmail:
+            current.recipient === "self" && current.delivery === "email"
+              ? buyerEmail
+              : current.deliveryEmail,
+          invoiceEmail:
+            current.wantInvoice &&
+            (current.invoiceEmail === "" ||
+              current.invoiceEmail === current.buyerEmail)
+              ? buyerEmail
+              : current.invoiceEmail,
+        };
+      }
+      if (key === "wantInvoice") {
+        const wantInvoice = value as boolean;
+        if (!wantInvoice) {
+          return { ...current, wantInvoice: false };
+        }
+        return {
+          ...current,
+          wantInvoice: true,
+          invoiceEmail:
+            current.invoiceEmail.trim() || current.buyerEmail,
+        };
+      }
+      if (key === "delivery") {
+        const delivery = value as CheckoutDelivery;
+        if (delivery !== "email") {
+          return { ...current, delivery, message: "" };
+        }
+        return {
+          ...current,
+          delivery,
+          deliveryEmail:
+            current.recipient === "self"
+              ? current.buyerEmail
+              : current.deliveryEmail,
+        };
+      }
+      if (key === "recipient" && value === "self") {
+        return {
+          ...current,
+          recipient: "self",
+          recipientName: "",
+          message: "",
+          deliveryEmail:
+            current.delivery === "email"
+              ? current.buyerEmail
+              : current.deliveryEmail,
+        };
+      }
+      if (key === "recipient" && value === "other") {
+        return {
+          ...current,
+          recipient: "other",
+          deliveryEmail: current.delivery === "email" ? "" : current.deliveryEmail,
+        };
+      }
+      return { ...current, [key]: value };
+    });
   }
 
   function handlePay() {
@@ -1244,7 +1423,12 @@ function CheckoutPanel({
           <span className="checkout-summary-kicker">
             {item.kind === "amount" ? "Na částku" : "Zážitek"}
           </span>
-          <strong className="checkout-summary-title">{title}</strong>
+          <div className="checkout-summary-title-row">
+            <strong className="checkout-summary-title">{title}</strong>
+            {form.quantity > 1 ? (
+              <span className="checkout-summary-qty">×{form.quantity}</span>
+            ) : null}
+          </div>
           {subtitle ? (
             <span className="checkout-summary-subtitle">{subtitle}</span>
           ) : null}
@@ -1253,7 +1437,6 @@ function CheckoutPanel({
         <p className="checkout-summary-total">
           <span>
             Celkem
-            {form.quantity > 1 ? ` · ${form.quantity}×` : ""}
             {shippingFee > 0
               ? ` · ${form.delivery === "pickup" ? "balné" : "poštovné"} ${formatCzk(shippingFee)}`
               : ""}
@@ -1262,8 +1445,22 @@ function CheckoutPanel({
         </p>
       </div>
 
+      <div className="checkout-fields">
+        <div className="checkout-field">
+          <span>Množství</span>
+          <QuantityStepper
+            value={form.quantity}
+            min={QUANTITY_MIN}
+            max={QUANTITY_MAX}
+            onChange={(value) => updateForm("quantity", value)}
+          />
+        </div>
+      </div>
+
       <div className="checkout-section">
-        <p className="checkout-section-label">Pro koho poukaz je</p>
+        <p className="checkout-section-label">
+          {form.quantity > 1 ? "Pro koho poukazy jsou?" : "Pro koho poukaz je?"}
+        </p>
         <div
           className={
             form.recipient === "self"
@@ -1271,7 +1468,9 @@ function CheckoutPanel({
               : "checkout-choice-tabs is-other"
           }
           role="tablist"
-          aria-label="Pro koho poukaz je"
+          aria-label={
+            form.quantity > 1 ? "Pro koho poukazy jsou?" : "Pro koho poukaz je?"
+          }
         >
           <span className="checkout-choice-tabs-indicator" aria-hidden />
           <button
@@ -1298,19 +1497,6 @@ function CheckoutPanel({
       </div>
 
       <div className="checkout-fields">
-        <div className="checkout-field">
-          <span>Množství</span>
-          <CheckoutSelect
-            ariaLabel="Množství"
-            value={String(form.quantity)}
-            options={QUANTITY_OPTIONS.map((value) => ({
-              value: String(value),
-              label: String(value),
-            }))}
-            onChange={(value) => updateForm("quantity", Number(value) || 1)}
-          />
-        </div>
-
         <label className="checkout-field">
           <span>Vaše jméno</span>
           <input
@@ -1323,36 +1509,8 @@ function CheckoutPanel({
           />
         </label>
 
-        {form.recipient === "other" ? (
-          <>
-            <label className="checkout-field">
-              <span>Jméno příjemce</span>
-              <input
-                type="text"
-                autoComplete="off"
-                value={form.recipientName}
-                placeholder="Anna Nováková"
-                aria-invalid={touched && !form.recipientName.trim()}
-                onChange={(event) =>
-                  updateForm("recipientName", event.target.value)
-                }
-              />
-            </label>
-
-            <label className="checkout-field">
-              <span>Osobní zpráva <em>(volitelná)</em></span>
-              <textarea
-                rows={3}
-                value={form.message}
-                placeholder="Přání k poukazu…"
-                onChange={(event) => updateForm("message", event.target.value)}
-              />
-            </label>
-          </>
-        ) : null}
-
         <label className="checkout-field">
-          <span>Telefonní číslo</span>
+          <span>Vaše telefonní číslo</span>
           <input
             type="tel"
             inputMode="tel"
@@ -1365,10 +1523,42 @@ function CheckoutPanel({
             }
           />
         </label>
+
+        <label className="checkout-field">
+          <span>Váš e-mail</span>
+          <input
+            type="email"
+            autoComplete="email"
+            value={form.buyerEmail}
+            placeholder="jan@email.cz"
+            aria-invalid={touched && !buyerEmailOk}
+            onChange={(event) => updateForm("buyerEmail", event.target.value)}
+          />
+        </label>
+
+        {form.recipient === "other" ? (
+          <label className="checkout-field">
+            <span>Jméno příjemce</span>
+            <input
+              type="text"
+              autoComplete="off"
+              value={form.recipientName}
+              placeholder="Anna Nováková"
+              aria-invalid={touched && !form.recipientName.trim()}
+              onChange={(event) =>
+                updateForm("recipientName", event.target.value)
+              }
+            />
+          </label>
+        ) : null}
       </div>
 
       <div className="checkout-section">
-        <p className="checkout-section-label">Jak poukaz doručit</p>
+        <p className="checkout-section-label">
+          {form.quantity > 1
+            ? "Jak chcete poukazy doručit?"
+            : "Jak chcete poukaz doručit?"}
+        </p>
         <div
           className={
             form.delivery === "post"
@@ -1414,19 +1604,39 @@ function CheckoutPanel({
         </div>
 
         {form.delivery === "email" ? (
-          <label className="checkout-field">
-            <span>Na jaký e-mail to máme poslat?</span>
-            <input
-              type="email"
-              autoComplete="email"
-              value={form.deliveryEmail}
-              placeholder="jan@email.cz"
-              aria-invalid={touched && !deliveryEmailOk}
-              onChange={(event) =>
-                updateForm("deliveryEmail", event.target.value)
-              }
-            />
-          </label>
+          <div className="checkout-email-fields">
+            <label className="checkout-field">
+              <span>
+                {form.quantity > 1
+                  ? "Na jaký e-mail máme poukazy zaslat?"
+                  : "Na jaký e-mail máme poukaz zaslat?"}
+              </span>
+              <input
+                type="email"
+                autoComplete="email"
+                value={form.deliveryEmail}
+                placeholder="jan@email.cz"
+                aria-invalid={touched && !deliveryEmailOk}
+                onChange={(event) =>
+                  updateForm("deliveryEmail", event.target.value)
+                }
+              />
+            </label>
+
+            {form.recipient === "other" ? (
+              <label className="checkout-field">
+                <span>Osobní zpráva <em>(volitelná)</em></span>
+                <textarea
+                  rows={3}
+                  value={form.message}
+                  placeholder="Přání k poukazu…"
+                  onChange={(event) =>
+                    updateForm("message", event.target.value)
+                  }
+                />
+              </label>
+            ) : null}
+          </div>
         ) : form.delivery === "post" ? (
           <div className="checkout-post-fields">
             <label className="checkout-field">
@@ -1509,8 +1719,12 @@ function CheckoutPanel({
               <span className="checkout-shipping-option-check" aria-hidden />
               <div className="checkout-shipping-option-body">
                 <div className="checkout-shipping-option-head">
-                  <strong>Dárkové balení - Česká pošta</strong>
-                  <span>{formatCzk(deliveryFees.postShippingFee)}</span>
+                  <strong>
+                    {isSlovakia
+                      ? "Dárkové balení - Slovenská pošta"
+                      : "Dárkové balení - Česká pošta"}
+                  </strong>
+                  <span>{formatCzk(postShippingFee)}</span>
                 </div>
                 <p>
                   Chodíme na poštu v úterý ráno. Odesíláme poukazy objednané
@@ -1543,17 +1757,108 @@ function CheckoutPanel({
         )}
       </div>
 
+      <div className="checkout-invoice">
+        <label
+          className={
+            form.wantInvoice
+              ? "checkout-invoice-toggle is-checked"
+              : "checkout-invoice-toggle"
+          }
+        >
+          <input
+            type="checkbox"
+            checked={form.wantInvoice}
+            onChange={(event) =>
+              updateForm("wantInvoice", event.target.checked)
+            }
+          />
+          <span className="checkout-invoice-toggle-mark" aria-hidden>
+            <svg viewBox="0 0 16 16" fill="none">
+              <path
+                d="M3.5 8.2 6.6 11.2 12.5 4.8"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+          <span className="checkout-invoice-toggle-label">
+            Chci daňový doklad
+          </span>
+        </label>
+
+        {form.wantInvoice ? (
+          <div className="checkout-invoice-fields">
+            <div className="checkout-field-row">
+              <label className="checkout-field">
+                <span>IČO</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={form.companyId}
+                  placeholder="12345678"
+                  aria-invalid={touched && !form.companyId.trim()}
+                  onChange={(event) =>
+                    updateForm(
+                      "companyId",
+                      event.target.value.replace(/[^\d]/g, ""),
+                    )
+                  }
+                />
+              </label>
+              <label className="checkout-field">
+                <span>
+                  DIČ <em>(volitelné)</em>
+                </span>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={form.vatId}
+                  placeholder="CZ12345678"
+                  onChange={(event) =>
+                    updateForm(
+                      "vatId",
+                      event.target.value.replace(/\s/g, "").toUpperCase(),
+                    )
+                  }
+                />
+              </label>
+            </div>
+
+            <label className="checkout-field">
+              <span>Na jaký e-mail máme zaslat daňový doklad?</span>
+              <input
+                type="email"
+                autoComplete="email"
+                value={form.invoiceEmail}
+                placeholder="jan@email.cz"
+                aria-invalid={touched && !invoiceEmailOk}
+                onChange={(event) =>
+                  updateForm("invoiceEmail", event.target.value)
+                }
+              />
+            </label>
+          </div>
+        ) : null}
+      </div>
+
       {touched && !canPay ? (
         <p className="checkout-error" role="alert">
-          {form.delivery === "post" && !postAddressOk
-            ? "Vyplňte jméno, adresu, město a PSČ pro zaslání."
-            : form.delivery === "email" && !deliveryEmailOk
-              ? "Vyplňte jméno, telefon a platný e-mail pro doručení."
-              : !form.phone.trim()
-                ? "Vyplňte telefonní číslo."
-                : form.recipient === "other"
-                  ? "Vyplňte vaše jméno a jméno příjemce."
-                  : "Vyplňte vaše jméno."}
+          {form.wantInvoice && !invoiceOk
+            ? "Vyplňte IČO a platný e-mail pro daňový doklad."
+            : form.delivery === "post" && !postAddressOk
+              ? "Vyplňte jméno, adresu, město a PSČ pro zaslání."
+              : form.delivery === "email" && !deliveryEmailOk
+                ? "Vyplňte platný e-mail pro doručení poukazu."
+                : !buyerEmailOk
+                  ? "Vyplňte platný e-mail."
+                  : !form.phone.trim()
+                    ? "Vyplňte telefonní číslo."
+                    : form.recipient === "other"
+                      ? "Vyplňte vaše jméno a jméno příjemce."
+                      : "Vyplňte vaše jméno."}
         </p>
       ) : null}
 
@@ -1840,7 +2145,8 @@ function ExperienceItem({
   }, [open, voucher.gallery, isMobileGallery]);
 
   useLayoutEffect(() => {
-    if (!previewImage) {
+    // Na mobilu pevná menší 1:1 miniatura — ne výška podle textu.
+    if (!previewImage || isMobileGallery) {
       setThumbSize(null);
       return;
     }
@@ -1858,7 +2164,13 @@ function ExperienceItem({
     const observer = new ResizeObserver(updateSize);
     observer.observe(main);
     return () => observer.disconnect();
-  }, [previewImage, voucher.title, voucher.subtitle, voucher.suitableFor]);
+  }, [
+    previewImage,
+    isMobileGallery,
+    voucher.title,
+    voucher.subtitle,
+    voucher.suitableFor,
+  ]);
 
   return (
     <li className={open ? "experience-item is-open" : "experience-item"}>
@@ -1930,6 +2242,7 @@ function ExperienceItem({
         id={`${voucher.id}-details`}
       >
         <div className="experience-details-inner">
+          <h3 className="experience-details-title">{voucher.title}</h3>
           <p>{voucher.description}</p>
           {open && voucher.gallery && voucher.gallery.length > 0 ? (
             <ExperienceGallery images={voucher.gallery} />

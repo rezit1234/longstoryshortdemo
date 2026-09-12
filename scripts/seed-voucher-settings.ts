@@ -13,6 +13,15 @@ function loadEnv() {
   };
 }
 
+function feePreview(settings: ReturnType<typeof createInitialVoucherSettings>) {
+  return {
+    ...settings.amountPreviews,
+    pickupFee: settings.pickupFee,
+    postShippingFee: settings.postShippingFee,
+    postShippingFeeSk: settings.postShippingFeeSk,
+  };
+}
+
 async function main() {
   const { url, serviceRole } = loadEnv();
   if (!url || !serviceRole) {
@@ -24,6 +33,7 @@ async function main() {
   });
 
   const settings = createInitialVoucherSettings();
+  const amountPreviews = feePreview(settings);
 
   const { data, error } = await admin
     .from("voucher_settings")
@@ -32,14 +42,11 @@ async function main() {
         id: 1,
         validity_months: settings.validityMonths,
         amount_slots: settings.amountSlots,
-        amount_previews: {
-          ...settings.amountPreviews,
-          pickupFee: settings.pickupFee,
-          postShippingFee: settings.postShippingFee,
-        },
+        amount_previews: amountPreviews,
         experiences: settings.experiences,
         pickup_fee: settings.pickupFee,
         post_shipping_fee: settings.postShippingFee,
+        post_shipping_fee_sk: settings.postShippingFeeSk,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },
@@ -56,11 +63,7 @@ async function main() {
           id: 1,
           validity_months: settings.validityMonths,
           amount_slots: settings.amountSlots,
-          amount_previews: {
-            ...settings.amountPreviews,
-            pickupFee: settings.pickupFee,
-            postShippingFee: settings.postShippingFee,
-          },
+          amount_previews: amountPreviews,
           experiences: settings.experiences,
           updated_at: new Date().toISOString(),
         },
@@ -77,16 +80,12 @@ async function main() {
     console.log(
       "SEEDED_LEGACY",
       legacy.data.id,
-      "validity",
-      legacy.data.validity_months,
-      "experiences",
-      settings.experiences.length,
-      "amounts",
-      settings.amountSlots.filter((slot) => slot !== null).length,
       "pickup",
       settings.pickupFee,
-      "post",
+      "postCz",
       settings.postShippingFee,
+      "postSk",
+      settings.postShippingFeeSk,
     );
     return;
   }
@@ -94,16 +93,12 @@ async function main() {
   console.log(
     "SEEDED",
     data.id,
-    "validity",
-    data.validity_months,
-    "experiences",
-    settings.experiences.length,
-    "amounts",
-    settings.amountSlots.filter((slot) => slot !== null).length,
     "pickup",
     settings.pickupFee,
-    "post",
+    "postCz",
     settings.postShippingFee,
+    "postSk",
+    settings.postShippingFeeSk,
   );
 }
 

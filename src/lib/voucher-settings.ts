@@ -49,6 +49,10 @@ export function normalizeVoucherSettings(
       input?.postShippingFee,
       fallback.postShippingFee,
     ),
+    postShippingFeeSk: normalizeFee(
+      input?.postShippingFeeSk,
+      fallback.postShippingFeeSk,
+    ),
   };
 }
 

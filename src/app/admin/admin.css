@@ -2005,7 +2005,7 @@
   overflow: hidden;
   white-space: nowrap;
   color: #0a0a0a;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-align: center;
@@ -2169,6 +2169,10 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.85rem;
+}
+
+.admin-field-row.is-triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .admin-toggle-block {
