@@ -120,7 +120,15 @@ export type VoucherCodePosition = {
   y: number;
   width: number;
   height: number;
+  /** 1-based číslo stránky PDF (výchozí 1). */
+  page?: number;
 };
+
+export function normalizePositionPage(page: unknown, fallback = 1) {
+  const value = Number(page);
+  if (!Number.isFinite(value) || value < 1) return fallback;
+  return Math.min(50, Math.floor(value));
+}
 
 export function createDefaultCodePosition(): VoucherCodePosition {
   return {
@@ -128,6 +136,7 @@ export function createDefaultCodePosition(): VoucherCodePosition {
     y: 18,
     width: 28,
     height: 5,
+    page: 1,
   };
 }
 
@@ -137,6 +146,7 @@ export function createDefaultQrPosition(): VoucherCodePosition {
     y: 44,
     width: 12,
     height: 12,
+    page: 1,
   };
 }
 
@@ -144,6 +154,7 @@ export function createCenteredQrPosition(
   stageWidthPx: number,
   stageHeightPx: number,
   sizePercent = 12,
+  page = 1,
 ): VoucherCodePosition {
   const width = Math.max(8, Math.min(40, sizePercent));
   const height =
@@ -156,11 +167,13 @@ export function createCenteredQrPosition(
     y: Math.max(0, (100 - height) / 2),
     width,
     height,
+    page: normalizePositionPage(page),
   };
 }
 
 export function formatCodePositionLabel(position: VoucherCodePosition): string {
-  return `X ${Math.round(position.x)}, Y ${Math.round(position.y)}`;
+  const page = normalizePositionPage(position.page);
+  return `Str. ${page} · X ${Math.round(position.x)}, Y ${Math.round(position.y)}`;
 }
 
 export type ExperienceVatMode = "single" | "combined";

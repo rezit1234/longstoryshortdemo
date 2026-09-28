@@ -1,4 +1,5 @@
 import type { VoucherCodePosition } from "@/data/admin-voucher-settings";
+import { normalizePositionPage } from "@/data/admin-voucher-settings";
 
 export const CODE_BOX_FONT_WEIGHT = 700;
 /** Musí sedět s CSS `.admin-code-editor-box-label`. */
@@ -79,7 +80,13 @@ export function normalizeCodeBoxPosition(
   const x = Math.max(0, Math.min(100 - width, position.x));
   const y = Math.max(0, Math.min(100 - height, position.y));
 
-  return { x, y, width, height };
+  return {
+    x,
+    y,
+    width,
+    height,
+    page: normalizePositionPage(position.page),
+  };
 }
 
 /** Font-size tak, aby text přesně seděl do šířky rámečku (včetně paddingu). */

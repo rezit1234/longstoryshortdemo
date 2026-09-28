@@ -4,19 +4,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const PADDING = 24;
 
-export function usePdfEditorStage(pdfUrl: string) {
+export function usePdfEditorStage(pdfUrl: string, pageNumber = 1) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageSizeRef = useRef({ width: 0, height: 0 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfDocRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfPageRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderTaskRef = useRef<any>(null);
 
+  const [pageCount, setPageCount] = useState(1);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [pageReady, setPageReady] = useState(false);
 
   const renderPdf = useCallback(async () => {
     const viewport = viewportRef.current;
@@ -79,7 +83,10 @@ export function usePdfEditorStage(pdfUrl: string) {
 
     setLoading(true);
     setLoadError(null);
+    setPageReady(false);
     setStageSize({ width: 0, height: 0 });
+    setPageCount(1);
+    pdfDocRef.current = null;
     pdfPageRef.current = null;
     pageSizeRef.current = { width: 0, height: 0 };
 
@@ -89,16 +96,10 @@ export function usePdfEditorStage(pdfUrl: string) {
         pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
         const pdf = await pdfjs.getDocument({ url: pdfUrl }).promise;
-        const page = await pdf.getPage(1);
-        const baseViewport = page.getViewport({ scale: 1 });
-
         if (cancelled) return;
 
-        pageSizeRef.current = {
-          width: baseViewport.width,
-          height: baseViewport.height,
-        };
-        pdfPageRef.current = page;
+        pdfDocRef.current = pdf;
+        setPageCount(Math.max(1, pdf.numPages || 1));
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
@@ -124,7 +125,52 @@ export function usePdfEditorStage(pdfUrl: string) {
   }, [pdfUrl]);
 
   useEffect(() => {
-    if (loading || loadError) return;
+    if (loading || loadError || !pdfDocRef.current) return;
+
+    let cancelled = false;
+    setPageReady(false);
+    setStageSize({ width: 0, height: 0 });
+
+    async function loadPage() {
+      try {
+        const pdf = pdfDocRef.current;
+        const total = Math.max(1, pdf.numPages || 1);
+        const target = Math.min(Math.max(1, pageNumber), total);
+        const page = await pdf.getPage(target);
+        const baseViewport = page.getViewport({ scale: 1 });
+
+        if (cancelled) return;
+
+        pageSizeRef.current = {
+          width: baseViewport.width,
+          height: baseViewport.height,
+        };
+        pdfPageRef.current = page;
+        setPageReady(true);
+      } catch (err) {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof Error ? err.message : "Stránku PDF se nepodařilo načíst.",
+        );
+      }
+    }
+
+    void loadPage();
+
+    return () => {
+      cancelled = true;
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [loading, loadError, pageNumber]);
+
+  useEffect(() => {
+    if (loading || loadError || !pageReady) return;
 
     let resizeTimer = 0;
     let frame = 0;
@@ -154,13 +200,14 @@ export function usePdfEditorStage(pdfUrl: string) {
       window.clearTimeout(resizeTimer);
       observer.disconnect();
     };
-  }, [loading, loadError, renderPdf]);
+  }, [loading, loadError, pageReady, pageNumber, renderPdf]);
 
   return {
     canvasRef,
     stageRef,
     viewportRef,
     stageSize,
+    pageCount,
     loading,
     loadError,
   };

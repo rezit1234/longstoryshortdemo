@@ -1,4 +1,5 @@
 import type { VoucherCodePosition } from "@/data/admin-voucher-settings";
+import { normalizePositionPage } from "@/data/admin-voucher-settings";
 
 export const QR_BOX_MIN_WIDTH_PERCENT = 8;
 
@@ -26,5 +27,11 @@ export function normalizeQrBoxPosition(
   const x = Math.max(0, Math.min(100 - width, position.x));
   const y = Math.max(0, Math.min(100 - height, position.y));
 
-  return { x, y, width, height };
+  return {
+    x,
+    y,
+    width,
+    height,
+    page: normalizePositionPage(position.page),
+  };
 }

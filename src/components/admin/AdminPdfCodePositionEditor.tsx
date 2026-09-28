@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   MOCK_VOUCHER_CODE,
+  normalizePositionPage,
   type VoucherCodePosition,
   createDefaultCodePosition,
 } from "@/data/admin-voucher-settings";
@@ -73,8 +74,13 @@ export function AdminPdfCodePositionEditor({
     () => measureCodeBoxAspectRatio(MOCK_VOUCHER_CODE),
     [],
   );
+  const [page, setPage] = useState(
+    normalizePositionPage(initialPosition?.page),
+  );
   const [rect, setRect] = useState<VoucherCodePosition>(
-    initialPosition ?? createDefaultCodePosition(),
+    initialPosition
+      ? { ...initialPosition, page: normalizePositionPage(initialPosition.page) }
+      : createDefaultCodePosition(),
   );
   const interactionRef = useRef<Interaction | null>(null);
 
@@ -83,21 +89,34 @@ export function AdminPdfCodePositionEditor({
     stageRef,
     viewportRef,
     stageSize,
+    pageCount,
     loading,
     loadError,
-  } = usePdfEditorStage(pdfUrl);
+  } = usePdfEditorStage(pdfUrl, page);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+      setRect((current) => ({ ...current, page: pageCount }));
+    }
+  }, [page, pageCount]);
 
   const normalizeRect = useCallback(
     (position: VoucherCodePosition) => {
-      if (stageSize.width <= 0 || stageSize.height <= 0) return position;
-      return normalizeCodeBoxPosition(
-        position,
-        stageSize.width,
-        stageSize.height,
-        aspectRatio,
-      );
+      if (stageSize.width <= 0 || stageSize.height <= 0) {
+        return { ...position, page };
+      }
+      return {
+        ...normalizeCodeBoxPosition(
+          position,
+          stageSize.width,
+          stageSize.height,
+          aspectRatio,
+        ),
+        page,
+      };
     },
-    [aspectRatio, stageSize.height, stageSize.width],
+    [aspectRatio, page, stageSize.height, stageSize.width],
   );
 
   useEffect(() => {
@@ -118,6 +137,12 @@ export function AdminPdfCodePositionEditor({
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [onClose]);
+
+  const goToPage = useCallback((next: number) => {
+    const target = Math.max(1, next);
+    setPage(target);
+    setRect((current) => ({ ...current, page: target }));
+  }, []);
 
   const updateFromPointer = useCallback(
     (clientX: number, clientY: number) => {
@@ -157,7 +182,7 @@ export function AdminPdfCodePositionEditor({
         }),
       );
     },
-    [normalizeRect],
+    [normalizeRect, stageRef],
   );
 
   useEffect(() => {
@@ -232,6 +257,30 @@ export function AdminPdfCodePositionEditor({
         </div>
 
         <div className="admin-code-editor-body">
+          {pageCount > 1 ? (
+            <div className="admin-code-editor-pages">
+              <button
+                type="button"
+                className="admin-outline-btn"
+                disabled={page <= 1 || loading}
+                onClick={() => goToPage(page - 1)}
+              >
+                Předchozí
+              </button>
+              <p className="admin-code-editor-pages-label">
+                Strana {page} / {pageCount}
+              </p>
+              <button
+                type="button"
+                className="admin-outline-btn"
+                disabled={page >= pageCount || loading}
+                onClick={() => goToPage(page + 1)}
+              >
+                Další
+              </button>
+            </div>
+          ) : null}
+
           {loading ? (
             <p className="admin-code-editor-status">Načítám PDF…</p>
           ) : null}

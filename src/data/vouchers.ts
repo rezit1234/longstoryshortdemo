@@ -10,12 +10,14 @@ export type VoucherPdfPlacement = {
     y: number;
     width: number;
     height: number;
+    page?: number;
   } | null;
   qrPosition: {
     x: number;
     y: number;
     width: number;
     height: number;
+    page?: number;
   } | null;
 };
 

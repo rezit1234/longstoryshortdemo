@@ -5,6 +5,7 @@ import {
   MAX_AMOUNT_SLOTS,
   MAX_CHECKOUT_PREVIEW_IMAGES,
   MAX_GALLERY_IMAGES,
+  normalizePositionPage,
   type AdminExperienceForm,
   type AdminVoucherSettings,
   type ExperienceVatSettings,
@@ -243,6 +244,9 @@ function normalizeCodePosition(
     y: Math.max(0, Math.min(100, y)),
     width: Math.max(1, Math.min(100, width)),
     height: Math.max(1, Math.min(100, height)),
+    page: normalizePositionPage(
+      (value as { page?: unknown }).page,
+    ),
   };
 }
 

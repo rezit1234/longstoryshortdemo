@@ -7,6 +7,7 @@ import {
 } from "pdf-lib";
 import QRCode from "qrcode";
 import type { VoucherCodePosition } from "@/data/admin-voucher-settings";
+import { normalizePositionPage } from "@/data/admin-voucher-settings";
 import {
   CODE_BOX_LETTER_SPACING_EM,
   CODE_BOX_PADDING_X_RATIO,
@@ -35,6 +36,13 @@ function percentToPdfRect(
   const x = (position.x / 100) * pageWidth;
   const y = pageHeight - (position.y / 100) * pageHeight - height;
   return { x, y, width, height };
+}
+
+function resolvePage(pages: PDFPage[], position: VoucherCodePosition | null) {
+  if (pages.length === 0) return null;
+  const page = normalizePositionPage(position?.page);
+  const index = Math.min(pages.length, Math.max(1, page)) - 1;
+  return pages[index] ?? pages[0];
 }
 
 function spacedTextWidth(font: PDFFont, text: string, size: number) {
@@ -73,7 +81,6 @@ function drawSpacedCenteredText(
 ) {
   const textWidth = spacedTextWidth(font, text, size);
   let x = box.x + (box.width - textWidth) / 2;
-  // Baseline ≈ střed boxu minus mírný offset (Helvetica metriky).
   const y = box.y + (box.height - size) / 2 + size * 0.12;
 
   for (const char of text) {
@@ -101,6 +108,7 @@ async function buildQrPng(payload: string, pixelSize: number) {
 
 /**
  * Natiskne kód + QR do PDF šablony podle % pozic z admin editoru.
+ * Kód a QR můžou být na různých stránkách (`position.page`).
  */
 export async function stampVoucherPdf(
   input: StampVoucherPdfInput,
@@ -113,33 +121,39 @@ export async function stampVoucherPdf(
     throw new Error("PDF šablona nemá žádnou stránku.");
   }
 
-  const page = pages[0];
-  const { width: pageWidth, height: pageHeight } = page.getSize();
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
   const code = input.code.trim().toUpperCase();
   const qrPayload = (input.qrPayload ?? code).trim() || code;
 
   if (input.codePosition && code) {
-    const box = percentToPdfRect(input.codePosition, pageWidth, pageHeight);
-    const size = fitCodeFontSize(font, code, box.width, box.height);
-    drawSpacedCenteredText(page, code, font, size, box);
+    const page = resolvePage(pages, input.codePosition);
+    if (page) {
+      const { width: pageWidth, height: pageHeight } = page.getSize();
+      const box = percentToPdfRect(input.codePosition, pageWidth, pageHeight);
+      const size = fitCodeFontSize(font, code, box.width, box.height);
+      drawSpacedCenteredText(page, code, font, size, box);
+    }
   }
 
   if (input.qrPosition && qrPayload) {
-    const box = percentToPdfRect(input.qrPosition, pageWidth, pageHeight);
-    const side = Math.min(box.width, box.height);
-    const inset = side * 0.04;
-    const drawSize = Math.max(8, side - inset * 2);
-    const png = await buildQrPng(qrPayload, drawSize * 2);
-    const image = await pdf.embedPng(png);
-    const x = box.x + (box.width - drawSize) / 2;
-    const y = box.y + (box.height - drawSize) / 2;
-    page.drawImage(image, {
-      x,
-      y,
-      width: drawSize,
-      height: drawSize,
-    });
+    const page = resolvePage(pages, input.qrPosition);
+    if (page) {
+      const { width: pageWidth, height: pageHeight } = page.getSize();
+      const box = percentToPdfRect(input.qrPosition, pageWidth, pageHeight);
+      const side = Math.min(box.width, box.height);
+      const inset = side * 0.04;
+      const drawSize = Math.max(8, side - inset * 2);
+      const png = await buildQrPng(qrPayload, drawSize * 2);
+      const image = await pdf.embedPng(png);
+      const x = box.x + (box.width - drawSize) / 2;
+      const y = box.y + (box.height - drawSize) / 2;
+      page.drawImage(image, {
+        x,
+        y,
+        width: drawSize,
+        height: drawSize,
+      });
+    }
   }
 
   return pdf.save({ useObjectStreams: false });

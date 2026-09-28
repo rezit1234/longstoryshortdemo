@@ -56,14 +56,33 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-function deliveryCopy(method: string) {
+function appBaseUrl() {
+  const raw =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "https://longstoryshortdemo.vercel.app";
+  return raw.replace(/\/$/, "");
+}
+
+function shopLogoUrl(logoSrc: string) {
+  if (/^https?:\/\//i.test(logoSrc)) return logoSrc;
+  const path = logoSrc.startsWith("/") ? logoSrc : `/${logoSrc}`;
+  return `${appBaseUrl()}${path}`;
+}
+
+function deliveryCopy(method: string, hasPdf: boolean) {
   if (method === "post") {
-    return "Poukaz vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme i digitální verzi v PDF.";
+    return hasPdf
+      ? "Poukaz vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme i digitální verzi v PDF."
+      : "Poukaz vám pošleme poštou v dárkovém balení. Kód níže stačí k uplatnění.";
   }
   if (method === "pickup") {
-    return "Poukaz si vyzvednete osobně. Pro jistotu přikládáme i digitální verzi v PDF.";
+    return hasPdf
+      ? "Poukaz si vyzvednete osobně. Pro jistotu přikládáme i digitální verzi v PDF."
+      : "Poukaz si vyzvednete osobně. Kód níže stačí k uplatnění.";
   }
-  return "V příloze najdete dárkový poukaz v PDF. Stačí ho otevřít nebo vytisknout.";
+  return hasPdf
+    ? "V příloze najdete dárkový poukaz v PDF. Stačí ho otevřít nebo vytisknout."
+    : "Kód poukazu najdete níže — stačí ho uvést při uplatnění.";
 }
 
 function buildHtml(input: SendVoucherEmailInput) {
@@ -74,6 +93,7 @@ function buildHtml(input: SendVoucherEmailInput) {
   const validUntil = escapeHtml(input.validUntil);
   const brandName = escapeHtml(brand.brandName);
   const website = escapeHtml(brand.websiteUrl);
+  const logoUrl = escapeHtml(shopLogoUrl(brand.logoSrc));
   const message = input.message?.trim()
     ? `<p style="margin:16px 0 0;padding:12px 14px;background:#f5f5f5;border-radius:8px;"><strong>Vzkaz:</strong><br/>${escapeHtml(input.message.trim())}</p>`
     : "";
@@ -88,10 +108,12 @@ function buildHtml(input: SendVoucherEmailInput) {
         <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;padding:28px 24px;">
           <tr>
             <td>
-              <p style="margin:0 0 8px;font-size:13px;letter-spacing:0.04em;text-transform:uppercase;color:#666;">${brandName}</p>
-              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;">Váš dárkový poukaz</h1>
+              <div style="margin:0 0 18px;text-align:center;">
+                <img src="${logoUrl}" alt="${brandName}" width="168" style="display:inline-block;max-width:168px;width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+              </div>
+              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:center;">Váš dárkový poukaz</h1>
               <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">Dobrý den, ${name},</p>
-              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">děkujeme za nákup. ${deliveryCopy(input.deliveryMethod)}</p>
+              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">děkujeme za nákup. ${deliveryCopy(input.deliveryMethod, hasPdf)}</p>
               <table role="presentation" width="100%" style="margin:20px 0;border-collapse:collapse;">
                 <tr>
                   <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;color:#666;">Produkt</td>

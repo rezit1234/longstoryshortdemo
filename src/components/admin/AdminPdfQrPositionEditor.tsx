@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   MOCK_QR_URL,
+  normalizePositionPage,
   type VoucherCodePosition,
   createCenteredQrPosition,
   createDefaultQrPosition,
@@ -67,8 +68,13 @@ export function AdminPdfQrPositionEditor({
   onClose: () => void;
   onSave: (position: VoucherCodePosition) => void;
 }) {
+  const [page, setPage] = useState(
+    normalizePositionPage(initialPosition?.page),
+  );
   const [rect, setRect] = useState<VoucherCodePosition>(
-    initialPosition ?? createDefaultQrPosition(),
+    initialPosition
+      ? { ...initialPosition, page: normalizePositionPage(initialPosition.page) }
+      : createDefaultQrPosition(),
   );
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const interactionRef = useRef<Interaction | null>(null);
@@ -79,16 +85,29 @@ export function AdminPdfQrPositionEditor({
     stageRef,
     viewportRef,
     stageSize,
+    pageCount,
     loading,
     loadError,
-  } = usePdfEditorStage(pdfUrl);
+  } = usePdfEditorStage(pdfUrl, page);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+      setRect((current) => ({ ...current, page: pageCount }));
+    }
+  }, [page, pageCount]);
 
   const normalizeRect = useCallback(
     (position: VoucherCodePosition) => {
-      if (stageSize.width <= 0 || stageSize.height <= 0) return position;
-      return normalizeQrBoxPosition(position, stageSize.width, stageSize.height);
+      if (stageSize.width <= 0 || stageSize.height <= 0) {
+        return { ...position, page };
+      }
+      return {
+        ...normalizeQrBoxPosition(position, stageSize.width, stageSize.height),
+        page,
+      };
     },
-    [stageSize.height, stageSize.width],
+    [page, stageSize.height, stageSize.width],
   );
 
   useEffect(() => {
@@ -97,13 +116,13 @@ export function AdminPdfQrPositionEditor({
     if (!hasCenteredRef.current) {
       hasCenteredRef.current = true;
       setRect(
-        createCenteredQrPosition(stageSize.width, stageSize.height, 12),
+        createCenteredQrPosition(stageSize.width, stageSize.height, 12, page),
       );
       return;
     }
 
     setRect((current) => normalizeRect(current));
-  }, [normalizeRect, stageSize.height, stageSize.width]);
+  }, [normalizeRect, page, stageSize.height, stageSize.width]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -142,6 +161,12 @@ export function AdminPdfQrPositionEditor({
     };
   }, []);
 
+  const goToPage = useCallback((next: number) => {
+    const target = Math.max(1, next);
+    setPage(target);
+    setRect((current) => ({ ...current, page: target }));
+  }, []);
+
   const updateFromPointer = useCallback(
     (clientX: number, clientY: number) => {
       const interaction = interactionRef.current;
@@ -178,7 +203,7 @@ export function AdminPdfQrPositionEditor({
         }),
       );
     },
-    [normalizeRect],
+    [normalizeRect, stageRef],
   );
 
   useEffect(() => {
@@ -255,6 +280,30 @@ export function AdminPdfQrPositionEditor({
         </div>
 
         <div className="admin-code-editor-body">
+          {pageCount > 1 ? (
+            <div className="admin-code-editor-pages">
+              <button
+                type="button"
+                className="admin-outline-btn"
+                disabled={page <= 1 || loading}
+                onClick={() => goToPage(page - 1)}
+              >
+                Předchozí
+              </button>
+              <p className="admin-code-editor-pages-label">
+                Strana {page} / {pageCount}
+              </p>
+              <button
+                type="button"
+                className="admin-outline-btn"
+                disabled={page >= pageCount || loading}
+                onClick={() => goToPage(page + 1)}
+              >
+                Další
+              </button>
+            </div>
+          ) : null}
+
           {loading ? (
             <p className="admin-code-editor-status">Načítám PDF…</p>
           ) : null}
