@@ -10,6 +10,7 @@ import {
   resolveVoucherEmailRecipient,
   sendVoucherEmail,
 } from "@/lib/email/send-voucher-email";
+import { sendOpsFulfillmentEmail } from "@/lib/email/send-ops-fulfillment-email";
 import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
@@ -376,11 +377,37 @@ export async function fulfillPaidOrder(orderId: string) {
     }
   }
 
+  let opsEmailSent = false;
+  if (deliveryMethod === "post" || deliveryMethod === "pickup") {
+    try {
+      const opsResult = await sendOpsFulfillmentEmail({
+        shopId: typed.shop_id,
+        orderNumber: typed.order_number,
+        deliveryMethod,
+        productName,
+        quantity: typed.quantity,
+        codes,
+        buyerName,
+        buyerEmail,
+        buyerPhone: asString(typed.buyer.phone),
+        recipientName,
+        shippingAddress,
+        message,
+        unitPriceCzk: typed.unit_price_czk,
+        shippingFeeCzk: typed.shipping_fee_czk,
+      });
+      opsEmailSent = Boolean(opsResult.ok);
+    } catch (error) {
+      console.error("fulfillPaidOrder: ops email failed", error);
+    }
+  }
+
   return {
     created: rows.length,
     skipped: false as const,
     codes,
     pdfs: pdfUrls.size,
     emailsSent,
+    opsEmailSent,
   };
 }
