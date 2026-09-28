@@ -37,18 +37,18 @@ const QUICK_LINKS = [
 const MANAGE_QUICK_LINKS = [
   {
     href: "/admin/analytika",
-    label: "Analytika",
-    description: "Tržby a statistiky",
+    label: "Analytika a reporty",
+    description: "Tržby, statistiky a reporty",
     iconSrc: "/icons/analytika.svg",
   },
 ] as const;
 
 const MANAGE_NAV_LINKS = [
   {
-    href: "/admin/nastavenipoukazu",
-    label: "Nastavení poukazů",
-    description: "Vzhled a varianty poukazů",
-    iconSrc: "/icons/nastaveni.svg",
+    href: "/admin/obchody",
+    label: "Obchody",
+    description: "Nastavení obchodů a poukazů",
+    iconSrc: "/icons/obchod.svg",
   },
   { href: "/admin/tym", label: "Tým" },
 ] as const;

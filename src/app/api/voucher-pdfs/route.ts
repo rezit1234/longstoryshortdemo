@@ -32,10 +32,10 @@ export async function POST(request: Request) {
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
-  const experienceIdRaw = form?.get("experienceId");
-  const experienceId =
-    typeof experienceIdRaw === "string" && experienceIdRaw.trim()
-      ? experienceIdRaw.trim().replace(/[^a-zA-Z0-9._-]/g, "-")
+  const templateKeyRaw = form?.get("templateKey") ?? form?.get("experienceId");
+  const templateKey =
+    typeof templateKeyRaw === "string" && templateKeyRaw.trim()
+      ? templateKeyRaw.trim().replace(/[^a-zA-Z0-9._-]/g, "-")
       : "shared";
 
   if (!file || typeof file === "string") {
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const path = `templates/${experienceId}/${createFileId()}.pdf`;
+  const path = `templates/${templateKey}/${createFileId()}.pdf`;
   const buffer = Buffer.from(await uploadFile.arrayBuffer());
 
   const { error: uploadError } = await admin.storage

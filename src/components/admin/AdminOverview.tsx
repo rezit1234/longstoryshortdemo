@@ -2,12 +2,26 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { ShopId } from "@/data/admin-voucher-settings";
 import { getRecentAdminVouchers } from "@/data/admin-vouchers";
 import { formatCzk } from "@/data/vouchers";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 import { useAdminUser } from "./AdminUserProvider";
-import { AdminShopQrModal } from "./AdminShopQrModal";
-import { IconCheck, IconCopy, IconQr } from "./icons";
+
+type OverviewShopFilter = "all" | ShopId;
+
+const OVERVIEW_SHOPS: { key: OverviewShopFilter; label: string }[] = [
+  { key: "all", label: "Celkový přehled" },
+  { key: "lss", label: "Long Story Short" },
+  { key: "bistrocentral", label: "Bistro Central" },
+  { key: "culinaryacademy", label: "Culinary Academy" },
+];
+
+const MANAGE_HREF: Record<ShopId, string> = {
+  lss: "/admin/obchody/lss",
+  bistrocentral: "/admin/obchody/bistrocentral",
+  culinaryacademy: "/admin/obchody/culinaryacademy",
+};
 
 const STATS = [
   {
@@ -52,6 +66,52 @@ const POPULAR_VARIANTS = [
   { name: "Chef's Table s vinným párováním", count: 19, share: 56 },
   { name: "Poukaz 1 500 Kč", count: 16, share: 47 },
 ];
+
+function shopFactor(shop: OverviewShopFilter) {
+  if (shop === "lss") return 0.55;
+  if (shop === "bistrocentral") return 0.25;
+  if (shop === "culinaryacademy") return 0.2;
+  return 1;
+}
+
+function parseStatNumber(value: string) {
+  const digits = value.replace(/[^\d]/g, "");
+  return digits ? Number(digits) : 0;
+}
+
+function scaleOverviewStats(shop: OverviewShopFilter) {
+  const factor = shopFactor(shop);
+  if (factor === 1) return STATS;
+
+  const sold = Math.max(0, Math.round(parseStatNumber(STATS[0].value) * factor));
+  const revenue = Math.max(
+    0,
+    Math.round(parseStatNumber(STATS[1].value) * factor),
+  );
+  const avg = sold > 0 ? Math.round(revenue / sold) : 0;
+
+  return [
+    { ...STATS[0], value: sold.toLocaleString("cs-CZ") },
+    { ...STATS[1], value: formatCzk(revenue) },
+    { ...STATS[2], value: formatCzk(avg) },
+  ];
+}
+
+function scalePopularVariants(shop: OverviewShopFilter) {
+  const factor = shopFactor(shop);
+  if (factor === 1) return POPULAR_VARIANTS;
+
+  const scaled = POPULAR_VARIANTS.map((variant) => ({
+    ...variant,
+    count: Math.max(0, Math.round(variant.count * factor)),
+  })).filter((variant) => variant.count > 0);
+
+  const max = scaled[0]?.count ?? 1;
+  return scaled.map((variant) => ({
+    ...variant,
+    share: Math.max(8, Math.round((variant.count / max) * 100)),
+  }));
+}
 
 type ChartPoint = {
   date: Date;
@@ -309,72 +369,60 @@ function RevenueChart({ series }: { series: { date: Date; value: number }[] }) {
 export function AdminOverview() {
   const { user } = useAdminUser();
   const { openVoucher, activeVoucherCode, vouchers } = useAdminVoucherDrawer();
-  const [copied, setCopied] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [shopUrl, setShopUrl] = useState("/");
-  const recentSales = useMemo(() => getRecentAdminVouchers(5, vouchers), [vouchers]);
-  const chartSeries = useMemo(() => buildLast30DaysSeries(new Date(2026, 7, 24)), []);
+  const [shop, setShop] = useState<OverviewShopFilter>("all");
+  const stats = useMemo(() => scaleOverviewStats(shop), [shop]);
+  const popularVariants = useMemo(() => scalePopularVariants(shop), [shop]);
+  const recentSales = useMemo(() => {
+    const filtered =
+      shop === "all"
+        ? vouchers
+        : vouchers.filter((voucher) => voucher.shopId === shop);
+    return getRecentAdminVouchers(5, filtered);
+  }, [vouchers, shop]);
+  const chartSeries = useMemo(() => {
+    const factor = shopFactor(shop);
+    return buildLast30DaysSeries(new Date(2026, 7, 24)).map((point) => ({
+      ...point,
+      value: Math.round(point.value * factor),
+    }));
+  }, [shop]);
   const greetingName = getGreetingFirstName(user.name);
-
-  useEffect(() => {
-    setShopUrl(`${window.location.origin}/`);
-  }, []);
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/`);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
-  }
+  const manageHref =
+    shop === "all" ? "/admin/obchody" : MANAGE_HREF[shop];
 
   return (
     <div className="admin-overview">
       <div className="admin-overview-head">
         <div>
           <h1>{greetingName ? `Vítejte, ${greetingName}` : "Vítejte"}</h1>
-          <p>Přehled dárkových poukazů Long Story Short.</p>
+          <p>Přehled dárkových poukazů za posledních 30 dní.</p>
         </div>
-
-        <div className="admin-shop-link">
-          <span className="admin-shop-link-label">Odkaz na váš obchod</span>
-          <div className="admin-shop-link-row">
-            <input type="text" readOnly value={shopUrl} aria-label="Odkaz na obchod" />
+        <div
+          className="admin-filters admin-filters-inline admin-overview-shop-filters"
+          role="tablist"
+          aria-label="Obchod"
+        >
+          {OVERVIEW_SHOPS.map((item) => (
             <button
+              key={item.key}
               type="button"
+              role="tab"
+              aria-selected={shop === item.key}
               className={
-                copied ? "admin-icon-btn is-copied" : "admin-icon-btn"
+                shop === item.key
+                  ? "admin-filter-chip is-active"
+                  : "admin-filter-chip"
               }
-              onClick={copyLink}
-              aria-label={copied ? "Zkopírováno" : "Kopírovat odkaz"}
-              title={copied ? "Zkopírováno" : "Kopírovat"}
+              onClick={() => setShop(item.key)}
             >
-              <span className="admin-copy-icon-wrap" aria-hidden>
-                <IconCopy className="admin-icon admin-copy-icon is-copy" />
-                <IconCheck className="admin-icon admin-copy-icon is-check" />
-              </span>
+              {item.label}
             </button>
-            <button
-              type="button"
-              className="admin-icon-btn"
-              aria-label="QR kód obchodu"
-              title="QR kód"
-              onClick={() => setQrOpen(true)}
-            >
-              <IconQr className="admin-icon" />
-            </button>
-          </div>
+          ))}
         </div>
       </div>
 
-      {qrOpen ? (
-        <AdminShopQrModal shopUrl={shopUrl} onClose={() => setQrOpen(false)} />
-      ) : null}
-
       <section className="admin-stats" aria-label="Statistiky">
-        {STATS.map((stat) => (
+        {stats.map((stat) => (
           <article key={stat.title} className="admin-stat-card">
             <h2>{stat.title}</h2>
             <p className="admin-stat-value">{stat.value}</p>
@@ -408,12 +456,12 @@ export function AdminOverview() {
               <h2>Nejoblíbenější varianty</h2>
               <p>Podle počtu prodejů.</p>
             </div>
-            <Link href="/admin/nastavenipoukazu" className="admin-text-link">
+            <Link href={manageHref} className="admin-text-link">
               Spravovat
             </Link>
           </div>
           <ul className="admin-popular-list">
-            {POPULAR_VARIANTS.map((variant) => (
+            {popularVariants.map((variant) => (
               <li key={variant.name}>
                 <div className="admin-popular-row">
                   <div className="admin-popular-copy">

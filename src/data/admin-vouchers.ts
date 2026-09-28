@@ -1,4 +1,4 @@
-import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
+import { normalizeVoucherCode, type ShopId } from "@/data/admin-voucher-settings";
 
 export type AdminVoucherStatus =
   | "active"
@@ -18,6 +18,7 @@ export type AdminVoucherShippingAddress = {
 
 export type AdminSoldVoucher = {
   code: string;
+  shopId: ShopId;
   customer: string;
   email: string;
   phone: string;
@@ -47,7 +48,8 @@ export const ADMIN_VOUCHER_STATUS_LABELS: Record<AdminVoucherStatus, string> = {
 
 export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
   {
-    code: "LSS-BRX4K9",
+    code: "K7M2P9QX",
+    shopId: "lss",
     customer: "Jana Nováková",
     email: "jana.novakova@email.cz",
     phone: "+420 777 123 456",
@@ -62,7 +64,95 @@ export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
     statusLabel: ADMIN_VOUCHER_STATUS_LABELS.active,
   },
   {
-    code: "LSS-PS8K2M",
+    code: "H4N8R2TW",
+    shopId: "bistrocentral",
+    customer: "Marie Králová",
+    email: "marie.kralova@email.cz",
+    phone: "+420 777 222 333",
+    product: "Poukaz 1 000 Kč",
+    value: "1 000 Kč",
+    packagingFee: null,
+    totalPaid: "1 000 Kč",
+    purchasedAt: "28. 4. 2026",
+    validUntil: "28. 4. 2027",
+    deliveryMethod: "E-mail",
+    status: "active",
+    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.active,
+  },
+  {
+    code: "C8A2L5MY",
+    shopId: "culinaryacademy",
+    customer: "Petra Horáková",
+    email: "petra.horakova@email.cz",
+    phone: "+420 777 444 555",
+    product: "Poukaz 1 500 Kč",
+    value: "1 500 Kč",
+    packagingFee: null,
+    totalPaid: "1 500 Kč",
+    purchasedAt: "26. 4. 2026",
+    validUntil: "26. 4. 2027",
+    deliveryMethod: "E-mail",
+    status: "active",
+    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.active,
+  },
+  {
+    code: "Q1W4E7RT",
+    shopId: "culinaryacademy",
+    customer: "Tomáš Malý",
+    email: "tomas.maly@email.cz",
+    phone: "+420 603 888 999",
+    product: "Poukaz 3 000 Kč",
+    value: "3 000 Kč",
+    packagingFee: "20 Kč",
+    totalPaid: "3 020 Kč",
+    purchasedAt: "25. 4. 2026",
+    validUntil: "25. 4. 2027",
+    deliveryMethod: "Vyzvednutí",
+    status: "awaiting_pickup",
+    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.awaiting_pickup,
+  },
+  {
+    code: "P3K9M6YA",
+    shopId: "bistrocentral",
+    customer: "Ondřej Bílek",
+    email: "ondrej.bilek@email.cz",
+    phone: "+420 605 111 222",
+    product: "Poukaz 2 000 Kč",
+    value: "2 000 Kč",
+    packagingFee: "105 Kč",
+    totalPaid: "2 105 Kč",
+    purchasedAt: "27. 4. 2026",
+    validUntil: "27. 4. 2027",
+    deliveryMethod: "Pošta - dárkové balení",
+    status: "awaiting_shipment",
+    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.awaiting_shipment,
+    shippingAddress: {
+      name: "Ondřej Bílek",
+      address: "Náměstí 3",
+      city: "Olomouc",
+      postalCode: "779 00",
+      country: "Česko",
+    },
+  },
+  {
+    code: "LSS-BRX4K9",
+    shopId: "lss",
+    customer: "Legacy Test",
+    email: "legacy@email.cz",
+    phone: "+420 777 000 001",
+    product: "Chef's Table",
+    value: "1 876 Kč",
+    packagingFee: null,
+    totalPaid: "1 876 Kč",
+    purchasedAt: "10. 4. 2026",
+    validUntil: "10. 4. 2027",
+    deliveryMethod: "E-mail",
+    status: "active",
+    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.active,
+  },
+  {
+    code: "N8Q2V5ZB",
+    shopId: "lss",
     customer: "Anna Veselá",
     email: "anna.vesela@email.cz",
     phone: "+420 777 888 111",
@@ -84,7 +174,8 @@ export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
     },
   },
   {
-    code: "LSS-PK3W7N",
+    code: "R6T4W9XC",
+    shopId: "lss",
     customer: "David Procházka",
     email: "david.prochazka@email.cz",
     phone: "+420 602 445 778",
@@ -99,7 +190,8 @@ export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
     statusLabel: ADMIN_VOUCHER_STATUS_LABELS.awaiting_pickup,
   },
   {
-    code: "LSS-LQ8M2P",
+    code: "M2Y7K4PD",
+    shopId: "lss",
     customer: "Petr Svoboda",
     email: "petr.svoboda@email.cz",
     phone: "+420 603 221 984",
@@ -114,7 +206,8 @@ export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
     statusLabel: ADMIN_VOUCHER_STATUS_LABELS.redeemed,
   },
   {
-    code: "LSS-ZT7N1C",
+    code: "W5H3N8QE",
+    shopId: "lss",
     customer: "Lucie Dvořáková",
     email: "lucie.dvorakova@email.cz",
     phone: "+420 608 445 102",
@@ -129,7 +222,8 @@ export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
     statusLabel: ADMIN_VOUCHER_STATUS_LABELS.expired,
   },
   {
-    code: "LSS-HK3V8D",
+    code: "Z9C6J2RF",
+    shopId: "lss",
     customer: "Martin Černý",
     email: "martin.cerny@email.cz",
     phone: "+420 724 908 311",
@@ -144,7 +238,8 @@ export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
     statusLabel: ADMIN_VOUCHER_STATUS_LABELS.cancelled,
   },
   {
-    code: "LSS-PW5J6A",
+    code: "T4B8X5SG",
+    shopId: "lss",
     customer: "Eva Horáková",
     email: "eva.horakova@email.cz",
     phone: "+420 775 640 228",
@@ -165,51 +260,6 @@ export const ADMIN_SOLD_VOUCHERS: AdminSoldVoucher[] = [
       country: "Česko",
     },
   },
-  {
-    code: "LSS-MN2Q9E",
-    customer: "Tomáš Krejčí",
-    email: "tomas.krejci@email.cz",
-    phone: "+420 602 118 774",
-    product: "The Big One & Chef's Table",
-    value: "9 500 Kč",
-    packagingFee: "20 Kč",
-    totalPaid: "9 520 Kč",
-    purchasedAt: "17. 4. 2026",
-    validUntil: "17. 4. 2027",
-    deliveryMethod: "Pobočka - vyzvednutí na recepci",
-    status: "awaiting_pickup",
-    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.awaiting_pickup,
-  },
-  {
-    code: "LSS-CX1R4B",
-    customer: "Kateřina Malá",
-    email: "katerina.mala@email.cz",
-    phone: "+420 731 552 901",
-    product: "The Arc | „Výklenek“",
-    value: "3 600 Kč",
-    packagingFee: null,
-    totalPaid: "3 600 Kč",
-    purchasedAt: "16. 4. 2026",
-    validUntil: "16. 4. 2027",
-    deliveryMethod: "E-mail",
-    status: "active",
-    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.active,
-  },
-  {
-    code: "LSS-YF6T0S",
-    customer: "Jakub Němec",
-    email: "jakub.nemec@email.cz",
-    phone: "+420 604 339 812",
-    product: "Poukaz 2 000 Kč",
-    value: "2 000 Kč",
-    packagingFee: null,
-    totalPaid: "2 000 Kč",
-    purchasedAt: "15. 4. 2026",
-    validUntil: "15. 4. 2027",
-    deliveryMethod: "E-mail",
-    status: "expired",
-    statusLabel: ADMIN_VOUCHER_STATUS_LABELS.expired,
-  },
 ];
 
 function normalizeSearch(value: string) {
@@ -229,7 +279,7 @@ export function searchAdminVouchers(
 
   return vouchers.filter((voucher) => {
     const haystack = normalizeSearch(
-      `${voucher.code} ${voucher.customer} ${voucher.email} ${voucher.product} ${voucher.value}`,
+      `${voucher.code} ${voucher.customer} ${voucher.email} ${voucher.product} ${voucher.value} ${voucher.shopId}`,
     );
     return haystack.includes(normalized);
   });
@@ -241,7 +291,9 @@ export function getAdminVoucherByCode(
 ) {
   const normalized = normalizeVoucherCode(code);
   if (!normalized) return undefined;
-  return vouchers.find((voucher) => voucher.code === normalized);
+  return vouchers.find(
+    (voucher) => normalizeVoucherCode(voucher.code) === normalized,
+  );
 }
 
 export function getRecentAdminVouchers(

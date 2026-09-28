@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createInitialVoucherSettings,
   type AdminVoucherSettings,
-  VOUCHER_CODE_PREFIX,
-  VOUCHER_CODE_SUFFIX_LENGTH,
-  extractVoucherCodeSuffix,
+  VOUCHER_CODE_LENGTH,
+  generateVoucherCode,
   normalizeVoucherCode,
+  sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
 import { formatCzk } from "@/data/vouchers";
 import { AdminDismissButton } from "./AdminDismissButton";
@@ -16,15 +16,6 @@ import { AdminSelect } from "./AdminSelect";
 const DRAWER_ANIMATION_MS = 220;
 
 type VoucherKind = "experience" | "amount";
-
-function generateVoucherSuffix() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let suffix = "";
-  for (let index = 0; index < VOUCHER_CODE_SUFFIX_LENGTH; index += 1) {
-    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return suffix;
-}
 
 export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
   const fallbackSettings = useRef(createInitialVoucherSettings()).current;
@@ -66,7 +57,7 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [codeSuffix, setCodeSuffix] = useState(() => generateVoucherSuffix());
+  const [code, setCode] = useState(() => generateVoucherCode());
 
   const requestClose = useCallback(() => {
     setIsClosing(true);
@@ -296,26 +287,23 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
 
           <div className="admin-field">
             <span>Kód poukazu</span>
-            <div className="admin-redeem-code-control">
-              <span className="admin-redeem-code-prefix" aria-hidden>
-                {VOUCHER_CODE_PREFIX}
-              </span>
+            <div className="admin-redeem-code-control is-full">
               <input
                 type="text"
-                value={codeSuffix}
+                value={code}
                 onChange={(event) =>
-                  setCodeSuffix(extractVoucherCodeSuffix(event.target.value))
+                  setCode(sanitizeVoucherCodeInput(event.target.value))
                 }
-                placeholder="1A2B3C"
+                placeholder="K7M2P9QX"
                 autoComplete="off"
                 spellCheck={false}
-                maxLength={VOUCHER_CODE_SUFFIX_LENGTH}
-                aria-label={`Kód poukazu, prefix ${VOUCHER_CODE_PREFIX}`}
+                maxLength={VOUCHER_CODE_LENGTH}
+                aria-label="Kód poukazu"
               />
             </div>
             <em>
               Předvyplněný kód můžete přepsat. Uloží se jako{" "}
-              {normalizeVoucherCode(codeSuffix) || `${VOUCHER_CODE_PREFIX}-XXXXXX`}.
+              {normalizeVoucherCode(code) || "XXXXXXXX"}.
             </em>
           </div>
         </div>

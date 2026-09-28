@@ -3,9 +3,27 @@ export type AmountVoucher = {
   amount: number;
 };
 
+export type VoucherPdfPlacement = {
+  pdfTemplate: { url: string; fileName: string } | null;
+  codePosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
+  qrPosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
+};
+
 export type AmountPreviewSettings = {
   slotPreviews: (ExperienceGalleryImage | null)[];
   customPreview: ExperienceGalleryImage | null;
+  slotPdfs: (VoucherPdfPlacement | null)[];
+  customPdf: VoucherPdfPlacement | null;
 };
 
 export const AMOUNT_PREVIEW_DIR = "/poukazycastkanahled";
@@ -33,6 +51,14 @@ export function defaultAmountCustomPreview(): ExperienceGalleryImage {
   };
 }
 
+export function createEmptyPdfPlacement(): VoucherPdfPlacement {
+  return {
+    pdfTemplate: null,
+    codePosition: null,
+    qrPosition: null,
+  };
+}
+
 export function createDefaultAmountPreviews(
   amountSlots: (number | null)[],
 ): AmountPreviewSettings {
@@ -40,6 +66,8 @@ export function createDefaultAmountPreviews(
   return {
     slotPreviews: [null, null, null, null],
     customPreview: null,
+    slotPdfs: [null, null, null, null],
+    customPdf: null,
   };
 }
 

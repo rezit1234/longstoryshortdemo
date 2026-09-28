@@ -3,10 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  VOUCHER_CODE_PREFIX,
-  VOUCHER_CODE_SUFFIX_LENGTH,
-  extractVoucherCodeSuffix,
+  VOUCHER_CODE_INPUT_MAX_LENGTH,
   normalizeVoucherCode,
+  sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
 import { getAdminVoucherByCode } from "@/data/admin-vouchers";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
@@ -19,16 +18,16 @@ type ResultState =
 export function AdminUplatneni() {
   const searchParams = useSearchParams();
   const { openVoucher, vouchers } = useAdminVoucherDrawer();
-  const [suffix, setSuffix] = useState("");
+  const [codeInput, setCodeInput] = useState("");
   const [result, setResult] = useState<ResultState>({ kind: "idle" });
 
   useEffect(() => {
     const initialCode = searchParams.get("code");
     if (!initialCode) return;
 
-    const nextSuffix = extractVoucherCodeSuffix(initialCode);
-    setSuffix(nextSuffix);
-    openByCode(normalizeVoucherCode(nextSuffix));
+    const next = sanitizeVoucherCodeInput(initialCode);
+    setCodeInput(next);
+    openByCode(normalizeVoucherCode(next));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to URL prefill
   }, [searchParams]);
 
@@ -58,14 +57,14 @@ export function AdminUplatneni() {
     openVoucher(match);
   }
 
-  function handleSuffixChange(raw: string) {
-    setSuffix(extractVoucherCodeSuffix(raw));
+  function handleCodeChange(raw: string) {
+    setCodeInput(sanitizeVoucherCodeInput(raw));
     if (result.kind !== "idle") setResult({ kind: "idle" });
   }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    openByCode(normalizeVoucherCode(suffix));
+    openByCode(normalizeVoucherCode(codeInput));
   }
 
   return (
@@ -73,7 +72,7 @@ export function AdminUplatneni() {
       <div className="admin-page-head">
         <div>
           <h1>Uplatnění poukazu</h1>
-          <p>Zadejte šest znaků kódu a otevřete detail poukazu.</p>
+          <p>Zadejte kód poukazu a otevřete jeho detail.</p>
         </div>
       </div>
 
@@ -81,19 +80,16 @@ export function AdminUplatneni() {
         <form className="admin-redeem-form" onSubmit={handleSubmit}>
           <label className="admin-redeem-field">
             <span className="admin-redeem-label">Kód poukazu</span>
-            <div className="admin-redeem-code-control">
-              <span className="admin-redeem-code-prefix" aria-hidden>
-                {VOUCHER_CODE_PREFIX}
-              </span>
+            <div className="admin-redeem-code-control is-full">
               <input
                 type="text"
-                value={suffix}
-                onChange={(event) => handleSuffixChange(event.target.value)}
-                placeholder="1A2B3C"
+                value={codeInput}
+                onChange={(event) => handleCodeChange(event.target.value)}
+                placeholder="K7M2P9QX"
                 autoComplete="off"
                 spellCheck={false}
-                maxLength={VOUCHER_CODE_SUFFIX_LENGTH}
-                aria-label={`Kód poukazu, prefix ${VOUCHER_CODE_PREFIX}`}
+                maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
+                aria-label="Kód poukazu"
               />
             </div>
           </label>

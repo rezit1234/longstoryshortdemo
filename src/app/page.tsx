@@ -1,9 +1,5 @@
-import { VoucherShop } from "@/components/VoucherShop";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return (
-    <main>
-      <VoucherShop />
-    </main>
-  );
+  redirect("/lss");
 }

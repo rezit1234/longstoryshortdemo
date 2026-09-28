@@ -33,14 +33,14 @@ const NAV: NavItem[] = [
     iconSrc: "/icons/uplatneni.svg",
   },
   {
-    href: "/admin/nastavenipoukazu",
-    label: "Nastavení poukazů",
-    iconSrc: "/icons/nastaveni.svg",
+    href: "/admin/obchody",
+    label: "Obchody",
+    iconSrc: "/icons/obchod.svg",
     requiresManageTeam: true,
   },
   {
     href: "/admin/analytika",
-    label: "Analytika",
+    label: "Analytika a reporty",
     iconSrc: "/icons/analytika.svg",
     requiresManageTeam: true,
   },

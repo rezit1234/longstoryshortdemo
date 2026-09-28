@@ -1,19 +1,16 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import {
   createEmptyExperience,
   createInitialVoucherSettings,
   MAX_AMOUNT_SLOTS,
-  VOUCHER_CODE_PREFIX_DISPLAY,
   type AdminExperienceForm,
   type AdminVoucherSettings,
 } from "@/data/admin-voucher-settings";
-import {
-  formatCzk,
-  type ExperienceGalleryImage,
-} from "@/data/vouchers";
+import { formatCzk, type ExperienceGalleryImage, type VoucherPdfPlacement } from "@/data/vouchers";
 import { AdminAmountSettingsDrawer } from "./AdminAmountSettingsDrawer";
 import { AdminExperienceSettingsDrawer } from "./AdminExperienceSettingsDrawer";
 import { AdminSelect } from "./AdminSelect";
@@ -136,10 +133,16 @@ function SaveStatusBadge({ status }: { status: SaveStatus }) {
   );
 }
 
-export function AdminObchod() {
+export function AdminObchod({
+  shopId = "lss",
+  shopName = "Long Story Short",
+}: {
+  shopId?: string;
+  shopName?: string;
+} = {}) {
   const router = useRouter();
   const pathname = usePathname();
-  const fallbackSettings = useRef(createInitialVoucherSettings()).current;
+  const fallbackSettings = useRef(createInitialVoucherSettings(shopId)).current;
 
   const [settings, setSettings] = useState<AdminVoucherSettings>(fallbackSettings);
   const [savedSettings, setSavedSettings] =
@@ -160,7 +163,6 @@ export function AdminObchod() {
   const [activeAmountSlot, setActiveAmountSlot] = useState<number | "custom" | null>(
     null,
   );
-
   const draggingIndexRef = useRef<number | null>(null);
   const settingsRef = useRef(settings);
   const savedSettingsRef = useRef(savedSettings);
@@ -221,7 +223,7 @@ export function AdminObchod() {
       const response = await fetch("/api/voucher-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings: snapshot }),
+        body: JSON.stringify({ settings: snapshot, shopId }),
       });
 
       const data = (await response.json().catch(() => null)) as {
@@ -243,7 +245,7 @@ export function AdminObchod() {
       }
       showSavedToast();
     },
-    [showSavedToast],
+    [showSavedToast, shopId],
   );
 
   useEffect(() => {
@@ -251,7 +253,9 @@ export function AdminObchod() {
 
     async function loadSettings() {
       try {
-        const response = await fetch("/api/voucher-settings");
+        const response = await fetch(
+          `/api/voucher-settings?shop=${encodeURIComponent(shopId)}`,
+        );
         const data = (await response.json().catch(() => null)) as {
           settings?: AdminVoucherSettings;
           error?: string;
@@ -281,7 +285,7 @@ export function AdminObchod() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [shopId]);
 
   const flushSave = useCallback(async () => {
     clearAutosaveTimers();
@@ -415,6 +419,16 @@ export function AdminObchod() {
     }));
   }
 
+  function updateAmountCustomPdf(pdf: VoucherPdfPlacement | null) {
+    setSettings((current) => ({
+      ...current,
+      amountPreviews: {
+        ...current.amountPreviews,
+        customPdf: pdf,
+      },
+    }));
+  }
+
   async function saveExperience(updated: AdminExperienceForm) {
     const snapshot: AdminVoucherSettings = {
       ...settingsRef.current,
@@ -518,7 +532,11 @@ export function AdminObchod() {
     <div className="admin-obchod">
       <div className="admin-page-head">
         <div>
-          <h1>Nastavení poukazů</h1>
+          <Link href="/admin/obchody" className="admin-text-link admin-obchod-back">
+            <MaskIcon src="/icons/arrow-left.svg" />
+            Obchody
+          </Link>
+          <h1>{shopName}</h1>
           <p>
             Spravujte zážitkové varianty, částky a společná pravidla. Změny se
             ukládají automaticky.
@@ -532,16 +550,11 @@ export function AdminObchod() {
       <section className="admin-panel admin-shop-panel">
         <h2>Obecné</h2>
         <p className="admin-section-lead">
-          Platnost a prefix kódu platí pro všechny varianty poukazů.
+          Platnost platí pro všechny varianty poukazů. Kódy jsou náhodné a bez
+          brand prefixu.
         </p>
 
         <div className="admin-field-row">
-          <label className="admin-field">
-            <span>Prefix kódu</span>
-            <input type="text" value={VOUCHER_CODE_PREFIX_DISPLAY} readOnly disabled />
-            <em>Prefix je nastavený systémem. Kód má formát LSS-XXXXXX.</em>
-          </label>
-
           <div className="admin-field">
             <span>Platnost poukazu</span>
             <AdminSelect
@@ -814,10 +827,16 @@ export function AdminObchod() {
               ? settings.amountPreviews.customPreview
               : settings.amountPreviews.slotPreviews[activeAmountSlot]
           }
+          pdf={
+            activeAmountSlot === "custom"
+              ? settings.amountPreviews.customPdf ?? null
+              : settings.amountPreviews.slotPdfs?.[activeAmountSlot] ?? null
+          }
           onClose={() => setActiveAmountSlot(null)}
-          onSave={({ amount, preview }) => {
+          onSave={({ amount, preview, pdf }) => {
             if (activeAmountSlot === "custom") {
               updateAmountCustomPreview(preview);
+              updateAmountCustomPdf(pdf);
               return;
             }
 
@@ -831,6 +850,11 @@ export function AdminObchod() {
                 slotPreviews: current.amountPreviews.slotPreviews.map(
                   (slotPreview, slotIndex) =>
                     slotIndex === activeAmountSlot ? preview : slotPreview,
+                ),
+                slotPdfs: (
+                  current.amountPreviews.slotPdfs ?? [null, null, null, null]
+                ).map((slotPdf, slotIndex) =>
+                  slotIndex === activeAmountSlot ? pdf : slotPdf,
                 ),
               },
             }));

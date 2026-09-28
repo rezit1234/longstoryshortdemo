@@ -7,15 +7,72 @@ import {
   type ExperienceInfoLink,
 } from "./vouchers";
 
-export const VOUCHER_CODE_PREFIX = "LSS";
-export const VOUCHER_CODE_SEPARATOR = "-";
-export const VOUCHER_CODE_PREFIX_DISPLAY = `${VOUCHER_CODE_PREFIX}${VOUCHER_CODE_SEPARATOR}`;
-export const VOUCHER_CODE_SUFFIX_LENGTH = 6;
+export const VOUCHER_CODE_LENGTH = 8;
+export const VOUCHER_CODE_INPUT_MAX_LENGTH = 16;
 export const MAX_AMOUNT_SLOTS = 4;
 export const MAX_GALLERY_IMAGES = 3;
 export const MAX_CHECKOUT_PREVIEW_IMAGES = 2;
-export const MOCK_VOUCHER_CODE = `${VOUCHER_CODE_PREFIX_DISPLAY}1A2B3C`;
+export const MOCK_VOUCHER_CODE = "K7M2P9QX";
 export const MOCK_QR_URL = "https://www.longstoryshort.cz";
+
+export type ShopId = "lss" | "bistrocentral" | "culinaryacademy";
+
+/** Legacy brand prefixes still accepted on lookup. */
+const LEGACY_CODE_PREFIXES = ["LSS", "BC"] as const;
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function randomCodeChar() {
+  const index = Math.floor(Math.random() * CODE_ALPHABET.length);
+  return CODE_ALPHABET[index] ?? "A";
+}
+
+/** Náhodný kód bez brand prefixu (8 znaků). */
+export function generateVoucherCode() {
+  let code = "";
+  for (let index = 0; index < VOUCHER_CODE_LENGTH; index += 1) {
+    code += randomCodeChar();
+  }
+  return code;
+}
+
+/**
+ * Canonical kód pro lookup/uložení.
+ * Nové: 8 alfanumerických znaků.
+ * Legacy: LSS-XXXXXX / BC-XXXXXX.
+ */
+export function normalizeVoucherCode(raw: string) {
+  const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  if (!cleaned) return "";
+
+  for (const prefix of LEGACY_CODE_PREFIXES) {
+    const withSep = `${prefix}-`;
+    if (cleaned.startsWith(withSep)) {
+      const suffix = cleaned
+        .slice(withSep.length)
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 6);
+      return suffix ? `${prefix}-${suffix}` : "";
+    }
+  }
+
+  // Legacy bez pomlčky jen u LSS (LSS + 6 znaků = 9). BC+6 by kolidovalo s novým 8znakým formátem.
+  if (cleaned.startsWith("LSS") && cleaned.length === 9) {
+    const suffix = cleaned.slice(3);
+    if (/^[A-Z0-9]{6}$/.test(suffix)) {
+      return `LSS-${suffix}`;
+    }
+  }
+
+  return cleaned.replace(/[^A-Z0-9]/g, "").slice(0, VOUCHER_CODE_LENGTH);
+}
+
+/** Filtr vstupu v UI (uppercase, bez mezer; pomlčka jen u legacy). */
+export function sanitizeVoucherCodeInput(raw: string) {
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "")
+    .slice(0, VOUCHER_CODE_INPUT_MAX_LENGTH);
+}
 
 const EATERY_CHECKOUT_PREVIEW: ExperienceGalleryImage = {
   src: "/eatery-bakery.webp",
@@ -51,30 +108,6 @@ export function defaultCheckoutPreviewForExperienceId(
   }
 
   return [HOSTEL_CHECKOUT_PREVIEW];
-}
-
-export function buildVoucherCode(suffix: string) {
-  const normalized = suffix.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return `${VOUCHER_CODE_PREFIX_DISPLAY}${normalized.slice(0, VOUCHER_CODE_SUFFIX_LENGTH)}`;
-}
-
-/** Vytáhne 6znakový suffix z libovolného zápisu (1A2B3C / LSS-1A2B3C / LSS1A2B3C). */
-export function extractVoucherCodeSuffix(raw: string) {
-  let value = raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
-
-  if (value.startsWith(`${VOUCHER_CODE_PREFIX}-`)) {
-    value = value.slice(VOUCHER_CODE_PREFIX_DISPLAY.length);
-  } else if (value.startsWith(VOUCHER_CODE_PREFIX)) {
-    value = value.slice(VOUCHER_CODE_PREFIX.length);
-  }
-
-  return value.replace(/[^A-Z0-9]/g, "").slice(0, VOUCHER_CODE_SUFFIX_LENGTH);
-}
-
-export function normalizeVoucherCode(raw: string) {
-  const suffix = extractVoucherCodeSuffix(raw);
-  if (!suffix) return "";
-  return buildVoucherCode(suffix);
 }
 
 export type ExperiencePdfTemplate = {
@@ -130,12 +163,56 @@ export function formatCodePositionLabel(position: VoucherCodePosition): string {
   return `X ${Math.round(position.x)}, Y ${Math.round(position.y)}`;
 }
 
+export type ExperienceVatMode = "single" | "combined";
+
+export type ExperienceVatSettings = {
+  mode: ExperienceVatMode;
+  /** Jedna sazba v % (12, 21 nebo vlastní). */
+  singleRate: number;
+  /** Kombinovaná: sazba A v %. */
+  rateA: number;
+  /** Kombinovaná: částka v Kč daněná sazbou A. */
+  amountA: number;
+  /** Kombinovaná: sazba B v % na zbytek ceny. */
+  rateB: number;
+};
+
+export const DEFAULT_EXPERIENCE_VAT: ExperienceVatSettings = {
+  mode: "single",
+  singleRate: 21,
+  rateA: 12,
+  amountA: 0,
+  rateB: 21,
+};
+
+export function formatExperienceVatLabel(
+  vat: ExperienceVatSettings,
+  price: number,
+): string {
+  if (vat.mode === "combined") {
+    const amountA = Math.max(0, Math.min(price, vat.amountA));
+    if (amountA <= 0) return `${formatVatPercent(vat.rateB)}`;
+    if (amountA >= price) return `${formatVatPercent(vat.rateA)}`;
+    return `${formatVatPercent(vat.rateA)} + ${formatVatPercent(vat.rateB)}`;
+  }
+  return formatVatPercent(vat.singleRate);
+}
+
+function formatVatPercent(rate: number) {
+  const normalized = Number.isFinite(rate) ? rate : 0;
+  const text = Number.isInteger(normalized)
+    ? String(normalized)
+    : String(Math.round(normalized * 100) / 100);
+  return `${text} %`;
+}
+
 export type AdminExperienceForm = {
   id: string;
   title: string;
   subtitle: string;
   suitableFor: string;
   price: number;
+  vat: ExperienceVatSettings;
   description: string;
   checkoutPreview: ExperienceGalleryImage[];
   gallery: ExperienceGalleryImage[];
@@ -160,6 +237,7 @@ export function createEmptyExperience(): AdminExperienceForm {
     subtitle: "",
     suitableFor: "",
     price: 0,
+    vat: { ...DEFAULT_EXPERIENCE_VAT },
     description: "",
     checkoutPreview: [],
     gallery: [],
@@ -174,6 +252,29 @@ export const DEFAULT_PICKUP_FEE = 20;
 export const DEFAULT_POST_SHIPPING_FEE = 105;
 export const DEFAULT_POST_SHIPPING_FEE_SK = 145;
 
+function defaultVatForSeedExperience(
+  experienceId: string,
+  price: number,
+): ExperienceVatSettings {
+  // Sensible defaults matching the client’s DPH categories (demo seed only).
+  if (experienceId.includes("arc") || experienceId.includes("vyklenek")) {
+    return {
+      mode: "combined",
+      singleRate: 21,
+      rateA: 12,
+      amountA: Math.round(price * 0.45),
+      rateB: 21,
+    };
+  }
+  if (
+    experienceId.includes("chefs-table") ||
+    experienceId.includes("chef")
+  ) {
+    return { ...DEFAULT_EXPERIENCE_VAT, singleRate: 21 };
+  }
+  return { ...DEFAULT_EXPERIENCE_VAT, singleRate: 12 };
+}
+
 export type AdminVoucherSettings = {
   validityMonths: number;
   amountSlots: (number | null)[];
@@ -185,30 +286,39 @@ export type AdminVoucherSettings = {
   postShippingFee: number;
   /** Poštovné a balné při odeslání na Slovensko. */
   postShippingFeeSk: number;
+  heroImage: ExperienceGalleryImage | null;
 };
 
-export function createInitialVoucherSettings(): AdminVoucherSettings {
+export function createInitialVoucherSettings(
+  shopId: ShopId | string = "lss",
+): AdminVoucherSettings {
+  const isLss = shopId === "lss";
+
   const amountSlots = Array.from({ length: MAX_AMOUNT_SLOTS }, (_, index) => {
+    if (!isLss) return null;
     return AMOUNT_VOUCHERS[index]?.amount ?? null;
   });
 
-  const experiences = EXPERIENCE_VOUCHERS.map((experience) => ({
-    id: experience.id,
-    title: experience.title,
-    subtitle: experience.subtitle ?? "",
-    suitableFor: experience.suitableFor,
-    price: experience.price,
-    description: experience.description,
-    checkoutPreview: defaultCheckoutPreviewForExperienceId(experience.id),
-    gallery: (experience.gallery ?? []).slice(0, MAX_GALLERY_IMAGES),
-    infoLinks:
-      experience.infoLinks && experience.infoLinks.length > 0
-        ? experience.infoLinks.map((link) => ({ ...link }))
-        : [{ label: "", href: "" }],
-    pdfTemplate: null,
-    codePosition: null,
-    qrPosition: null,
-  }));
+  const experiences = isLss
+    ? EXPERIENCE_VOUCHERS.map((experience) => ({
+        id: experience.id,
+        title: experience.title,
+        subtitle: experience.subtitle ?? "",
+        suitableFor: experience.suitableFor,
+        price: experience.price,
+        vat: defaultVatForSeedExperience(experience.id, experience.price),
+        description: experience.description,
+        checkoutPreview: defaultCheckoutPreviewForExperienceId(experience.id),
+        gallery: (experience.gallery ?? []).slice(0, MAX_GALLERY_IMAGES),
+        infoLinks:
+          experience.infoLinks && experience.infoLinks.length > 0
+            ? experience.infoLinks.map((link) => ({ ...link }))
+            : [{ label: "", href: "" }],
+        pdfTemplate: null,
+        codePosition: null,
+        qrPosition: null,
+      }))
+    : [];
 
   return {
     validityMonths: 12,
@@ -218,5 +328,6 @@ export function createInitialVoucherSettings(): AdminVoucherSettings {
     pickupFee: DEFAULT_PICKUP_FEE,
     postShippingFee: DEFAULT_POST_SHIPPING_FEE,
     postShippingFeeSk: DEFAULT_POST_SHIPPING_FEE_SK,
+    heroImage: null,
   };
 }

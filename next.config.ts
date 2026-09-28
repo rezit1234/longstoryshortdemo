@@ -4,6 +4,15 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/lss",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -3,11 +3,13 @@
 import Image from "next/image";
 import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from "react";
 import {
+  DEFAULT_EXPERIENCE_VAT,
   MAX_CHECKOUT_PREVIEW_IMAGES,
   MAX_GALLERY_IMAGES,
   formatCodePositionLabel,
   type AdminExperienceForm,
   type ExperiencePdfTemplate,
+  type ExperienceVatSettings,
   type VoucherCodePosition,
 } from "@/data/admin-voucher-settings";
 import type { ExperienceGalleryImage } from "@/data/vouchers";
@@ -237,6 +239,7 @@ export function AdminExperienceSettingsDrawer({
   useEffect(() => {
     setDraft({
       ...experience,
+      vat: experience.vat ?? { ...DEFAULT_EXPERIENCE_VAT },
       checkoutPreview: experience.checkoutPreview ?? [],
     });
     setGalleryError(null);
@@ -285,6 +288,13 @@ export function AdminExperienceSettingsDrawer({
 
   function updateDraft(patch: Partial<AdminExperienceForm>) {
     setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function updateVat(patch: Partial<ExperienceVatSettings>) {
+    setDraft((current) => ({
+      ...current,
+      vat: { ...(current.vat ?? DEFAULT_EXPERIENCE_VAT), ...patch },
+    }));
   }
 
   function updateLink(index: number, patch: Partial<AdminExperienceForm["infoLinks"][number]>) {
@@ -495,7 +505,7 @@ export function AdminExperienceSettingsDrawer({
     try {
       const form = new FormData();
       form.append("file", copied);
-      form.append("experienceId", draftRef.current.id);
+      form.append("templateKey", draftRef.current.id);
 
       const response = await fetch("/api/voucher-pdfs", {
         method: "POST",
@@ -686,10 +696,16 @@ export function AdminExperienceSettingsDrawer({
   }
 
   function handleSave() {
+    const vat = draft.vat ?? DEFAULT_EXPERIENCE_VAT;
+    const price = Math.max(0, draft.price);
     onSave({
       ...draft,
       title: draft.title.trim() || "Nová varianta",
-      price: Math.max(0, draft.price),
+      price,
+      vat: {
+        ...vat,
+        amountA: Math.max(0, Math.min(price, vat.amountA)),
+      },
       checkoutPreview: (draft.checkoutPreview ?? []).slice(
         0,
         MAX_CHECKOUT_PREVIEW_IMAGES,
@@ -783,6 +799,196 @@ export function AdminExperienceSettingsDrawer({
               </span>
             </div>
           </label>
+
+          <div className="admin-field admin-vat-field">
+            <span>DPH</span>
+            <div
+              className="admin-filters admin-filters-inline"
+              role="tablist"
+              aria-label="Režim DPH"
+            >
+              {(
+                [
+                  { key: "single", label: "Jedna sazba" },
+                  { key: "combined", label: "Kombinovaná" },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={(draft.vat?.mode ?? "single") === item.key}
+                  className={
+                    (draft.vat?.mode ?? "single") === item.key
+                      ? "admin-filter-chip is-active"
+                      : "admin-filter-chip"
+                  }
+                  onClick={() => updateVat({ mode: item.key })}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {(draft.vat?.mode ?? "single") === "single" ? (
+              <div className="admin-vat-single">
+                <div className="admin-field">
+                  <span>Sazba DPH</span>
+                  <div
+                    className="admin-filters admin-filters-inline"
+                    role="group"
+                    aria-label="Sazba DPH"
+                  >
+                    {(
+                      [
+                        { rate: 12, label: "12 %" },
+                        { rate: 21, label: "21 %" },
+                        { rate: null, label: "Vlastní" },
+                      ] as const
+                    ).map((item) => {
+                      const currentRate = draft.vat?.singleRate ?? 21;
+                      const isCustom = currentRate !== 12 && currentRate !== 21;
+                      const isActive =
+                        item.rate === null ? isCustom : currentRate === item.rate;
+                      return (
+                        <button
+                          key={item.label}
+                          type="button"
+                          className={
+                            isActive
+                              ? "admin-filter-chip is-active"
+                              : "admin-filter-chip"
+                          }
+                          onClick={() =>
+                            updateVat({
+                              singleRate:
+                                item.rate ?? (isCustom ? currentRate : 15),
+                            })
+                          }
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {(draft.vat?.singleRate ?? 21) !== 12 &&
+                (draft.vat?.singleRate ?? 21) !== 21 ? (
+                  <label className="admin-field admin-vat-custom-rate">
+                    <span>Vlastní sazba</span>
+                    <div className="admin-field-control has-suffix">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={
+                          draft.vat?.singleRate != null
+                            ? String(draft.vat.singleRate)
+                            : ""
+                        }
+                        placeholder="0"
+                        onChange={(event) => {
+                          const raw = event.target.value
+                            .replace(",", ".")
+                            .replace(/[^\d.]/g, "");
+                          const parts = raw.split(".");
+                          const cleaned =
+                            parts.length <= 1
+                              ? raw
+                              : `${parts[0]}.${parts.slice(1).join("")}`;
+                          updateVat({
+                            singleRate:
+                              cleaned === "" || cleaned === "."
+                                ? 0
+                                : Number(cleaned),
+                          });
+                        }}
+                      />
+                      <span className="admin-field-control-suffix" aria-hidden>
+                        %
+                      </span>
+                    </div>
+                  </label>
+                ) : null}
+              </div>
+            ) : (
+              <div className="admin-vat-combined">
+                <div className="admin-vat-combined-row">
+                  <label className="admin-field">
+                    <span>Sazba A</span>
+                    <div className="admin-field-control has-suffix">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={String(draft.vat?.rateA ?? 12)}
+                        onChange={(event) => {
+                          const digits = event.target.value.replace(/\D/g, "");
+                          updateVat({
+                            rateA: digits === "" ? 0 : Number(digits),
+                          });
+                        }}
+                      />
+                      <span className="admin-field-control-suffix" aria-hidden>
+                        %
+                      </span>
+                    </div>
+                  </label>
+                  <label className="admin-field">
+                    <span>Částka A</span>
+                    <div className="admin-field-control has-suffix">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={
+                          (draft.vat?.amountA ?? 0) > 0
+                            ? String(draft.vat?.amountA)
+                            : ""
+                        }
+                        placeholder="0"
+                        onChange={(event) => {
+                          const digits = event.target.value.replace(/\D/g, "");
+                          updateVat({
+                            amountA: digits === "" ? 0 : Number(digits),
+                          });
+                        }}
+                      />
+                      <span className="admin-field-control-suffix" aria-hidden>
+                        Kč
+                      </span>
+                    </div>
+                  </label>
+                </div>
+                <label className="admin-field">
+                  <span>Sazba B (zbytek)</span>
+                  <div className="admin-field-control has-suffix">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={String(draft.vat?.rateB ?? 21)}
+                      onChange={(event) => {
+                        const digits = event.target.value.replace(/\D/g, "");
+                        updateVat({
+                          rateB: digits === "" ? 0 : Number(digits),
+                        });
+                      }}
+                    />
+                    <span className="admin-field-control-suffix" aria-hidden>
+                      %
+                    </span>
+                  </div>
+                </label>
+                <p className="admin-field-hint">
+                  Zbytek{" "}
+                  {formatCzk(
+                    Math.max(
+                      0,
+                      draft.price - Math.min(draft.price, draft.vat?.amountA ?? 0),
+                    ),
+                  )}{" "}
+                  se daní sazbou B ({draft.vat?.rateB ?? 21} %).
+                </p>
+              </div>
+            )}
+          </div>
 
           <label className="admin-field">
             <span className="admin-field-label">

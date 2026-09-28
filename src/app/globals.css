@@ -76,6 +76,10 @@ button {
   margin: 0;
 }
 
+.shop-hero.is-checkout {
+  position: relative;
+}
+
 .shop-box {
   border: 0;
   border-radius: 16px;
@@ -238,6 +242,21 @@ button {
   border-radius: 999px;
 }
 
+.amount-preview-mark {
+  width: 9rem;
+  height: 9rem;
+  align-self: center;
+  justify-self: center;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.amount-preview-mark.is-compact {
+  width: 6.25rem;
+  height: 6.25rem;
+}
+
 .amount-preview-value {
   justify-self: end;
   text-align: right;
@@ -305,6 +324,16 @@ button {
     width: 1.35rem;
     height: 5.25rem;
     border-width: 3px;
+  }
+
+  .amount-preview-mark {
+    width: 5.5rem;
+    height: 5.5rem;
+  }
+
+  .amount-preview-mark.is-compact {
+    width: 3.85rem;
+    height: 3.85rem;
   }
 
   .amount-preview-value {
@@ -787,6 +816,14 @@ button {
   transform: translateX(calc(100% + 0.4rem));
 }
 
+.checkout-invoice-type-tabs.is-person .checkout-choice-tabs-indicator {
+  transform: translateX(calc(100% + 0.4rem));
+}
+
+.checkout-invoice-type-tabs.is-unset .checkout-choice-tabs-indicator {
+  opacity: 0;
+}
+
 .checkout-delivery-tabs-indicator {
   width: calc((100% - 0.6rem - 0.8rem) / 3);
 }
@@ -976,6 +1013,23 @@ button {
 .checkout-invoice-toggle.is-checked {
   border-color: var(--fg);
   background: var(--soft);
+}
+
+.checkout-invoice-toggle.is-locked {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.checkout-invoice-toggle.is-locked input {
+  cursor: default;
+}
+
+.checkout-invoice-hint {
+  margin: -0.25rem 0 0;
+  padding: 0 0.25rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--muted, #666);
 }
 
 .checkout-invoice-toggle input {

@@ -15,6 +15,7 @@ import {
   type AdminSoldVoucher,
 } from "@/data/admin-vouchers";
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
+import { getShopBrand } from "@/data/shops";
 import { AdminDismissButton } from "./AdminDismissButton";
 
 type AdminVoucherDrawerContextValue = {
@@ -200,6 +201,10 @@ function AdminVoucherDrawerPanel({
 
           <dl className="admin-voucher-drawer-fields">
             <div>
+              <dt>Obchod</dt>
+              <dd>{getShopBrand(voucher.shopId).brandName}</dd>
+            </div>
+            <div>
               <dt>Zákazník</dt>
               <dd>{voucher.customer}</dd>
             </div>
@@ -278,6 +283,29 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
   const [vouchers, setVouchers] = useState(ADMIN_SOLD_VOUCHERS);
   const [activeVoucherCode, setActiveVoucherCode] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/sold-vouchers", {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as { vouchers?: AdminSoldVoucher[] };
+        if (cancelled || !Array.isArray(data.vouchers)) return;
+        // DB je zdroj pravdy; mock necháme jen když tabulka je prázdná.
+        setVouchers(
+          data.vouchers.length > 0 ? data.vouchers : ADMIN_SOLD_VOUCHERS,
+        );
+      } catch {
+        // keep mock
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const activeVoucher = useMemo(
     () => vouchers.find((voucher) => voucher.code === activeVoucherCode) ?? null,
     [activeVoucherCode, vouchers],
@@ -296,6 +324,11 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
           : voucher,
       ),
     );
+    void fetch(`/api/admin/sold-vouchers/${encodeURIComponent(normalized)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "redeemed" }),
+    }).catch(() => undefined);
   }, []);
 
   const activateVoucher = useCallback((code: string) => {
@@ -311,6 +344,11 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
           : voucher,
       ),
     );
+    void fetch(`/api/admin/sold-vouchers/${encodeURIComponent(normalized)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "active" }),
+    }).catch(() => undefined);
   }, []);
 
   useEffect(() => {

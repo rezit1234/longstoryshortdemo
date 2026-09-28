@@ -1,11 +1,13 @@
 import {
   createInitialVoucherSettings,
   defaultCheckoutPreviewForExperienceId,
+  DEFAULT_EXPERIENCE_VAT,
   MAX_AMOUNT_SLOTS,
   MAX_CHECKOUT_PREVIEW_IMAGES,
   MAX_GALLERY_IMAGES,
   type AdminExperienceForm,
   type AdminVoucherSettings,
+  type ExperienceVatSettings,
   type VoucherCodePosition,
 } from "@/data/admin-voucher-settings";
 import {
@@ -14,17 +16,20 @@ import {
   type AmountVoucher,
   type ExperienceGalleryImage,
   type ExperienceVoucher,
+  type VoucherPdfPlacement,
 } from "@/data/vouchers";
 
 export type VoucherSettingsPayload = AdminVoucherSettings;
 
 export function normalizeVoucherSettings(
   input: Partial<AdminVoucherSettings> | null | undefined,
+  shopId: string = "lss",
 ): AdminVoucherSettings {
-  const fallback = createInitialVoucherSettings();
+  const fallback = createInitialVoucherSettings(shopId);
   const amountSlots = Array.from({ length: MAX_AMOUNT_SLOTS }, (_, index) => {
     const value = input?.amountSlots?.[index];
     if (value === null || value === undefined) return null;
+    if (value === "") return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
   });
@@ -53,6 +58,10 @@ export function normalizeVoucherSettings(
       input?.postShippingFeeSk,
       fallback.postShippingFeeSk,
     ),
+    heroImage:
+      input && Object.prototype.hasOwnProperty.call(input, "heroImage")
+        ? normalizeAmountPreviewImage(input.heroImage)
+        : fallback.heroImage,
   };
 }
 
@@ -74,6 +83,32 @@ function normalizeAmountPreviewImage(
   };
 }
 
+function normalizePdfPlacement(value: unknown): VoucherPdfPlacement | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<VoucherPdfPlacement>;
+  const template = record.pdfTemplate;
+  const pdfTemplate =
+    template &&
+    typeof template === "object" &&
+    typeof template.url === "string" &&
+    template.url.trim()
+      ? {
+          url: template.url.trim(),
+          fileName: String(template.fileName || "poukaz.pdf"),
+        }
+      : null;
+
+  if (!pdfTemplate && !record.codePosition && !record.qrPosition) {
+    return null;
+  }
+
+  return {
+    pdfTemplate,
+    codePosition: normalizeCodePosition(record.codePosition),
+    qrPosition: normalizeCodePosition(record.qrPosition),
+  };
+}
+
 function normalizeAmountPreviews(
   input: Partial<AmountPreviewSettings> | null | undefined,
   amountSlots: (number | null)[],
@@ -87,9 +122,15 @@ function normalizeAmountPreviews(
     return normalizeAmountPreviewImage(value);
   });
 
+  const slotPdfs = Array.from({ length: MAX_AMOUNT_SLOTS }, (_, index) => {
+    return normalizePdfPlacement(input.slotPdfs?.[index] ?? null);
+  });
+
   return {
     slotPreviews,
     customPreview: normalizeAmountPreviewImage(input.customPreview),
+    slotPdfs,
+    customPdf: normalizePdfPlacement(input.customPdf ?? null),
   };
 }
 
@@ -109,6 +150,34 @@ function normalizeGalleryImages(
     .slice(0, max);
 }
 
+function normalizeVatRate(value: unknown, fallback: number): number {
+  const rate = Number(value);
+  if (!Number.isFinite(rate)) return fallback;
+  return Math.max(0, Math.min(100, rate));
+}
+
+function normalizeExperienceVat(
+  value: Partial<ExperienceVatSettings> | null | undefined,
+  price: number,
+): ExperienceVatSettings {
+  const mode = value?.mode === "combined" ? "combined" : "single";
+  const amountARaw = Number(value?.amountA);
+  const amountA = Number.isFinite(amountARaw)
+    ? Math.max(0, Math.min(price, amountARaw))
+    : 0;
+
+  return {
+    mode,
+    singleRate: normalizeVatRate(
+      value?.singleRate,
+      DEFAULT_EXPERIENCE_VAT.singleRate,
+    ),
+    rateA: normalizeVatRate(value?.rateA, DEFAULT_EXPERIENCE_VAT.rateA),
+    amountA,
+    rateB: normalizeVatRate(value?.rateB, DEFAULT_EXPERIENCE_VAT.rateB),
+  };
+}
+
 function normalizeExperience(
   experience: Partial<AdminExperienceForm>,
 ): AdminExperienceForm {
@@ -117,15 +186,17 @@ function normalizeExperience(
     experience,
     "checkoutPreview",
   );
+  const price = Number.isFinite(Number(experience.price))
+    ? Math.max(0, Number(experience.price))
+    : 0;
 
   return {
     id,
     title: String(experience.title ?? ""),
     subtitle: String(experience.subtitle ?? ""),
     suitableFor: String(experience.suitableFor ?? ""),
-    price: Number.isFinite(Number(experience.price))
-      ? Math.max(0, Number(experience.price))
-      : 0,
+    price,
+    vat: normalizeExperienceVat(experience.vat, price),
     description: String(experience.description ?? ""),
     checkoutPreview: hasCheckoutPreviewKey
       ? normalizeGalleryImages(
