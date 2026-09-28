@@ -1,4 +1,5 @@
-import Link from "next/link";
+import Image from "next/image";
+import { getShopBrand, shopIdFromOrderNumber } from "@/data/shops";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -15,11 +16,7 @@ export default async function PaymentResultPage({
   const params = await searchParams;
   const status = first(params.status).toLowerCase();
   const refId = first(params.refId);
-  const shopHint = refId.startsWith("BC-")
-    ? "/bistrocentral"
-    : refId.startsWith("CA-")
-      ? "/culinaryacademy"
-      : "/lss";
+  const brand = getShopBrand(shopIdFromOrderNumber(refId));
 
   const title =
     status === "paid"
@@ -34,10 +31,10 @@ export default async function PaymentResultPage({
     status === "paid"
       ? "Děkujeme. Objednávka je zaplacená a poukaz(y) se právě vystavují. E-mail s PDF přijde v další fázi."
       : status === "cancelled"
-        ? "Platba neproběhla nebo byla zrušena. Můžete to zkusit znovu z obchodu."
+        ? "Platba neproběhla nebo byla zrušena. Můžete to zkusit znovu."
         : status === "pending"
           ? "Čekáme na potvrzení od platební brány. Stav se aktualizuje automaticky."
-          : "Vraťte se do obchodu nebo zkontrolujte e-mail s potvrzením.";
+          : "Vraťte se na webové stránky nebo zkontrolujte e-mail s potvrzením.";
 
   return (
     <main
@@ -60,12 +57,31 @@ export default async function PaymentResultPage({
           boxShadow: "0 10px 40px rgba(0,0,0,0.06)",
         }}
       >
-        <p style={{ margin: 0, fontSize: "0.8rem", color: "#71717a" }}>
-          Platební brána
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-start",
+            marginBottom: "1.1rem",
+          }}
+        >
+          <Image
+            src={brand.logoSrc}
+            alt={brand.brandName}
+            width={160}
+            height={56}
+            style={{
+              width: "auto",
+              height: "2.75rem",
+              maxWidth: "11rem",
+              objectFit: "contain",
+            }}
+            priority
+          />
+        </div>
+
         <h1
           style={{
-            margin: "0.4rem 0 0",
+            margin: 0,
             fontSize: "1.55rem",
             fontWeight: 650,
             letterSpacing: "-0.02em",
@@ -77,12 +93,18 @@ export default async function PaymentResultPage({
           {copy}
         </p>
         {refId ? (
-          <p style={{ margin: "0.85rem 0 0", fontSize: "0.9rem", color: "#71717a" }}>
+          <p
+            style={{
+              margin: "0.85rem 0 0",
+              fontSize: "0.9rem",
+              color: "#71717a",
+            }}
+          >
             Objednávka: <strong style={{ color: "#0a0a0a" }}>{refId}</strong>
           </p>
         ) : null}
-        <Link
-          href={shopHint}
+        <a
+          href={brand.websiteUrl}
           style={{
             display: "inline-flex",
             marginTop: "1.5rem",
@@ -95,8 +117,8 @@ export default async function PaymentResultPage({
             fontSize: "0.92rem",
           }}
         >
-          Zpět do obchodu
-        </Link>
+          Zpět na webové stránky
+        </a>
       </div>
     </main>
   );
