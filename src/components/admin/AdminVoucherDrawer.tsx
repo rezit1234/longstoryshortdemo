@@ -120,6 +120,8 @@ function AdminVoucherDrawerPanel({
   onActivate: (code: string) => void;
 }) {
   const [isClosing, setIsClosing] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
 
   const requestClose = useCallback(() => {
     setIsClosing(true);
@@ -145,6 +147,32 @@ function AdminVoucherDrawerPanel({
     onActivate(voucher.code);
     requestClose();
   }, [onActivate, requestClose, voucher.code]);
+
+  const handleSendEmail = useCallback(async () => {
+    setEmailSending(true);
+    setEmailFeedback(null);
+    try {
+      const response = await fetch(
+        `/api/admin/sold-vouchers/${encodeURIComponent(voucher.code)}/send-email`,
+        { method: "POST" },
+      );
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        to?: string;
+      };
+      if (!response.ok) {
+        setEmailFeedback(data.error || "E-mail se nepodařilo odeslat.");
+        return;
+      }
+      setEmailFeedback(
+        data.to ? `Odesláno na ${data.to}.` : "E-mail odeslán.",
+      );
+    } catch {
+      setEmailFeedback("E-mail se nepodařilo odeslat.");
+    } finally {
+      setEmailSending(false);
+    }
+  }, [voucher.code]);
 
   const footerCta =
     voucher.status === "active"
@@ -246,6 +274,22 @@ function AdminVoucherDrawerPanel({
               <dt>Způsob doručení</dt>
               <dd>{voucher.deliveryMethod}</dd>
             </div>
+            <div>
+              <dt>PDF poukazu</dt>
+              <dd>
+                {voucher.pdfUrl ? (
+                  <a
+                    href={`/api/admin/sold-vouchers/${encodeURIComponent(voucher.code)}/pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Stáhnout PDF
+                  </a>
+                ) : (
+                  "Zatím nevygenerováno"
+                )}
+              </dd>
+            </div>
             {voucher.shippingAddress ? (
               <div className="admin-voucher-drawer-address">
                 <dt>Doručovací adresa</dt>
@@ -260,10 +304,31 @@ function AdminVoucherDrawerPanel({
               </div>
             ) : null}
           </dl>
+          {emailFeedback ? (
+            <p className="admin-voucher-drawer-email-feedback">{emailFeedback}</p>
+          ) : null}
         </div>
 
-        {footerCta ? (
-          <div className="admin-voucher-drawer-footer">
+        <div className="admin-voucher-drawer-footer">
+          <button
+            type="button"
+            className="admin-voucher-drawer-cta is-secondary"
+            onClick={() => void handleSendEmail()}
+            disabled={emailSending || !voucher.email}
+          >
+            {emailSending ? "Odesílám…" : "Odeslat e-mailem"}
+          </button>
+          {voucher.pdfUrl ? (
+            <a
+              className="admin-voucher-drawer-cta is-secondary"
+              href={`/api/admin/sold-vouchers/${encodeURIComponent(voucher.code)}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Stáhnout PDF
+            </a>
+          ) : null}
+          {footerCta ? (
             <button
               type="button"
               className="admin-voucher-drawer-cta"
@@ -272,8 +337,8 @@ function AdminVoucherDrawerPanel({
               <AdminVoucherCtaIcon kind={footerCta.icon} />
               {footerCta.label}
             </button>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </aside>
     </>
   );

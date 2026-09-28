@@ -35,6 +35,8 @@ export type AdminSoldVoucher = {
   status: AdminVoucherStatus;
   statusLabel: string;
   shippingAddress?: AdminVoucherShippingAddress;
+  /** Veřejná URL vygenerovaného PDF (kód + QR). */
+  pdfUrl?: string | null;
 };
 
 export const ADMIN_VOUCHER_STATUS_LABELS: Record<AdminVoucherStatus, string> = {

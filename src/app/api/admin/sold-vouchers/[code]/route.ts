@@ -59,7 +59,7 @@ export async function PATCH(
       .update(patch)
       .eq("code_normalized", code)
       .select(
-        "code, shop_id, product_name, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, shipping_address",
+        "code, shop_id, product_name, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, shipping_address, pdf_url",
       )
       .maybeSingle();
 

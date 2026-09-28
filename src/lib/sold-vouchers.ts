@@ -21,6 +21,7 @@ export type SoldVoucherRow = {
   buyer_phone: string;
   delivery_method: string;
   shipping_address: AdminVoucherShippingAddress | null;
+  pdf_url?: string | null;
 };
 
 function formatDateCs(isoOrDate: string) {
@@ -87,5 +88,9 @@ export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
     status,
     statusLabel: ADMIN_VOUCHER_STATUS_LABELS[status],
     shippingAddress: row.shipping_address ?? undefined,
+    pdfUrl:
+      typeof row.pdf_url === "string" && row.pdf_url.trim()
+        ? row.pdf_url.trim()
+        : null,
   };
 }

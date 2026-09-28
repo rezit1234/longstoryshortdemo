@@ -3,7 +3,17 @@ import {
   normalizeVoucherCode,
   type ShopId,
 } from "@/data/admin-voucher-settings";
+import type { VoucherPdfPlacement } from "@/data/vouchers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeVoucherSettings } from "@/lib/voucher-settings";
+import {
+  resolveVoucherEmailRecipient,
+  sendVoucherEmail,
+} from "@/lib/email/send-voucher-email";
+import {
+  fetchPdfTemplateBytes,
+  stampVoucherPdf,
+} from "@/lib/voucher-pdf-overlay";
 
 type OrderRow = {
   id: string;
@@ -54,20 +64,63 @@ function shippingAddressFromDelivery(delivery: Record<string, unknown>) {
   };
 }
 
-async function loadValidityMonths(
+async function loadShopSettings(
   admin: ReturnType<typeof createAdminClient>,
   shopId: ShopId,
 ) {
   const { data } = await admin
     .from("voucher_settings")
-    .select("validity_months")
+    .select("validity_months, amount_slots, amount_previews, experiences")
     .eq("shop_id", shopId)
     .maybeSingle();
-  const months =
-    typeof data?.validity_months === "number" && data.validity_months > 0
-      ? data.validity_months
-      : 12;
-  return months;
+
+  return normalizeVoucherSettings(
+    {
+      validityMonths:
+        typeof data?.validity_months === "number"
+          ? data.validity_months
+          : undefined,
+      amountSlots: Array.isArray(data?.amount_slots)
+        ? (data.amount_slots as (number | null)[])
+        : undefined,
+      amountPreviews:
+        data?.amount_previews && typeof data.amount_previews === "object"
+          ? (data.amount_previews as Record<string, unknown>)
+          : undefined,
+      experiences: Array.isArray(data?.experiences)
+        ? data.experiences
+        : undefined,
+    } as Parameters<typeof normalizeVoucherSettings>[0],
+    shopId,
+  );
+}
+
+function resolvePdfPlacement(
+  settings: ReturnType<typeof normalizeVoucherSettings>,
+  order: OrderRow,
+): VoucherPdfPlacement | null {
+  if (order.item_kind === "experience") {
+    const experienceId = asString(order.item.id).trim();
+    const experience = settings.experiences.find(
+      (item) => item.id === experienceId,
+    );
+    if (!experience?.pdfTemplate?.url) return null;
+    return {
+      pdfTemplate: experience.pdfTemplate,
+      codePosition: experience.codePosition,
+      qrPosition: experience.qrPosition,
+    };
+  }
+
+  const amount =
+    typeof order.item.amount === "number"
+      ? order.item.amount
+      : order.unit_price_czk;
+  const slotIndex = settings.amountSlots.findIndex((slot) => slot === amount);
+  if (slotIndex >= 0) {
+    return settings.amountPreviews.slotPdfs[slotIndex] ?? null;
+  }
+  return settings.amountPreviews.customPdf ?? null;
 }
 
 async function generateUniqueCodes(
@@ -115,8 +168,55 @@ function toDateOnly(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function createIssuedPdfPath(shopId: ShopId, code: string) {
+  const safe = normalizeVoucherCode(code) || code;
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `issued/${shopId}/${safe}-${id}.pdf`;
+}
+
+async function stampAndUploadPdf(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  shopId: ShopId;
+  code: string;
+  placement: VoucherPdfPlacement;
+  templateBytes: Uint8Array;
+}): Promise<{ url: string; bytes: Uint8Array } | null> {
+  if (!params.placement.codePosition && !params.placement.qrPosition) {
+    return null;
+  }
+
+  const stamped = await stampVoucherPdf({
+    templateBytes: params.templateBytes,
+    code: params.code,
+    codePosition: params.placement.codePosition,
+    qrPosition: params.placement.qrPosition,
+  });
+
+  const path = createIssuedPdfPath(params.shopId, params.code);
+  const { error: uploadError } = await params.admin.storage
+    .from("voucher-pdfs")
+    .upload(path, Buffer.from(stamped), {
+      contentType: "application/pdf",
+      upsert: false,
+      cacheControl: "3600",
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const {
+    data: { publicUrl },
+  } = params.admin.storage.from("voucher-pdfs").getPublicUrl(path);
+
+  return { url: publicUrl, bytes: stamped };
+}
+
 /**
- * Po Comgate PAID: vygeneruje kódy a uloží sold_vouchers.
+ * Po Comgate PAID: vygeneruje kódy, uloží sold_vouchers a natiskne PDF.
  * Idempotentní — při opakovaném pushi nic neduplikuje.
  */
 export async function fulfillPaidOrder(orderId: string) {
@@ -155,12 +255,53 @@ export async function fulfillPaidOrder(orderId: string) {
   const deliveryMethod = asString(typed.delivery.method, "email");
   const status = initialStatus(deliveryMethod);
   const purchasedAt = typed.paid_at ? new Date(typed.paid_at) : new Date();
-  const validityMonths = await loadValidityMonths(admin, typed.shop_id);
-  const validUntil = toDateOnly(addMonths(purchasedAt, validityMonths));
+  const settings = await loadShopSettings(admin, typed.shop_id);
+  const validUntil = toDateOnly(addMonths(purchasedAt, settings.validityMonths));
   const codes = await generateUniqueCodes(admin, typed.quantity);
   const productName = productNameFromOrder(typed);
   const shippingAddress = shippingAddressFromDelivery(typed.delivery);
   const shippingShare = Math.floor(typed.shipping_fee_czk / typed.quantity);
+  const placement = resolvePdfPlacement(settings, typed);
+
+  let templateBytes: Uint8Array | null = null;
+  if (placement?.pdfTemplate?.url) {
+    try {
+      templateBytes = await fetchPdfTemplateBytes(placement.pdfTemplate.url);
+    } catch (error) {
+      console.error("fulfillPaidOrder: template download failed", error);
+    }
+  }
+
+  const pdfUrls = new Map<string, string>();
+  const pdfBytes = new Map<string, Uint8Array>();
+  if (templateBytes && placement) {
+    for (const code of codes) {
+      try {
+        const stamped = await stampAndUploadPdf({
+          admin,
+          shopId: typed.shop_id,
+          code,
+          placement,
+          templateBytes,
+        });
+        if (stamped) {
+          pdfUrls.set(code, stamped.url);
+          pdfBytes.set(code, stamped.bytes);
+        }
+      } catch (error) {
+        console.error("fulfillPaidOrder: PDF stamp failed", code, error);
+      }
+    }
+  }
+
+  const buyerName = asString(typed.buyer.name);
+  const buyerEmail = asString(typed.buyer.email);
+  const recipientName = asString(
+    typed.buyer.recipientName,
+    buyerName,
+  );
+  const deliveryEmail = asString(typed.delivery.email) || null;
+  const message = asString(typed.buyer.message) || null;
 
   const rows = codes.map((code) => ({
     order_id: typed.id,
@@ -174,17 +315,17 @@ export async function fulfillPaidOrder(orderId: string) {
     status,
     purchased_at: purchasedAt.toISOString(),
     valid_until: validUntil,
-    buyer_name: asString(typed.buyer.name),
-    buyer_email: asString(typed.buyer.email),
+    buyer_name: buyerName,
+    buyer_email: buyerEmail,
     buyer_phone: asString(typed.buyer.phone),
-    recipient_name: asString(typed.buyer.recipientName, asString(typed.buyer.name)),
+    recipient_name: recipientName,
     delivery_method: deliveryMethod,
-    delivery_email: asString(typed.delivery.email) || null,
+    delivery_email: deliveryEmail,
     shipping_address: shippingAddress,
-    message: asString(typed.buyer.message) || null,
-    vat_label:
-      typed.item_kind === "amount" ? "Cenina bez DPH" : null,
+    message,
+    vat_label: typed.item_kind === "amount" ? "Cenina bez DPH" : null,
     tax_regime: "vouchy" as const,
+    pdf_url: pdfUrls.get(code) ?? null,
   }));
 
   const { error: insertError } = await admin.from("sold_vouchers").insert(rows);
@@ -192,5 +333,54 @@ export async function fulfillPaidOrder(orderId: string) {
     throw new Error(insertError.message);
   }
 
-  return { created: rows.length, skipped: false as const, codes };
+  const emailTo = resolveVoucherEmailRecipient({
+    deliveryMethod,
+    deliveryEmail,
+    buyerEmail,
+  });
+  let emailsSent = 0;
+  if (emailTo) {
+    const validUntilLabel = (() => {
+      const [y, m, d] = validUntil.split("-").map(Number);
+      if (!y || !m || !d) return validUntil;
+      return `${d}. ${m}. ${y}`;
+    })();
+
+    for (const code of codes) {
+      const bytes = pdfBytes.get(code);
+      try {
+        const result = await sendVoucherEmail({
+          shopId: typed.shop_id,
+          to: emailTo,
+          buyerName,
+          recipientName,
+          productName,
+          code,
+          validUntil: validUntilLabel,
+          orderNumber: typed.order_number,
+          deliveryMethod,
+          message,
+          attachments: bytes
+            ? [
+                {
+                  filename: `poukaz-${code}.pdf`,
+                  content: Buffer.from(bytes),
+                },
+              ]
+            : undefined,
+        });
+        if (result.ok) emailsSent += 1;
+      } catch (error) {
+        console.error("fulfillPaidOrder: email failed", code, error);
+      }
+    }
+  }
+
+  return {
+    created: rows.length,
+    skipped: false as const,
+    codes,
+    pdfs: pdfUrls.size,
+    emailsSent,
+  };
 }
