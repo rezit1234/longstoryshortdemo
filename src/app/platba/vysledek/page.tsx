@@ -67,12 +67,12 @@ export default async function PaymentResultPage({
           <Image
             src={brand.logoSrc}
             alt={brand.brandName}
-            width={160}
-            height={56}
+            width={220}
+            height={80}
             style={{
               width: "auto",
-              height: "2.75rem",
-              maxWidth: "11rem",
+              height: "3.75rem",
+              maxWidth: "14rem",
               objectFit: "contain",
             }}
             priority
