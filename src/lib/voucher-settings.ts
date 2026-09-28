@@ -27,9 +27,8 @@ export function normalizeVoucherSettings(
 ): AdminVoucherSettings {
   const fallback = createInitialVoucherSettings(shopId);
   const amountSlots = Array.from({ length: MAX_AMOUNT_SLOTS }, (_, index) => {
-    const value = input?.amountSlots?.[index];
-    if (value === null || value === undefined) return null;
-    if (value === "") return null;
+    const value = input?.amountSlots?.[index] as unknown;
+    if (value === null || value === undefined || value === "") return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
   });

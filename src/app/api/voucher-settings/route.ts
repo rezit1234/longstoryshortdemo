@@ -50,7 +50,7 @@ function feesFromAmountPreviews(value: unknown): {
   pickupFee?: number;
   postShippingFee?: number;
   postShippingFeeSk?: number;
-  heroImage?: unknown;
+  heroImage?: VoucherSettingsPayload["heroImage"];
 } {
   const record = asRecord(value);
   return {
@@ -64,7 +64,10 @@ function feesFromAmountPreviews(value: unknown): {
       typeof record.postShippingFeeSk === "number"
         ? record.postShippingFeeSk
         : undefined,
-    heroImage: record.heroImage,
+    heroImage:
+      record.heroImage == null
+        ? undefined
+        : (record.heroImage as VoucherSettingsPayload["heroImage"]),
   };
 }
 
@@ -329,13 +332,15 @@ export async function PUT(request: Request) {
         }
       : {
           id: 1,
+          // Non-LSS shops store only in amount_previews.__shops bag (legacy mode).
           amount_previews: amountPreviews,
           updated_at: new Date().toISOString(),
         };
 
   const legacyUpsert = await admin
     .from("voucher_settings")
-    .upsert(legacyPayload, { onConflict: "id" })
+    // Legacy partial update for non-LSS; cast avoids overly strict upsert typing.
+    .upsert(legacyPayload as Record<string, unknown>, { onConflict: "id" })
     .select(SETTINGS_SELECT_LEGACY)
     .single();
 
