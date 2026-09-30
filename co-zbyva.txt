@@ -1,125 +1,144 @@
-CO ZBÝVÁ — Long Story Short / Bistro Central / Culinary Academy (poukazy)
-=====================================================
-Stav k 28. 9. 2026
-
-Hotové (pro kontext): widgety LSS + BC + Culinary Academy, oddělená nastavení,
-checkout UI, admin, DPH, Analytika (mock), Excel export,
-FÁZE 1: Comgate create payment + push webhook + return page + tabulka voucher_orders.
+PLÁN DO OSTRÉHO SPUŠTĚNÍ — Long Story Short / Bistro Central / Culinary Academy
+==============================================================================
+Stav k 30. 9. 2026
 
 
-1) PLATEBNÍ BRÁNA — HOTOVÁ INFRA (doplnit credentials + migraci)
---------------------------------------------------------------
-- Kód: create-payment, push, /platba/vysledek, lib/comgate.ts
-- Potřeba: env credentials per shop, NEXT_PUBLIC_APP_URL, migrace 010,
-  v Comgate nastavit push URL na /api/payments/comgate/push
-- Testovat s COMGATE_TEST=true
-
-
-2) OBJEDNÁVKA A VYSTAVOVÁNÍ POUKAZŮ (FULFILLMENT)
-------------------------------------------------
-- Objednávka v DB (voucher_orders) + Comgate paid/cancelled: HOTOVÉ.
-- Po PAID: generování kódů + sold_vouchers (migrace 011): HOTOVÉ.
-- Admin seznam/uplatnění čte DB + PATCH stav: HOTOVÉ.
-- Pro každý poukaz: sestavit finální PDF ze šablony + propis kódu a QR
-  (admin upload a pozice už jsou; chybí serverový overlay).
-- Spustit odeslání e-mailů / tiskovou frontu podle způsobu doručení
-  (e-mail / pošta / vyzvednutí).
-- Ruční „Přidat poukaz“ v adminu zatím nic neukládá — napojit na stejnou
-  evidenci.
-
-
-3) E-MAILOVÉ ŠABLONY
---------------------
-Připravit a naplnit obsah (texty, branding LSS vs BC kde dává smysl):
-
-- Potvrzení objednávky zákazníkovi (po platbě).
-- Digitální poukaz e-mailem (PDF příloha + kód).
-- Daňový doklad / faktura e-mailem (když je požadavek).
-- Interní / provozní notifikace (nová objednávka, vyzvednutí, pošta).
-- Případně storno, upozornění před expirací (až bude expirace).
-
-Rozlišit šablony podle obchodu (Long Story Short vs Bistro Central)
-a podle typu doručení.
-
-
-4) ODESÍLÁNÍ E-MAILŮ (BREVO / RESEND / …)
------------------------------------------
-- Vybrat a napojit poskytovatele (Brevo, Resend, …).
-- Env klíče, doména, odesílatel, DKIM/SPF.
-- API / worker pro odeslání šablon s přílohami (PDF poukaz, faktura).
-- Logování neúspěšných odeslání.
-
-
-5) FAKTURY / DAŇOVÉ DOKLADY (RUNTIME)
-------------------------------------
-- Layout PDF faktury už existuje (náhled / test), ale není napojený
-  na checkout.
-- Po objednávce: vygenerovat doklad z dat formuláře (firma vs na jméno).
-- Doplnit reálné údaje vydavatele (IČO, účet, IBAN, …) — teď placeholdery.
-- Číselná řada faktur (RPC) napojit na reálné vystavení.
-- Volitelně později ARES podle IČO.
-
-
-6) DATABÁZE PRODANÝCH POUKAZŮ + ŽIVÁ ANALYTIKA / REPORT
--------------------------------------------------------
-Evidence:
-- Tabulka / model prodaných poukazů (kód, shop, typ, částka, zákazník,
-  doručení, status, platnost, poznámka, …).
-- Při prodeji uložit snapshot DPH (`vat*` / label) + `taxRegime`
-  (legacy | vouchy), ať report sedí i po změně nastavení varianty.
-- Admin seznam, detail, uplatnění a stavy proti DB (ne proti mock listu).
-
-Analytika a reporty (náhrada mocku):
-- Dashboard Analytiky (staty, grafy, přehled variant, stav poukazů)
-  z reálných prodejů a uplatnění.
-- Generovat report / CSV / Excel z DB místo MockSoldVoucherSource
-  (rozhraní v `src/lib/voucher-reports.ts` už je připravené).
-- Import Excelu mapuje legacy režim do evidence (viz bod 7).
-
-Až po platební bráně / fulfillmentu — teď nedělat naslepo.
-
-
-7) IMPORT ZE XLSX (AŽ DODAJÍ SOUBOR)
------------------------------------
-Sloupce, které klient nabízí:
-  KÓD | TYP | ČÁSTKA | DATUM ZAKOUPENÍ | MÍSTO ZAKOUPENÍ | ODESLÁNÍ | POZNÁMKA
-
-- TYP: voucher / ubytování / chef's table / kombinace
-- MÍSTO ZAKOUPENÍ: Long Story Short | Bistro Central
-- ODESLÁNÍ: e-mail / pošta / vyzvednutí
-- POZNÁMKA: platnost, sponzoring, kompenzace, …
-
-Dokud nepřijde soubor, neimplementovat.
-
-
-8) EXPIRACE POUKAZŮ
--------------------
-- Podle data zakoupení + platnosti (typicky 1 rok) označovat expired.
-- Respektovat poznámky o zkrácené / prodloužené platnosti.
-- Až bude evidence v DB a půjde to spolehlivě testovat (ideálně po PDF
-  a importu).
-
-
-9) PDF ŠABLONY OD KLIENTA
--------------------------
-- Dodání reálných PDF pro LSS i BC (zážitky + částky).
-- Nahrát do adminu, nastavit pozice kódu/QR.
-- Ověřit výstup overlaye na reálných souborech.
-
-
-10) DOLADĚNÍ A QA
+CO UŽ BĚŽÍ (test)
 -----------------
-- End-to-end: koupě → platba → kód → PDF → e-mail → uplatnění.
-- Oba obchody (LSS + BC), všechny způsoby doručení.
-- Daňový doklad pod / nad 10 000 Kč.
-- Mobilní checkout a admin.
-- Texty e-mailů, chybové stavy platby a doručení.
+- Widgety 3 obchodů + admin + nastavení poukazů/PDF pozic (multi-page)
+- Comgate create + push + /platba/vysledek (COMGATE_TEST=true)
+- Fulfillment: kódy → sold_vouchers → PDF overlay → e-mail (Brevo)
+- 1 zákaznický mail (poukaz PDF; později + faktura ve stejné příloze)
+- Odesílatelé per shop (EMAIL_FROM_LSS / BISTROCENTRAL / CULINARYACADEMY)
+- Admin stavy: aktivní / čeká na odeslání / vyzvednutí / uplatnění
+- Náhled mailů: /dev/email-preview
+
+Hotovo v kódu (Fáze 0+1): maily bez ops, per-shop odesílatelé, patička
+Visa/MC/Comgate ve widgetu. Zbývá Vercel env + smoke platba.
 
 
-POZNÁMKA
---------
-Dokud není platební brána, PDF od klienta a Excel se starými poukazy,
-nedává smysl tlačit fulfillment, import, auto-expiraci ani živou
-analytiku „naslepo“. Nejdřív brána + šablony PDF + e-mail provider,
-pak vystavování, evidence poukazů a teprve potom reálná čísla v
-Analytice / reportech.
+FÁZE 0 — Stabilizace a push ✓ (kód hotov; ověř env)
+-------------------------------------------------
+Cíl: mít na produkci to, co už máme lokálně.
+
+1. ✓ Commit + push e-mail změn (odesílatelé, layout, bez ops mailů)
+2. Vercel env (ručně):
+   - EMAIL_FROM_LSS / EMAIL_FROM_BISTROCENTRAL / EMAIL_FROM_CULINARYACADEMY
+   - smazat staré EMAIL_FROM (vouchy.cz), pokud ještě je
+3. Smoke: 1× platba test → mail ze správné adresy, PDF když je šablona
+4. Hotovo, když: 3 shopy posílají ze svých @longstoryshort.cz adres
+
+
+FÁZE 1 — Comgate compliance ve widgetu ✓ (kód)
+----------------------------------------------
+Cíl: splnit smluvní povinnost log / údajů před žádostí o ostrý provoz.
+
+1. ✓ Patička widgetu: Visa + Mastercard + Comgate (SVG v /public/comgate)
+2. ✓ Logo Comgate → odkaz www.comgate.eu
+3. ✓ Krátký text o Comgate + ČNB pod logy
+4. Push + kontrola na desktop/mobil
+
+Pozn.: CDN oficiálních PNG z Document360 teď vrací 404 — až bude pack
+od Comgate, vyměnit SVG v public/comgate/. Hotovo, když: loga vidět
+v iframe i na standalone stránkách shopů.
+
+
+FÁZE 2 — PDF šablony od klienta (čeká na ně, paralelně)
+------------------------------------------------------
+Cíl: reálné poukazy, ne testovací PDF.
+
+1. Požádat kolegu o finální PDF (LSS / BC / CA × částky + zážitky)
+2. Nahrát v adminu, nastavit pozice kódu/QR (včetně stránky 2+)
+3. Ověřit výstup: admin download + e-mail příloha
+
+Hotovo, když: každý prodávaný produkt má šablonu + pozice.
+
+
+FÁZE 3 — Faktury runtime (1–2 dny vývoje)
+----------------------------------------
+Cíl: po PAID vystavit doklad a přiložit do stejného mailu jako poukaz.
+
+1. Doplnit reálné údaje vydavatele (IČO, DIČ, účet, IBAN, adresa) per shop
+2. Napojit číselnou řadu (RPC) na zaplacenou objednávku
+3. Generovat PDF z checkout dat (firma / fyzická osoba)
+4. Uložit fakturu (storage + vazba na order)
+5. Přiložit do zákaznického mailu vedle poukazu (už připravený wording)
+6. (Volitelně) ARES podle IČO — až bude čas
+
+Hotovo, když: objednávka s „chci fakturu“ → mail má poukaz.pdf + faktura.pdf
+
+
+FÁZE 4 — Ruční „Přidat poukaz“ → DB (0,5–1 den)
+----------------------------------------------
+Cíl: admin drawer ukládá do sold_vouchers (stejná evidence jako online).
+
+1. POST API → insert sold_vouchers (+ volitelně PDF stamp, pokud je šablona)
+2. Volitelně odeslat e-mail
+3. Seznam poukazů hned ukáže nový řádek
+
+Hotovo, když: ručně přidaný poukaz jde uplatnit stejně jako koupený.
+
+
+FÁZE 5 — Live admin data (1–2 dny)
+----------------------------------
+Cíl: pryč mocky, vše z DB.
+
+1. Přehled (stats) z voucher_orders / sold_vouchers
+2. Analytika + grafy z reálných prodejů a uplatnění
+3. CSV / Excel reporty z DB (voucher-reports)
+4. Snapshot DPH / taxRegime při prodeji (ať report sedí i po změně nastavení)
+
+Hotovo, když: admin bez mock dat funguje na produkci.
+
+
+FÁZE 6 — Comgate ostrý provoz (závisí na Comgate, ~dny až ~2 týdny karty)
+------------------------------------------------------------------------
+Cíl: přijímat reálné platby.
+
+Před žádostí:
+- Fáze 1 hotová (loga)
+- Stabilní test flow (push, fulfill, mail)
+- HTTPS, srozumitelné OP / platba
+
+Žádost:
+1. E-mail / portál Comgate: testy hotové, chceme produkci
+2. Uvést merchant ID pro LSS, BC, CA (nebo postupně shop po shopu)
+3. Čekat na schválení (karty často déle než bankovní tlačítka)
+
+Po jejich „go“:
+4. Vercel: COMGATE_TEST=false (+ redeploy)
+5. Ostrá platba ~10–50 Kč → ověřit PAID, kód, PDF, mail
+6. Teprve pak komunikovat zákazníkům
+
+POZOR: samotné COMGATE_TEST=false bez jejich aktivace → chyba 1308.
+
+
+FÁZE 7 — Soft launch QA (1 den)
+-------------------------------
+Checklist:
+- [ ] LSS / BC / CA — částka + zážitek
+- [ ] Doručení: e-mail / pošta / vyzvednutí (stavy v adminu)
+- [ ] Uplatnění kódu
+- [ ] Mail ze správné adresy + přílohy
+- [ ] Faktura (pokud Fáze 3 hotová)
+- [ ] Mobilní widget + admin
+- [ ] Cancelled / failed platba (stav objednávky)
+
+
+FÁZE 8 — Až dodají / později (neblokuje launch)
+-----------------------------------------------
+- Import XLSX starých poukazů (až přijde soubor)
+- Auto-expirace podle valid_until
+- Storno / reminder před expirací (maily)
+- ARES autocomplete
+
+
+DOPORUČENÉ POŘADÍ PRÁCE
+-----------------------
+Teď:     0 → 1
+Paralelně: 2 (čeká na PDF od klienta)
+Pak:     3 → 4 → 5
+Pak:     6 (Comgate aktivace) → 7
+Později: 8
+
+Nejbližší tekniký krok: Fáze 0 (push + Vercel env) a Fáze 1 (Visa/MC ve widgetu).

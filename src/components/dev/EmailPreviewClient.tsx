@@ -3,23 +3,17 @@
 import { useMemo, useState } from "react";
 import type { EmailPreviewSample } from "@/lib/email/preview-samples";
 
-type Filter = "all" | "customer" | "ops";
-
 export function EmailPreviewClient({
   samples,
 }: {
   samples: EmailPreviewSample[];
 }) {
-  const [filter, setFilter] = useState<Filter>("all");
   const [activeId, setActiveId] = useState(samples[0]?.id ?? "");
 
-  const filtered = useMemo(() => {
-    if (filter === "all") return samples;
-    return samples.filter((sample) => sample.group === filter);
-  }, [filter, samples]);
-
-  const active =
-    filtered.find((sample) => sample.id === activeId) ?? filtered[0] ?? null;
+  const active = useMemo(
+    () => samples.find((sample) => sample.id === activeId) ?? samples[0] ?? null,
+    [activeId, samples],
+  );
 
   return (
     <div className="email-preview">
@@ -28,45 +22,15 @@ export function EmailPreviewClient({
           <p className="email-preview-kicker">Dev</p>
           <h1>Náhled e-mailů</h1>
           <p className="email-preview-lead">
-            Všechny šablony, které systém posílá (nebo bude posílat). Logo se
-            bere z veřejné URL aplikace.
+            Zákaznické šablony, které systém posílá po platbě. Logo se bere z
+            veřejné URL aplikace.
           </p>
-        </div>
-        <div className="email-preview-filters" role="tablist" aria-label="Typ mailu">
-          {(
-            [
-              ["all", "Vše"],
-              ["customer", "Zákazník"],
-              ["ops", "Interní"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={filter === key}
-              className={
-                filter === key
-                  ? "email-preview-filter is-active"
-                  : "email-preview-filter"
-              }
-              onClick={() => {
-                setFilter(key);
-                const next = samples.find((sample) =>
-                  key === "all" ? true : sample.group === key,
-                );
-                if (next) setActiveId(next.id);
-              }}
-            >
-              {label}
-            </button>
-          ))}
         </div>
       </header>
 
       <div className="email-preview-layout">
         <aside className="email-preview-list" aria-label="Seznam šablon">
-          {filtered.map((sample) => (
+          {samples.map((sample) => (
             <button
               key={sample.id}
               type="button"

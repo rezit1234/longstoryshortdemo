@@ -18,7 +18,7 @@ export type SendVoucherEmailInput = {
   orderNumber?: string;
   deliveryMethod: string;
   message?: string | null;
-  /** PDF poukazu a později i faktura — jeden mail, víc příloh. */
+  /** PDF poukazu a později i faktura - jeden mail, víc příloh. */
   attachments?: VoucherEmailAttachment[];
 };
 
@@ -57,7 +57,7 @@ function classifyAttachments(attachments: VoucherEmailAttachment[]) {
   };
 }
 
-function deliveryCopy(
+function deliveryCopyCs(
   method: string,
   files: ReturnType<typeof classifyAttachments>,
 ) {
@@ -90,10 +90,10 @@ function deliveryCopy(
   if (files.hasInvoice) {
     return "V příloze najdete fakturu ve formátu PDF. Kód poukazu je níže.";
   }
-  return "Kód poukazu najdete níže — stačí ho uvést při uplatnění.";
+  return "Kód poukazu najdete níže - stačí ho uvést při uplatnění.";
 }
 
-function attachmentFootnote(files: ReturnType<typeof classifyAttachments>) {
+function attachmentFootnoteCs(files: ReturnType<typeof classifyAttachments>) {
   if (files.hasVoucher && files.hasInvoice) {
     return "PDF poukazu a faktury jsou v příloze tohoto e-mailu.";
   }
@@ -103,7 +103,7 @@ function attachmentFootnote(files: ReturnType<typeof classifyAttachments>) {
   if (files.hasInvoice) {
     return "Faktura v PDF je v příloze tohoto e-mailu.";
   }
-  return "Digitální PDF zatím není k dispozici — kód výše stačí k uplatnění.";
+  return "Digitální PDF zatím není k dispozici - kód výše stačí k uplatnění.";
 }
 
 function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
@@ -128,13 +128,13 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
       <td align="center">
         <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;padding:28px 24px;">
           <tr>
-            <td>
-              <div style="margin:0 0 18px;text-align:center;">
-                <img src="${logoUrl}" alt="${brandName}" width="168" style="display:inline-block;max-width:168px;width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+            <td style="text-align:left;">
+              <div style="margin:0 0 18px;text-align:left;">
+                <img src="${logoUrl}" alt="${brandName}" width="96" style="display:block;max-width:96px;width:96px;height:auto;border:0;outline:none;text-decoration:none;" />
               </div>
-              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:center;">Váš dárkový poukaz</h1>
+              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:left;font-weight:700;">Váš dárkový poukaz</h1>
               <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">Dobrý den, ${name},</p>
-              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">děkujeme za nákup. ${deliveryCopy(input.deliveryMethod, files)}</p>
+              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">děkujeme za nákup. ${deliveryCopyCs(input.deliveryMethod, files)}</p>
               <table role="presentation" width="100%" style="margin:20px 0;border-collapse:collapse;">
                 <tr>
                   <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;color:#666;">Produkt</td>
@@ -150,7 +150,7 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
                 </tr>
               </table>
               ${message}
-              <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">${attachmentFootnote(files)}</p>
+              <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">${attachmentFootnoteCs(files)}</p>
               <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#777;">
                 ${brandName}<br/>
                 <a href="${website}" style="color:#111;">${website.replace(/^https?:\/\//, "")}</a>
@@ -167,23 +167,28 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
 
 export { buildVoucherEmailHtml };
 
+export function voucherEmailSubject(input: Pick<SendVoucherEmailInput, "shopId" | "attachments">) {
+  const brand = getShopBrand(input.shopId);
+  const hasInvoice = (input.attachments ?? []).some((file) =>
+    /faktura|invoice/i.test(file.filename),
+  );
+  return hasInvoice
+    ? `Váš dárkový poukaz a faktura - ${brand.brandName}`
+    : `Váš dárkový poukaz - ${brand.brandName}`;
+}
+
 /**
  * Jeden zákaznický e-mail po platbě: poukaz (+ později faktura ve stejné příloze).
- * Žádné samostatné „potvrzení objednávky“.
  */
 export async function sendVoucherEmail(input: SendVoucherEmailInput) {
-  const brand = getShopBrand(input.shopId);
   const files = input.attachments ?? [];
-  const hasInvoice = files.some((file) => /faktura|invoice/i.test(file.filename));
-  const subject = hasInvoice
-    ? `Váš dárkový poukaz a faktura ${input.code} – ${brand.brandName}`
-    : `Váš dárkový poukaz ${input.code} – ${brand.brandName}`;
 
   return sendBrevoEmail({
     to: input.to,
     toName: input.recipientName || input.buyerName,
-    subject,
+    subject: voucherEmailSubject(input),
     htmlContent: buildVoucherEmailHtml(input),
+    shopId: input.shopId,
     attachments: files.map((file) => ({
       name: file.filename,
       content: file.content,
