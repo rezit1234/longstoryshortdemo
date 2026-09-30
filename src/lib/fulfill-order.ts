@@ -9,7 +9,12 @@ import { normalizeVoucherSettings } from "@/lib/voucher-settings";
 import {
   resolveVoucherEmailRecipient,
   sendVoucherEmail,
+  type VoucherEmailAttachment,
 } from "@/lib/email/send-voucher-email";
+import {
+  issueInvoiceForPaidOrder,
+  type OrderInvoicePayload,
+} from "@/lib/invoicing/issue-invoice-for-order";
 import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
@@ -25,8 +30,10 @@ type OrderRow = {
   quantity: number;
   unit_price_czk: number;
   shipping_fee_czk: number;
+  total_czk: number;
   buyer: Record<string, unknown>;
   delivery: Record<string, unknown>;
+  invoice: OrderInvoicePayload | null;
   paid_at: string | null;
 };
 
@@ -225,7 +232,7 @@ export async function fulfillPaidOrder(orderId: string) {
   const { data: order, error: orderError } = await admin
     .from("voucher_orders")
     .select(
-      "id, order_number, shop_id, status, item_kind, item, quantity, unit_price_czk, shipping_fee_czk, buyer, delivery, paid_at",
+      "id, order_number, shop_id, status, item_kind, item, quantity, unit_price_czk, shipping_fee_czk, total_czk, buyer, delivery, invoice, paid_at",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -248,7 +255,33 @@ export async function fulfillPaidOrder(orderId: string) {
   }
 
   if ((count ?? 0) > 0) {
-    return { created: 0, skipped: true as const, reason: "already_fulfilled" as const };
+    const typedExisting = order as unknown as OrderRow;
+    let invoiceNumber: string | null = null;
+    if (typedExisting.invoice && typeof typedExisting.invoice === "object") {
+      try {
+        const issued = await issueInvoiceForPaidOrder({
+          orderId: typedExisting.id,
+          orderNumber: typedExisting.order_number,
+          shopId: typedExisting.shop_id,
+          totalCzk: typedExisting.total_czk,
+          shippingFeeCzk: typedExisting.shipping_fee_czk,
+          quantity: typedExisting.quantity,
+          productName: productNameFromOrder(typedExisting),
+          buyerName: asString(typedExisting.buyer.name),
+          invoice: typedExisting.invoice,
+          paidAt: typedExisting.paid_at,
+        });
+        invoiceNumber = issued.invoiceNumber;
+      } catch (error) {
+        console.error("fulfillPaidOrder: invoice (retry) failed", error);
+      }
+    }
+    return {
+      created: 0,
+      skipped: true as const,
+      reason: "already_fulfilled" as const,
+      invoiceNumber,
+    };
   }
 
   const typed = order as unknown as OrderRow;
@@ -333,6 +366,46 @@ export async function fulfillPaidOrder(orderId: string) {
     throw new Error(insertError.message);
   }
 
+  let invoiceAttachment: VoucherEmailAttachment | null = null;
+  let invoiceNumber: string | null = null;
+  if (typed.invoice && typeof typed.invoice === "object") {
+    try {
+      const issued = await issueInvoiceForPaidOrder({
+        orderId: typed.id,
+        orderNumber: typed.order_number,
+        shopId: typed.shop_id,
+        totalCzk: typed.total_czk,
+        shippingFeeCzk: typed.shipping_fee_czk,
+        quantity: typed.quantity,
+        productName,
+        buyerName,
+        invoice: typed.invoice,
+        paidAt: typed.paid_at,
+      });
+      invoiceNumber = issued.invoiceNumber;
+      if (issued.pdfBytes) {
+        invoiceAttachment = {
+          filename: `faktura-${issued.invoiceNumber}.pdf`,
+          content: issued.pdfBytes,
+        };
+      } else if (issued.pdfUrl) {
+        try {
+          const response = await fetch(issued.pdfUrl);
+          if (response.ok) {
+            invoiceAttachment = {
+              filename: `faktura-${issued.invoiceNumber}.pdf`,
+              content: Buffer.from(await response.arrayBuffer()),
+            };
+          }
+        } catch (error) {
+          console.error("fulfillPaidOrder: invoice re-fetch failed", error);
+        }
+      }
+    } catch (error) {
+      console.error("fulfillPaidOrder: invoice failed", error);
+    }
+  }
+
   const emailTo = resolveVoucherEmailRecipient({
     deliveryMethod,
     deliveryEmail,
@@ -346,8 +419,18 @@ export async function fulfillPaidOrder(orderId: string) {
       return `${d}. ${m}. ${y}`;
     })();
 
-    for (const code of codes) {
+    for (const [index, code] of codes.entries()) {
       const bytes = pdfBytes.get(code);
+      const attachments: VoucherEmailAttachment[] = [];
+      if (bytes) {
+        attachments.push({
+          filename: `poukaz-${code}.pdf`,
+          content: Buffer.from(bytes),
+        });
+      }
+      if (index === 0 && invoiceAttachment) {
+        attachments.push(invoiceAttachment);
+      }
       try {
         const result = await sendVoucherEmail({
           shopId: typed.shop_id,
@@ -360,14 +443,7 @@ export async function fulfillPaidOrder(orderId: string) {
           orderNumber: typed.order_number,
           deliveryMethod,
           message,
-          attachments: bytes
-            ? [
-                {
-                  filename: `poukaz-${code}.pdf`,
-                  content: Buffer.from(bytes),
-                },
-              ]
-            : undefined,
+          attachments: attachments.length > 0 ? attachments : undefined,
         });
         if (result.ok) emailsSent += 1;
       } catch (error) {
@@ -382,5 +458,6 @@ export async function fulfillPaidOrder(orderId: string) {
     codes,
     pdfs: pdfUrls.size,
     emailsSent,
+    invoiceNumber,
   };
 }

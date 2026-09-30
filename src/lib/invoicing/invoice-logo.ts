@@ -2,11 +2,14 @@ import path from "path";
 import sharp from "sharp";
 
 /**
- * Logo faktury z `public/logo.png` → PNG data URL.
- * Přidá transparentní padding, aby React-PDF neořízl okraje (logo sahá až na edge).
+ * Logo faktury z `public/…` → PNG data URL.
+ * Přidá transparentní padding, aby React-PDF neořízl okraje.
  */
-export async function getInvoiceLogoDataUrl(): Promise<string> {
-  const logoPath = path.join(process.cwd(), "public/logo.png");
+export async function getInvoiceLogoDataUrl(
+  logoSrc = "/logo.png",
+): Promise<string> {
+  const relative = logoSrc.replace(/^\//, "");
+  const logoPath = path.join(process.cwd(), "public", relative);
   const pngBuffer = await sharp(logoPath)
     .ensureAlpha()
     .extend({

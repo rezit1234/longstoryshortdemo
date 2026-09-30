@@ -43,8 +43,8 @@ od Comgate, vyměnit SVG v public/comgate/. Hotovo, když: loga vidět
 v iframe i na standalone stránkách shopů.
 
 
-FÁZE 2 — PDF šablony od klienta (čeká na ně, paralelně)
-------------------------------------------------------
+FÁZE 2 — PDF šablony od klienta (ODLOŽENO — čeká na podklady)
+-------------------------------------------------------------
 Cíl: reálné poukazy, ne testovací PDF.
 
 1. Požádat kolegu o finální PDF (LSS / BC / CA × částky + zážitky)
@@ -52,20 +52,23 @@ Cíl: reálné poukazy, ne testovací PDF.
 3. Ověřit výstup: admin download + e-mail příloha
 
 Hotovo, když: každý prodávaný produkt má šablonu + pozice.
+→ Pokračovat až budou šablony; mezitím Fáze 3+.
 
 
-FÁZE 3 — Faktury runtime (1–2 dny vývoje)
-----------------------------------------
+FÁZE 3 — Faktury runtime (v kódu)
+---------------------------------
 Cíl: po PAID vystavit doklad a přiložit do stejného mailu jako poukaz.
 
-1. Doplnit reálné údaje vydavatele (IČO, DIČ, účet, IBAN, adresa) per shop
-2. Napojit číselnou řadu (RPC) na zaplacenou objednávku
-3. Generovat PDF z checkout dat (firma / fyzická osoba)
-4. Uložit fakturu (storage + vazba na order)
-5. Přiložit do zákaznického mailu vedle poukazu (už připravený wording)
+1. ✓ Údaje vydavatele per shop (+ env INVOICE_*_ICO/IBAN/…)
+2. ✓ Číselná řada RPC (LSS/BC/CA-YYYY-NNNN) — migrace 013
+3. ✓ Generovat PDF z checkout dat (firma / fyzická osoba)
+4. ✓ Uložit fakturu (storage + invoice_number/pdf_url na order)
+5. ✓ Přiložit do 1. zákaznického mailu vedle poukazu
 6. (Volitelně) ARES podle IČO — až bude čas
+7. Před ostreem: doplnit reálné IČO/účet/IBAN do env
 
 Hotovo, když: objednávka s „chci fakturu“ → mail má poukaz.pdf + faktura.pdf
+(+ spuštěná migrace 013 v Supabase)
 
 
 FÁZE 4 — Ruční „Přidat poukaz“ → DB (0,5–1 den)

@@ -1,33 +1,46 @@
 import { renderToBuffer } from "@react-pdf/renderer";
+import type { ShopId } from "@/data/admin-voucher-settings";
 import { InvoicePdfDocument, type InvoicePdfData } from "./invoice-pdf";
 import { getInvoiceLogoDataUrl } from "./invoice-logo";
 import { registerPdfFonts } from "./register-pdf-fonts";
-import { INVOICE_ISSUER } from "./issuers";
+import { getInvoiceIssuer } from "./issuers";
 
 export type { InvoicePdfData };
 
 type GenerateInvoicePdfInput = Omit<
   InvoicePdfData,
-  "logoDataUrl" | "issuerName" | "issuerAddress"
+  | "logoDataUrl"
+  | "issuerName"
+  | "issuerAddress"
+  | "issuerIco"
+  | "issuerNote"
+  | "issuerBankAccount"
 > & {
+  shopId?: ShopId | string;
   issuerName?: string;
   issuerAddress?: string;
+  issuerIco?: string;
+  issuerNote?: string;
+  issuerBankAccount?: string;
 };
 
 /**
  * Serverové generování PDF faktury (Buffer).
- * PDF buffer se pak uloží kamkoli (storage / e-mail / disk).
  */
 export async function generateInvoicePdfBuffer(
   data: GenerateInvoicePdfInput,
 ): Promise<Buffer> {
   registerPdfFonts();
-  const logoDataUrl = await getInvoiceLogoDataUrl();
+  const issuer = getInvoiceIssuer(data.shopId ?? "lss");
+  const logoDataUrl = await getInvoiceLogoDataUrl(issuer.logoSrc);
 
   const payload: InvoicePdfData = {
     ...data,
-    issuerName: data.issuerName ?? INVOICE_ISSUER.name,
-    issuerAddress: data.issuerAddress ?? INVOICE_ISSUER.address,
+    issuerName: data.issuerName ?? issuer.name,
+    issuerAddress: data.issuerAddress ?? issuer.address,
+    issuerIco: data.issuerIco ?? issuer.ico,
+    issuerNote: data.issuerNote ?? issuer.note,
+    issuerBankAccount: data.issuerBankAccount ?? issuer.bankAccount,
     logoDataUrl,
   };
 

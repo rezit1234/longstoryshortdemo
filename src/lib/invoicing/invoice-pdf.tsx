@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Image,
 } from "@react-pdf/renderer";
-import { INVOICE_ISSUER } from "./issuers";
 import { PDF_FONT_FAMILY } from "./register-pdf-fonts";
 import { invoiceNumberToVariableSymbol } from "./invoice-number";
 
@@ -23,6 +22,9 @@ export type InvoicePdfData = {
   amount: number;
   issuerName: string;
   issuerAddress: string;
+  issuerIco: string;
+  issuerNote: string;
+  issuerBankAccount: string;
   customerName: string;
   customerIco: string;
   customerAddress: string;
@@ -311,9 +313,9 @@ export function InvoicePdfDocument({ data }: { data: InvoicePdfData }) {
             name={data.issuerName}
             address={data.issuerAddress}
             rows={[
-              { label: "IČO", value: INVOICE_ISSUER.ico },
-              { label: "", value: INVOICE_ISSUER.note },
-              { label: "Bankovní účet", value: INVOICE_ISSUER.bankAccount },
+              { label: "IČO", value: data.issuerIco },
+              { label: "", value: data.issuerNote },
+              { label: "Bankovní účet", value: data.issuerBankAccount },
               { label: "Variabilní symbol", value: variableSymbol },
               {
                 label: "Způsob platby",

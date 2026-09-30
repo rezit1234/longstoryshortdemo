@@ -1,64 +1,39 @@
 # Faktury (PDF)
 
 Serverové generování PDF faktur ve stylu Rezit (`@react-pdf/renderer`).
+Po Comgate PAID se faktura vystaví v `fulfillPaidOrder`, uloží do storage
+a přiloží k prvnímu zákaznickému mailu.
 
 ## Soubory
 
 | Soubor | Účel |
 |--------|------|
 | `generate-invoice-pdf.tsx` | `generateInvoicePdfBuffer(data)` → `Buffer` |
+| `issue-invoice-for-order.ts` | PAID → číslo + PDF + `voucher_orders` |
 | `invoice-pdf.tsx` | React-PDF layout A4 |
 | `register-pdf-fonts.ts` | Roboto Regular + Bold |
-| `invoice-logo.ts` | `public/logo.png` → PNG data URL |
-| `invoice-number.ts` | `VOUCHY-YYYY-NNNN` + VS (jen číslice) |
-| `issuers.ts` | jeden fixní dodavatel (placeholder) |
+| `invoice-logo.ts` | logo shopu → PNG data URL |
+| `invoice-number.ts` | `LSS\|BC\|CA-YYYY-NNNN` + VS |
+| `issuers.ts` | dodavatel per shop (+ env) |
 | `spayd.ts` | SPAYD string + QR data URL |
 
-## Fonty a logo
+## Env (před ostreem doplnit)
 
-- Fonty: `public/fonts/Roboto-Regular.ttf`, `public/fonts/Roboto-Bold.ttf`
-- Logo: `public/logo.png`
-
-## Volání
-
-```ts
-import { generateInvoicePdfBuffer } from "@/lib/invoicing/generate-invoice-pdf";
-import { getNextInvoiceNumber } from "@/lib/invoicing/invoice-number";
-import { buildInvoiceQrDataUrl } from "@/lib/invoicing/spayd";
-
-const invoiceNumber = await getNextInvoiceNumber(); // VOUCHY-2026-0001
-const qrCodeDataUrl = await buildInvoiceQrDataUrl({
-  amount: 1500,
-  invoiceNumber,
-});
-
-const pdf = await generateInvoicePdfBuffer({
-  invoiceNumber,
-  issueDate: "2026-09-10",
-  dueDate: "2026-09-24",
-  description: "Dárkový poukaz Long Story Short",
-  amount: 1500,
-  customerName: "Firma s.r.o.",
-  customerIco: "12345678",
-  customerAddress: "Ulice 1, 110 00 Praha",
-  qrCodeDataUrl, // volitelné — bez něj se QR nevykreslí
-  // footerNote: "Tato faktura již byla uhrazena…",
-});
-
-// pdf je Buffer — uložte do storage / pošlete e-mailem
+```
+INVOICE_LSS_ICO=
+INVOICE_LSS_ADDRESS=
+INVOICE_LSS_BANK_ACCOUNT=
+INVOICE_LSS_IBAN=
+INVOICE_LSS_NOTE=Neplátce DPH
+# stejně INVOICE_BISTROCENTRAL_* / INVOICE_CULINARYACADEMY_*
 ```
 
-Dodavatel (`issuerName` / `issuerAddress`) se defaultně bere z `issuers.ts`.
+## Migrace
 
-## Číslování
-
-Migrace: `supabase/migrations/007_invoice_sequences.sql`  
-RPC `get_next_invoice_number()` → `VOUCHY-2026-0001`  
-VS z čísla: `20260001`
+- `007_invoice_sequences.sql` — základ
+- `013_voucher_order_invoices.sql` — sloupce na order + prefixované RPC
 
 ## Později
 
-- ARES napojení na odběratele
-- splatnost z objednávky
-- zda vždy QR, nebo jen u neuhrazených
-- konkrétní IČO / účet / IBAN / název dodavatele v `issuers.ts`
+- ARES napojení na odběratele (firma dnes bere jméno z kupujícího)
+- název firmy ve formuláři checkoutu

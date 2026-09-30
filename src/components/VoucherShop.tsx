@@ -1278,55 +1278,26 @@ export function VoucherShop({ shopId = "lss" }: { shopId?: ShopId } = {}) {
             </>
           )}
         </div>
-      </div>
 
-      <footer className="shop-payment-footer" aria-label="Platební metody">
-        <div className="shop-payment-logos">
+        <footer className="shop-payment-footer" aria-label="Platební metody">
           <a
             href="https://www.comgate.eu"
             target="_blank"
             rel="noopener noreferrer"
-            className="shop-payment-logo-link"
+            className="shop-payment-bar-link"
             aria-label="Comgate - platební brána"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/comgate/comgate.svg"
-              alt="Comgate"
-              className="shop-payment-logo is-comgate"
-              width={96}
-              height={24}
+              src="/comgate/paticka-web-svetle.png"
+              alt="Comgate, Visa, Mastercard, Google Pay, Apple Pay"
+              className="shop-payment-bar"
+              width={640}
+              height={72}
             />
           </a>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/comgate/visa.svg"
-            alt="Visa"
-            className="shop-payment-logo"
-            width={72}
-            height={24}
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/comgate/mastercard.svg"
-            alt="Mastercard"
-            className="shop-payment-logo"
-            width={72}
-            height={24}
-          />
-        </div>
-        <p className="shop-payment-note">
-          Online platby zajišťuje platební brána{" "}
-          <a
-            href="https://www.comgate.eu"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Comgate
-          </a>
-          . Comgate a.s. je licencovaná platební instituce pod dohledem ČNB.
-        </p>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }
