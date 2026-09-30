@@ -44,7 +44,7 @@ export type VoucherReport = {
   from: string;
   to: string;
   shop: ReportShopFilter;
-  isDemo: true;
+  isDemo: boolean;
   summary: { sold: number; redeemed: number; revenueCzk: number };
   aggregateRows: ReportAggregateRow[];
   vouchers: SoldVoucherRecord[];
@@ -63,7 +63,7 @@ export interface SoldVoucherSource {
   listSold(query: ReportQuery): Promise<SoldVoucherRecord[]>;
 }
 
-const AMOUNT_VAT_LABEL = "bez DPH";
+const AMOUNT_VAT_LABEL = "Cenina bez DPH";
 const LEGACY_VAT_LABEL = "Legacy (jiný režim)";
 
 function toInputDate(date: Date) {
@@ -320,28 +320,21 @@ export function aggregateVoucherReport(
     from: query.from,
     to: query.to,
     shop: query.shop,
-    isDemo: true,
+    isDemo: false,
     summary: { sold, redeemed, revenueCzk },
     aggregateRows,
     vouchers,
   };
 }
 
-export class MockSoldVoucherSource implements SoldVoucherSource {
-  constructor(private readonly catalog: ReportCatalogVariant[]) {}
-
-  async listSold(query: ReportQuery): Promise<SoldVoucherRecord[]> {
-    return buildMockSoldVouchers(query, this.catalog);
-  }
-}
-
-/** Generuje demo report: katalog z DB settings + mock prodeje. */
+/** @deprecated Prefer GET /api/admin/voucher-reports — mock už není default. */
 export async function generateVoucherReport(
   query: ReportQuery,
   source?: SoldVoucherSource,
 ): Promise<VoucherReport> {
-  const catalog = await loadReportCatalog(query.shop);
-  const soldSource = source ?? new MockSoldVoucherSource(catalog);
-  const vouchers = await soldSource.listSold(query);
+  if (!source) {
+    throw new Error("Chybí zdroj prodejů — použij /api/admin/voucher-reports.");
+  }
+  const vouchers = await source.listSold(query);
   return aggregateVoucherReport(query, vouchers);
 }

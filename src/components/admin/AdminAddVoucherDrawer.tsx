@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createInitialVoucherSettings,
   type AdminVoucherSettings,
+  type ShopId,
   VOUCHER_CODE_LENGTH,
   generateVoucherCode,
   normalizeVoucherCode,
   sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
+import type { AdminSoldVoucher } from "@/data/admin-vouchers";
+import { SHOP_BRANDS } from "@/data/shops";
 import { formatCzk } from "@/data/vouchers";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { AdminSelect } from "./AdminSelect";
@@ -17,8 +20,26 @@ const DRAWER_ANIMATION_MS = 220;
 
 type VoucherKind = "experience" | "amount";
 
-export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
+const SHOP_OPTIONS = (
+  Object.keys(SHOP_BRANDS) as ShopId[]
+).map((id) => ({
+  value: id,
+  label: SHOP_BRANDS[id].brandName,
+}));
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+export function AdminAddVoucherDrawer({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated?: (voucher: AdminSoldVoucher) => void;
+}) {
   const fallbackSettings = useRef(createInitialVoucherSettings()).current;
+  const [shopId, setShopId] = useState<ShopId>("lss");
   const [settings, setSettings] = useState<AdminVoucherSettings>(fallbackSettings);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
 
@@ -58,17 +79,24 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState(() => generateVoucherCode());
+  const [sendEmail, setSendEmail] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const requestClose = useCallback(() => {
+    if (saving) return;
     setIsClosing(true);
-  }, []);
+  }, [saving]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadSettings() {
+      setSettingsHydrated(false);
       try {
-        const response = await fetch("/api/voucher-settings");
+        const response = await fetch(
+          `/api/voucher-settings?shop=${encodeURIComponent(shopId)}`,
+        );
         const data = (await response.json().catch(() => null)) as {
           settings?: AdminVoucherSettings;
           error?: string;
@@ -81,7 +109,9 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
         if (cancelled) return;
         setSettings(data.settings);
       } catch {
-        // Ponecháme fallback z createInitialVoucherSettings().
+        if (!cancelled) {
+          setSettings(createInitialVoucherSettings(shopId));
+        }
       } finally {
         if (!cancelled) setSettingsHydrated(true);
       }
@@ -91,7 +121,7 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [shopId]);
 
   useEffect(() => {
     if (!settingsHydrated) return;
@@ -135,8 +165,76 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
     return () => window.clearTimeout(timer);
   }, [isClosing, onClose]);
 
-  function handleSave() {
-    requestClose();
+  async function handleSave() {
+    setError(null);
+
+    if (!fullName.trim()) {
+      setError("Vyplňte jméno a příjmení.");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError("Zadejte platný e-mail.");
+      return;
+    }
+    if (kind === "experience" && !experienceId) {
+      setError("Vyberte zážitek.");
+      return;
+    }
+    if (kind === "amount") {
+      const amount =
+        amountValue === "custom" ? Number(customAmount) : Number(amountValue);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setError("Zadejte platnou částku.");
+        return;
+      }
+    }
+    const normalized = normalizeVoucherCode(code);
+    if (!normalized || normalized.length !== VOUCHER_CODE_LENGTH) {
+      setError(`Kód musí mít přesně ${VOUCHER_CODE_LENGTH} znaků.`);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const amountCzk =
+        kind === "amount"
+          ? amountValue === "custom"
+            ? Number(customAmount)
+            : Number(amountValue)
+          : undefined;
+
+      const response = await fetch("/api/admin/sold-vouchers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopId,
+          kind,
+          experienceId: kind === "experience" ? experienceId : undefined,
+          amountCzk,
+          buyerName: fullName.trim(),
+          buyerEmail: email.trim(),
+          buyerPhone: phone.trim(),
+          code: normalized,
+          sendEmail,
+        }),
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        voucher?: AdminSoldVoucher;
+      } | null;
+
+      if (!response.ok || !data?.voucher) {
+        throw new Error(data?.error || "Poukaz se nepodařilo uložit.");
+      }
+
+      onCreated?.(data.voucher);
+      setIsClosing(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Uložení selhalo.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -171,6 +269,16 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
           <div className="admin-settings-drawer-intro">
             <h2>Přidat poukaz</h2>
             <p>Ruční zápis do evidence (např. fyzický poukaz).</p>
+          </div>
+
+          <div className="admin-field">
+            <span>Obchod</span>
+            <AdminSelect
+              ariaLabel="Vyberte obchod"
+              value={shopId}
+              options={SHOP_OPTIONS}
+              onChange={(value) => setShopId(value as ShopId)}
+            />
           </div>
 
           <div className="admin-field">
@@ -306,13 +414,34 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
               {normalizeVoucherCode(code) || "XXXXXXXX"}.
             </em>
           </div>
+
+          <label className="admin-add-voucher-email-toggle">
+            <input
+              type="checkbox"
+              checked={sendEmail}
+              onChange={(event) => setSendEmail(event.target.checked)}
+            />
+            <span>Odeslat poukaz e-mailem po uložení</span>
+          </label>
+
+          {error ? <p className="admin-add-voucher-error">{error}</p> : null}
         </div>
 
         <div className="admin-voucher-drawer-footer admin-add-voucher-footer">
-          <button type="button" className="admin-outline-btn" onClick={requestClose}>
+          <button
+            type="button"
+            className="admin-outline-btn"
+            onClick={requestClose}
+            disabled={saving}
+          >
             Zrušit
           </button>
-          <button type="button" className="admin-voucher-drawer-cta" onClick={handleSave}>
+          <button
+            type="button"
+            className="admin-voucher-drawer-cta"
+            onClick={() => void handleSave()}
+            disabled={saving}
+          >
             <svg
               className="admin-voucher-drawer-cta-icon"
               width="24"
@@ -329,7 +458,7 @@ export function AdminAddVoucherDrawer({ onClose }: { onClose: () => void }) {
                 fill="currentColor"
               />
             </svg>
-            Uložit poukaz
+            {saving ? "Ukládám…" : "Uložit poukaz"}
           </button>
         </div>
       </aside>

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatCzk } from "@/data/vouchers";
 import {
-  generateVoucherReport,
   reportShopLabel,
   shopLineLabel,
   type ReportShopFilter,
@@ -34,117 +33,31 @@ const MONTH_GENITIVE = [
   "prosince",
 ];
 
-const PERIOD_STATS: Record<
-  PeriodKey,
-  {
-    sold: string;
-    revenue: string;
-    avg: string;
-    redeemed: string;
-    chartRevenue: number[];
-    chartSold: number[];
-    variants: { name: string; sales: number; revenue: string }[];
-    statuses: { label: string; count: number }[];
-  }
-> = {
-  "7d": {
-    sold: "4",
-    revenue: "6 840 Kč",
-    avg: "1 710 Kč",
-    redeemed: "2",
-    chartRevenue: [980, 640, 1520, 1180, 860, 1740, 920],
-    chartSold: [0, 2, 0, 1, 0, 0, 1],
-    variants: [
-      { name: "Chef's Table", sales: 2, revenue: "3 752 Kč" },
-      { name: "Poukaz 1 500 Kč", sales: 1, revenue: "1 500 Kč" },
-      { name: "Poukaz 1 000 Kč", sales: 1, revenue: "1 000 Kč" },
-    ],
-    statuses: [
-      { label: "Aktivní (platné v oběhu)", count: 38 },
-      { label: "Uplatněné", count: 2 },
-      { label: "Expirované", count: 1 },
-      { label: "Stornované", count: 0 },
-    ],
-  },
-  "30d": {
-    sold: "43",
-    revenue: "12 720 Kč",
-    avg: "1 272 Kč",
-    redeemed: "3",
-    chartRevenue: [
-      820, 640, 1180, 1540, 1320, 760, 690, 1480, 1760, 2010, 1840, 920, 780,
-      2280, 2640, 2910, 2550, 2140, 980, 860, 1890, 1680, 2060, 1780, 940, 810,
-      1620, 1390, 1840, 1510,
-    ],
-    chartSold: [
-      0, 1, 0, 3, 1, 0, 2, 0, 4, 1, 0, 2, 0, 1, 5, 2, 0, 3, 1, 0, 2, 0, 4, 1, 0,
-      2, 0, 3, 1, 4,
-    ],
-    variants: [
-      { name: "Poukaz 1 500 Kč", sales: 8, revenue: "12 000 Kč" },
-      { name: "Chef's Table", sales: 7, revenue: "13 132 Kč" },
-      { name: "The Arc | „Výklenek“", sales: 5, revenue: "18 000 Kč" },
-      { name: "Poukaz 1 000 Kč", sales: 6, revenue: "6 000 Kč" },
-      { name: "The Nook | „Koutek“", sales: 4, revenue: "17 600 Kč" },
-      { name: "Chef's Table s vinným párováním", sales: 3, revenue: "7 629 Kč" },
-    ],
-    statuses: [
-      { label: "Aktivní (platné v oběhu)", count: 42 },
-      { label: "Uplatněné", count: 3 },
-      { label: "Expirované", count: 4 },
-      { label: "Stornované", count: 2 },
-    ],
-  },
-  "3m": {
-    sold: "51",
-    revenue: "54 200 Kč",
-    avg: "1 426 Kč",
-    redeemed: "14",
-    chartRevenue: [4200, 3680, 5120, 5890, 4760, 3410, 3980, 6540, 7120, 5830, 4690, 6210],
-    chartSold: [2, 6, 1, 8, 3, 0, 5, 9, 2, 7, 1, 7],
-    variants: [
-      { name: "Chef's Table", sales: 12, revenue: "22 512 Kč" },
-      { name: "Poukaz 1 500 Kč", sales: 11, revenue: "16 500 Kč" },
-      { name: "The Arc | „Výklenek“", sales: 8, revenue: "28 800 Kč" },
-      { name: "Poukaz 1 000 Kč", sales: 9, revenue: "9 000 Kč" },
-      { name: "The Nook | „Koutek“", sales: 6, revenue: "26 400 Kč" },
-      { name: "Chef's Table s vinným párováním", sales: 5, revenue: "12 715 Kč" },
-    ],
-    statuses: [
-      { label: "Aktivní (platné v oběhu)", count: 47 },
-      { label: "Uplatněné", count: 14 },
-      { label: "Expirované", count: 9 },
-      { label: "Stornované", count: 5 },
-    ],
-  },
-  "1y": {
-    sold: "149",
-    revenue: "186 400 Kč",
-    avg: "1 456 Kč",
-    redeemed: "61",
-    chartRevenue: [
-      9800, 11200, 10400, 14100, 12800, 15600, 13900, 17200, 15100, 18400, 16800,
-      19600,
-    ],
-    chartSold: [4, 15, 7, 19, 8, 22, 6, 18, 5, 21, 10, 14],
-    variants: [
-      { name: "Poukaz 1 500 Kč", sales: 28, revenue: "42 000 Kč" },
-      { name: "Chef's Table", sales: 24, revenue: "45 024 Kč" },
-      { name: "The Arc | „Výklenek“", sales: 18, revenue: "64 800 Kč" },
-      { name: "Poukaz 1 000 Kč", sales: 22, revenue: "22 000 Kč" },
-      { name: "The Nook | „Koutek“", sales: 15, revenue: "66 000 Kč" },
-      { name: "Chef's Table s vinným párováním", sales: 14, revenue: "35 602 Kč" },
-    ],
-    statuses: [
-      { label: "Aktivní (platné v oběhu)", count: 42 },
-      { label: "Uplatněné", count: 61 },
-      { label: "Expirované", count: 17 },
-      { label: "Stornované", count: 8 },
-    ],
-  },
+type AnalyticsShopFilter = ReportShopFilter;
+
+type LiveAnalytics = {
+  sold: string;
+  revenue: string;
+  avg: string;
+  redeemed: string;
+  chartRevenue: number[];
+  chartSold: number[];
+  chartDates: Date[];
+  variants: { name: string; sales: number; revenue: string }[];
+  statuses: { label: string; count: number }[];
 };
 
-type AnalyticsShopFilter = ReportShopFilter;
+const EMPTY_ANALYTICS: LiveAnalytics = {
+  sold: "0",
+  revenue: formatCzk(0),
+  avg: formatCzk(0),
+  redeemed: "0",
+  chartRevenue: [],
+  chartSold: [],
+  chartDates: [],
+  variants: [],
+  statuses: [],
+};
 
 const ANALYTICS_SHOPS: { key: AnalyticsShopFilter; label: string }[] = [
   { key: "all", label: "Celkový přehled" },
@@ -152,69 +65,6 @@ const ANALYTICS_SHOPS: { key: AnalyticsShopFilter; label: string }[] = [
   { key: "bistrocentral", label: "Bistro Central" },
   { key: "culinaryacademy", label: "Culinary Academy" },
 ];
-
-function shopStatsFactor(shop: AnalyticsShopFilter) {
-  if (shop === "lss") return 0.55;
-  if (shop === "bistrocentral") return 0.25;
-  if (shop === "culinaryacademy") return 0.2;
-  return 1;
-}
-
-function parseStatNumber(value: string) {
-  const digits = value.replace(/[^\d]/g, "");
-  return digits ? Number(digits) : 0;
-}
-
-function formatStatCount(value: number) {
-  return Math.max(0, Math.round(value)).toLocaleString("cs-CZ");
-}
-
-function scalePeriodStats(
-  stats: (typeof PERIOD_STATS)[PeriodKey],
-  shop: AnalyticsShopFilter,
-) {
-  const factor = shopStatsFactor(shop);
-  if (factor === 1) return stats;
-
-  const sold = Math.max(0, Math.round(parseStatNumber(stats.sold) * factor));
-  const revenue = Math.max(
-    0,
-    Math.round(parseStatNumber(stats.revenue) * factor),
-  );
-  const redeemed = Math.max(
-    0,
-    Math.round(parseStatNumber(stats.redeemed) * factor),
-  );
-  const avg = sold > 0 ? Math.round(revenue / sold) : 0;
-
-  return {
-    ...stats,
-    sold: formatStatCount(sold),
-    revenue: formatCzk(revenue),
-    avg: formatCzk(avg),
-    redeemed: formatStatCount(redeemed),
-    chartRevenue: stats.chartRevenue.map((value) => Math.round(value * factor)),
-    chartSold: stats.chartSold.map((value) => Math.round(value * factor)),
-    variants: stats.variants
-      .map((row) => {
-        const sales = Math.max(0, Math.round(row.sales * factor));
-        const rowRevenue = Math.max(
-          0,
-          Math.round(parseStatNumber(row.revenue) * factor),
-        );
-        return {
-          ...row,
-          sales,
-          revenue: formatCzk(rowRevenue),
-        };
-      })
-      .filter((row) => row.sales > 0),
-    statuses: stats.statuses.map((item) => ({
-      ...item,
-      count: Math.max(0, Math.round(item.count * factor)),
-    })),
-  };
-}
 
 type ChartPoint = {
   label: string;
@@ -293,8 +143,10 @@ function pickChartLabels<T>(items: T[], labelStep: number) {
   );
 }
 
-function buildSeriesDates(count: number, period: PeriodKey) {
-  const end = new Date(2026, 7, 24);
+function buildSeriesDates(count: number, period: PeriodKey, dates?: Date[]) {
+  if (dates && dates.length === count) return dates;
+
+  const end = new Date();
   end.setHours(12, 0, 0, 0);
 
   return Array.from({ length: count }, (_, index) => {
@@ -382,10 +234,12 @@ function smoothAreaPath(points: ChartPoint[], baselineY: number) {
 function SoldBarChart({
   values,
   period,
+  dates: datesProp,
   ariaLabel,
 }: {
   values: number[];
   period: PeriodKey;
+  dates?: Date[];
   ariaLabel: string;
 }) {
   const width = 560;
@@ -397,8 +251,8 @@ function SoldBarChart({
   const maxValue = Math.max(...values, 1);
 
   const dates = useMemo(
-    () => buildSeriesDates(values.length, period),
-    [values.length, period],
+    () => buildSeriesDates(values.length, period, datesProp),
+    [values.length, period, datesProp],
   );
 
   const bars = useMemo(() => {
@@ -548,10 +402,12 @@ function SoldBarChart({
 function RevenueLineChart({
   values,
   period,
+  dates: datesProp,
   ariaLabel,
 }: {
   values: number[];
   period: PeriodKey;
+  dates?: Date[];
   ariaLabel: string;
 }) {
   const width = 560;
@@ -562,8 +418,8 @@ function RevenueLineChart({
   const maxValue = Math.max(...values, 1) * 1.08;
 
   const dates = useMemo(
-    () => buildSeriesDates(values.length, period),
-    [values.length, period],
+    () => buildSeriesDates(values.length, period, datesProp),
+    [values.length, period, datesProp],
   );
 
   const points = useMemo(
@@ -826,8 +682,18 @@ function ReportFilterModal({
     setGenerating(true);
     setError(null);
     try {
-      const report = await generateVoucherReport({ from, to, shop });
-      onGenerate(report);
+      const response = await fetch(
+        `/api/admin/voucher-reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&shop=${encodeURIComponent(shop)}`,
+        { cache: "no-store" },
+      );
+      const data = (await response.json().catch(() => null)) as {
+        report?: VoucherReport;
+        error?: string;
+      } | null;
+      if (!response.ok || !data?.report) {
+        throw new Error(data?.error || "fail");
+      }
+      onGenerate(data.report);
     } catch {
       setError("Report se nepodařilo vygenerovat. Zkuste to znovu.");
     } finally {
@@ -852,9 +718,7 @@ function ReportFilterModal({
         <div className="admin-reports-modal-head">
           <div>
             <h2 id="admin-reports-title">Vygenerovat report</h2>
-            <p>
-              DPH bere z nastavení variant · prodeje zatím ukázková data
-            </p>
+            <p>DPH a prodeje z evidence prodaných poukazů.</p>
           </div>
           <button
             type="button"
@@ -1005,7 +869,7 @@ function ReportResultModal({
             <p>
               {formatReportDateCs(report.from)} –{" "}
               {formatReportDateCs(report.to)} · {reportShopLabel(report.shop)} ·
-              DPH z nastavení variant · mock prodeje
+              DPH ze snapshotu při prodeji
             </p>
           </div>
           <button
@@ -1131,21 +995,76 @@ function ReportResultModal({
 export function AdminAnalytika() {
   const [period, setPeriod] = useState<PeriodKey>("30d");
   const [shop, setShop] = useState<AnalyticsShopFilter>("all");
-  const stats = useMemo(
-    () => scalePeriodStats(PERIOD_STATS[period], shop),
-    [period, shop],
-  );
+  const [stats, setStats] = useState<LiveAnalytics>(EMPTY_ANALYTICS);
+  const [loading, setLoading] = useState(true);
   const [reportStep, setReportStep] = useState<"closed" | "filters" | "result">(
     "closed",
   );
   const [report, setReport] = useState<VoucherReport | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/analytics?period=${encodeURIComponent(period)}&shop=${encodeURIComponent(shop)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) throw new Error("fail");
+        const data = (await response.json()) as {
+          kpi: {
+            sold: number;
+            revenueCzk: number;
+            avgCzk: number;
+            redeemed: number;
+          };
+          series: { date: string; revenueCzk: number; sold: number }[];
+          variants: { name: string; sales: number; revenueCzk: number }[];
+          statuses: { label: string; count: number }[];
+        };
+        if (cancelled) return;
+        setStats({
+          sold: data.kpi.sold.toLocaleString("cs-CZ"),
+          revenue: formatCzk(data.kpi.revenueCzk),
+          avg: formatCzk(data.kpi.avgCzk),
+          redeemed: data.kpi.redeemed.toLocaleString("cs-CZ"),
+          chartRevenue: data.series.map((point) => point.revenueCzk),
+          chartSold: data.series.map((point) => point.sold),
+          chartDates: data.series.map(
+            (point) => new Date(`${point.date}T12:00:00`),
+          ),
+          variants: data.variants.map((row) => ({
+            name: row.name,
+            sales: row.sales,
+            revenue: formatCzk(row.revenueCzk),
+          })),
+          statuses: data.statuses.map((item) => ({
+            label: item.label,
+            count: item.count,
+          })),
+        });
+      } catch {
+        if (!cancelled) setStats(EMPTY_ANALYTICS);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [period, shop]);
 
   return (
     <div className="admin-analytika">
       <div className="admin-page-head">
         <div>
           <h1>Analytika a reporty</h1>
-          <p>Přehled výkonu a vystavení reportů za zvolené období.</p>
+          <p>
+            {loading
+              ? "Načítám analytiku…"
+              : "Přehled výkonu a vystavení reportů za zvolené období."}
+          </p>
         </div>
         <div className="admin-analytika-filters">
           <div
@@ -1223,11 +1142,12 @@ export function AdminAnalytika() {
           <div className="admin-panel-head">
             <div>
               <h2>Tržby za vybrané období</h2>
-              <p>Souhrn v Kč bez DPH.</p>
+              <p>Souhrn nominální hodnoty poukazů (Kč).</p>
             </div>
           </div>
           <RevenueLineChart
             values={stats.chartRevenue}
+            dates={stats.chartDates}
             period={period}
             ariaLabel="Graf tržeb"
           />
@@ -1241,6 +1161,7 @@ export function AdminAnalytika() {
           </div>
           <SoldBarChart
             values={stats.chartSold}
+            dates={stats.chartDates}
             period={period}
             ariaLabel="Graf prodejů"
           />

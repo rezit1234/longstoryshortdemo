@@ -23,27 +23,6 @@ const MANAGE_HREF: Record<ShopId, string> = {
   culinaryacademy: "/admin/obchody/culinaryacademy",
 };
 
-const STATS = [
-  {
-    title: "Prodané poukazy",
-    value: "128",
-    trend: { direction: "up" as const, label: "↑ 12.4 % oproti minulému období" },
-  },
-  {
-    title: "Celkové tržby",
-    value: "186 400 Kč",
-    trend: { direction: "up" as const, label: "↑ 8.1 % oproti minulému období" },
-  },
-  {
-    title: "Průměrná hodnota poukazu",
-    value: "1 456 Kč",
-    trend: {
-      direction: "down" as const,
-      label: "↓ 2.3 % oproti minulému období",
-    },
-  },
-];
-
 const MONTH_GENITIVE = [
   "ledna",
   "února",
@@ -59,58 +38,37 @@ const MONTH_GENITIVE = [
   "prosince",
 ];
 
-const POPULAR_VARIANTS = [
-  { name: "Chef's Table", count: 34, share: 100 },
-  { name: "Poukaz 2 000 Kč", count: 28, share: 82 },
-  { name: "The Nook | „Koutek“", count: 22, share: 65 },
-  { name: "Chef's Table s vinným párováním", count: 19, share: 56 },
-  { name: "Poukaz 1 500 Kč", count: 16, share: 47 },
-];
+type AnalyticsResponse = {
+  kpi: {
+    sold: number;
+    revenueCzk: number;
+    avgCzk: number;
+    redeemed: number;
+    soldTrendPct: number | null;
+    revenueTrendPct: number | null;
+    avgTrendPct: number | null;
+  };
+  series: { date: string; revenueCzk: number; sold: number }[];
+  variants: { name: string; sales: number; revenueCzk: number }[];
+};
 
-function shopFactor(shop: OverviewShopFilter) {
-  if (shop === "lss") return 0.55;
-  if (shop === "bistrocentral") return 0.25;
-  if (shop === "culinaryacademy") return 0.2;
-  return 1;
-}
-
-function parseStatNumber(value: string) {
-  const digits = value.replace(/[^\d]/g, "");
-  return digits ? Number(digits) : 0;
-}
-
-function scaleOverviewStats(shop: OverviewShopFilter) {
-  const factor = shopFactor(shop);
-  if (factor === 1) return STATS;
-
-  const sold = Math.max(0, Math.round(parseStatNumber(STATS[0].value) * factor));
-  const revenue = Math.max(
-    0,
-    Math.round(parseStatNumber(STATS[1].value) * factor),
-  );
-  const avg = sold > 0 ? Math.round(revenue / sold) : 0;
-
-  return [
-    { ...STATS[0], value: sold.toLocaleString("cs-CZ") },
-    { ...STATS[1], value: formatCzk(revenue) },
-    { ...STATS[2], value: formatCzk(avg) },
-  ];
-}
-
-function scalePopularVariants(shop: OverviewShopFilter) {
-  const factor = shopFactor(shop);
-  if (factor === 1) return POPULAR_VARIANTS;
-
-  const scaled = POPULAR_VARIANTS.map((variant) => ({
-    ...variant,
-    count: Math.max(0, Math.round(variant.count * factor)),
-  })).filter((variant) => variant.count > 0);
-
-  const max = scaled[0]?.count ?? 1;
-  return scaled.map((variant) => ({
-    ...variant,
-    share: Math.max(8, Math.round((variant.count / max) * 100)),
-  }));
+function trendMeta(pct: number | null) {
+  if (pct == null) {
+    return {
+      direction: "up" as const,
+      label: "Bez srovnání s minulým obdobím",
+    };
+  }
+  if (pct >= 0) {
+    return {
+      direction: "up" as const,
+      label: `↑ ${pct.toLocaleString("cs-CZ")} % oproti minulému období`,
+    };
+  }
+  return {
+    direction: "down" as const,
+    label: `↓ ${Math.abs(pct).toLocaleString("cs-CZ")} % oproti minulému období`,
+  };
 }
 
 type ChartPoint = {
@@ -124,22 +82,6 @@ function getGreetingFirstName(fullName: string) {
   const trimmed = fullName.trim();
   if (!trimmed || trimmed === "…") return null;
   return trimmed.split(/\s+/)[0] ?? null;
-}
-
-function buildLast30DaysSeries(endDate: Date) {
-  // Realistic-looking mock: weekends dips, mid-period peak, then soft recovery.
-  const seed = [
-    4120, 3890, 4560, 5210, 4980, 3620, 3410, 4750, 5320, 5680, 5490, 4010, 3780,
-    6120, 6890, 7240, 6980, 6410, 4520, 4290, 5830, 5540, 6010, 5720, 4480, 4190,
-    5360, 4980, 5610, 5180,
-  ];
-
-  return seed.map((value, index) => {
-    const date = new Date(endDate);
-    date.setHours(12, 0, 0, 0);
-    date.setDate(endDate.getDate() - (seed.length - 1 - index));
-    return { date, value };
-  });
 }
 
 function formatDayLabel(date: Date) {
@@ -370,8 +312,63 @@ export function AdminOverview() {
   const { user } = useAdminUser();
   const { openVoucher, activeVoucherCode, vouchers } = useAdminVoucherDrawer();
   const [shop, setShop] = useState<OverviewShopFilter>("all");
-  const stats = useMemo(() => scaleOverviewStats(shop), [shop]);
-  const popularVariants = useMemo(() => scalePopularVariants(shop), [shop]);
+  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/analytics?period=30d&shop=${encodeURIComponent(shop)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) throw new Error("fail");
+        const data = (await response.json()) as AnalyticsResponse;
+        if (!cancelled) setAnalytics(data);
+      } catch {
+        if (!cancelled) setAnalytics(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shop]);
+
+  const stats = useMemo(() => {
+    const kpi = analytics?.kpi;
+    return [
+      {
+        title: "Prodané poukazy",
+        value: (kpi?.sold ?? 0).toLocaleString("cs-CZ"),
+        trend: trendMeta(kpi?.soldTrendPct ?? null),
+      },
+      {
+        title: "Celkové tržby",
+        value: formatCzk(kpi?.revenueCzk ?? 0),
+        trend: trendMeta(kpi?.revenueTrendPct ?? null),
+      },
+      {
+        title: "Průměrná hodnota poukazu",
+        value: formatCzk(kpi?.avgCzk ?? 0),
+        trend: trendMeta(kpi?.avgTrendPct ?? null),
+      },
+    ];
+  }, [analytics]);
+
+  const popularVariants = useMemo(() => {
+    const variants = analytics?.variants ?? [];
+    const max = variants[0]?.sales ?? 1;
+    return variants.map((variant) => ({
+      name: variant.name,
+      count: variant.sales,
+      share: Math.max(8, Math.round((variant.sales / Math.max(max, 1)) * 100)),
+    }));
+  }, [analytics]);
+
   const recentSales = useMemo(() => {
     const filtered =
       shop === "all"
@@ -379,13 +376,16 @@ export function AdminOverview() {
         : vouchers.filter((voucher) => voucher.shopId === shop);
     return getRecentAdminVouchers(5, filtered);
   }, [vouchers, shop]);
-  const chartSeries = useMemo(() => {
-    const factor = shopFactor(shop);
-    return buildLast30DaysSeries(new Date(2026, 7, 24)).map((point) => ({
-      ...point,
-      value: Math.round(point.value * factor),
-    }));
-  }, [shop]);
+
+  const chartSeries = useMemo(
+    () =>
+      (analytics?.series ?? []).map((point) => ({
+        date: new Date(`${point.date}T12:00:00`),
+        value: point.revenueCzk,
+      })),
+    [analytics],
+  );
+
   const greetingName = getGreetingFirstName(user.name);
   const manageHref =
     shop === "all" ? "/admin/obchody" : MANAGE_HREF[shop];
@@ -395,7 +395,11 @@ export function AdminOverview() {
       <div className="admin-overview-head">
         <div>
           <h1>{greetingName ? `Vítejte, ${greetingName}` : "Vítejte"}</h1>
-          <p>Přehled dárkových poukazů za posledních 30 dní.</p>
+          <p>
+            {loading
+              ? "Načítám přehled za posledních 30 dní…"
+              : "Přehled dárkových poukazů za posledních 30 dní."}
+          </p>
         </div>
         <div
           className="admin-filters admin-filters-inline admin-overview-shop-filters"
@@ -444,10 +448,14 @@ export function AdminOverview() {
           <div className="admin-panel-head">
             <div>
               <h2>Tržby za posledních 30 dní</h2>
-              <p>Souhrn v Kč bez DPH za posledních 30 dní.</p>
+              <p>Souhrn nominální hodnoty poukazů (Kč) za posledních 30 dní.</p>
             </div>
           </div>
-          <RevenueChart series={chartSeries} />
+          {chartSeries.length > 0 ? (
+            <RevenueChart series={chartSeries} />
+          ) : (
+            <p className="admin-table-empty">Zatím žádné prodeje v tomto období.</p>
+          )}
         </section>
 
         <section className="admin-panel admin-popular-panel">
@@ -460,6 +468,9 @@ export function AdminOverview() {
               Spravovat
             </Link>
           </div>
+          {popularVariants.length === 0 ? (
+            <p className="admin-table-empty">Zatím žádné varianty.</p>
+          ) : (
           <ul className="admin-popular-list">
             {popularVariants.map((variant) => (
               <li key={variant.name}>
@@ -475,6 +486,7 @@ export function AdminOverview() {
               </li>
             ))}
           </ul>
+          )}
         </section>
       </div>
 

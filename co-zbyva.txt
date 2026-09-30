@@ -71,25 +71,27 @@ Hotovo, když: objednávka s „chci fakturu“ → mail má poukaz.pdf + faktur
 (+ spuštěná migrace 013 v Supabase)
 
 
-FÁZE 4 — Ruční „Přidat poukaz“ → DB (0,5–1 den)
-----------------------------------------------
+FÁZE 4 — Ruční „Přidat poukaz“ → DB ✓ (kód; spusť migraci 014)
+----------------------------------------------------------------
 Cíl: admin drawer ukládá do sold_vouchers (stejná evidence jako online).
 
-1. POST API → insert sold_vouchers (+ volitelně PDF stamp, pokud je šablona)
-2. Volitelně odeslat e-mail
-3. Seznam poukazů hned ukáže nový řádek
+1. ✓ POST API → insert sold_vouchers (+ PDF stamp, pokud je šablona)
+2. ✓ Volitelně odeslat e-mail (checkbox)
+3. ✓ Seznam poukazů hned ukáže nový řádek
+4. Migrace 014: order_id nullable (ruční poukazy bez online objednávky)
 
-Hotovo, když: ručně přidaný poukaz jde uplatnit stejně jako koupený.
+Hotovo, když: ručně přidaný poukaz jde uplatnit stejně jako koupený
+(+ spuštěná migrace 014 v Supabase).
 
 
-FÁZE 5 — Live admin data (1–2 dny)
-----------------------------------
+FÁZE 5 — Live admin data ✓ (kód)
+--------------------------------
 Cíl: pryč mocky, vše z DB.
 
-1. Přehled (stats) z voucher_orders / sold_vouchers
-2. Analytika + grafy z reálných prodejů a uplatnění
-3. CSV / Excel reporty z DB (voucher-reports)
-4. Snapshot DPH / taxRegime při prodeji (ať report sedí i po změně nastavení)
+1. ✓ Přehled (stats) z sold_vouchers
+2. ✓ Analytika + grafy z reálných prodejů a uplatnění
+3. ✓ CSV / Excel reporty z DB (/api/admin/voucher-reports)
+4. ✓ Snapshot DPH / taxRegime při prodeji (amount + experience)
 
 Hotovo, když: admin bez mock dat funguje na produkci.
 

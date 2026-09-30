@@ -78,7 +78,8 @@ function downloadVouchersCsv(vouchers: AdminSoldVoucher[], filter: FilterKey) {
 }
 
 export function AdminPoukazy() {
-  const { openVoucher, activeVoucherCode, vouchers } = useAdminVoucherDrawer();
+  const { openVoucher, activeVoucherCode, vouchers, prependVoucher } =
+    useAdminVoucherDrawer();
   const [filter, setFilter] = useState<FilterKey>("all");
   const [addOpen, setAddOpen] = useState(false);
 
@@ -217,7 +218,15 @@ export function AdminPoukazy() {
         </div>
       </section>
 
-      {addOpen ? <AdminAddVoucherDrawer onClose={() => setAddOpen(false)} /> : null}
+      {addOpen ? (
+        <AdminAddVoucherDrawer
+          onClose={() => setAddOpen(false)}
+          onCreated={(voucher) => {
+            prependVoucher(voucher);
+            openVoucher(voucher);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

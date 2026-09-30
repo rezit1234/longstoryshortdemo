@@ -1,4 +1,5 @@
 import {
+  formatExperienceVatLabel,
   generateVoucherCode,
   normalizeVoucherCode,
   type ShopId,
@@ -336,7 +337,20 @@ export async function fulfillPaidOrder(orderId: string) {
   const deliveryEmail = asString(typed.delivery.email) || null;
   const message = asString(typed.buyer.message) || null;
 
-  const rows = codes.map((code) => ({
+  const rows = codes.map((code) => {
+    let vatLabel: string | null =
+      typed.item_kind === "amount" ? "Cenina bez DPH" : null;
+    if (typed.item_kind === "experience") {
+      const experienceId = asString(typed.item.id).trim();
+      const experience = settings.experiences.find(
+        (item) => item.id === experienceId,
+      );
+      if (experience) {
+        vatLabel = formatExperienceVatLabel(experience.vat, experience.price);
+      }
+    }
+
+    return {
     order_id: typed.id,
     shop_id: typed.shop_id,
     code,
@@ -356,10 +370,11 @@ export async function fulfillPaidOrder(orderId: string) {
     delivery_email: deliveryEmail,
     shipping_address: shippingAddress,
     message,
-    vat_label: typed.item_kind === "amount" ? "Cenina bez DPH" : null,
+    vat_label: vatLabel,
     tax_regime: "vouchy" as const,
     pdf_url: pdfUrls.get(code) ?? null,
-  }));
+  };
+  });
 
   const { error: insertError } = await admin.from("sold_vouchers").insert(rows);
   if (insertError) {

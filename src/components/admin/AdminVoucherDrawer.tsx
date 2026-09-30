@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from "react";
 import {
-  ADMIN_SOLD_VOUCHERS,
   ADMIN_VOUCHER_STATUS_LABELS,
   type AdminSoldVoucher,
 } from "@/data/admin-vouchers";
@@ -25,6 +24,8 @@ type AdminVoucherDrawerContextValue = {
   redeemVoucher: (code: string) => void;
   activateVoucher: (code: string) => void;
   activeVoucherCode: string | null;
+  prependVoucher: (voucher: AdminSoldVoucher) => void;
+  reloadVouchers: () => Promise<void>;
 };
 
 const AdminVoucherDrawerContext =
@@ -345,30 +346,34 @@ function AdminVoucherDrawerPanel({
 }
 
 export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }) {
-  const [vouchers, setVouchers] = useState(ADMIN_SOLD_VOUCHERS);
+  const [vouchers, setVouchers] = useState<AdminSoldVoucher[]>([]);
   const [activeVoucherCode, setActiveVoucherCode] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch("/api/admin/sold-vouchers", {
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const data = (await response.json()) as { vouchers?: AdminSoldVoucher[] };
-        if (cancelled || !Array.isArray(data.vouchers)) return;
-        // DB je zdroj pravdy; mock necháme jen když tabulka je prázdná.
-        setVouchers(
-          data.vouchers.length > 0 ? data.vouchers : ADMIN_SOLD_VOUCHERS,
-        );
-      } catch {
-        // keep mock
+  const reloadVouchers = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/sold-vouchers", {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        setVouchers([]);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      const data = (await response.json()) as { vouchers?: AdminSoldVoucher[] };
+      setVouchers(Array.isArray(data.vouchers) ? data.vouchers : []);
+    } catch {
+      setVouchers([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadVouchers();
+  }, [reloadVouchers]);
+
+  const prependVoucher = useCallback((voucher: AdminSoldVoucher) => {
+    setVouchers((current) => {
+      const without = current.filter((row) => row.code !== voucher.code);
+      return [voucher, ...without];
+    });
   }, []);
 
   const activeVoucher = useMemo(
@@ -435,6 +440,8 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
         redeemVoucher,
         activateVoucher,
         activeVoucherCode,
+        prependVoucher,
+        reloadVouchers,
       }}
     >
       {children}

@@ -4778,6 +4778,27 @@
   font-weight: 600;
 }
 
+.admin-add-voucher-email-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.admin-add-voucher-email-toggle input {
+  margin-top: 0.15rem;
+}
+
+.admin-add-voucher-error {
+  margin: 0.35rem 0 0;
+  color: #b42318;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
 .admin-add-voucher-footer {
   display: flex;
   align-items: center;
