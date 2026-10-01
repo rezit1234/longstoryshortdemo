@@ -57,6 +57,9 @@ export function AdminAddVoucherDrawer({
     [settings.experiences],
   );
 
+  const hasExperiences = experienceOptions.length > 0;
+  const showTypeTabs = hasExperiences;
+
   const [isClosing, setIsClosing] = useState(false);
   const amountSelectOptions = useMemo(
     () => [
@@ -142,6 +145,11 @@ export function AdminAddVoucherDrawer({
           ? String(amounts[0])
           : "custom";
     });
+
+    // Obchod bez zážitků → jen částka (skrytý přepínač typu).
+    if (settings.experiences.length === 0) {
+      setKind("amount");
+    }
   }, [settings, settingsHydrated]);
 
   useEffect(() => {
@@ -281,40 +289,42 @@ export function AdminAddVoucherDrawer({
             />
           </div>
 
-          <div className="admin-field">
-            <span>Typ poukazu</span>
-            <div
-              className={
-                kind === "amount"
-                  ? "admin-add-voucher-tabs is-amount"
-                  : "admin-add-voucher-tabs"
-              }
-              role="tablist"
-              aria-label="Typ poukazu"
-            >
-              <span className="admin-add-voucher-tabs-indicator" aria-hidden />
-              <button
-                type="button"
-                role="tab"
-                aria-selected={kind === "experience"}
-                className={kind === "experience" ? "is-active" : undefined}
-                onClick={() => setKind("experience")}
+          {showTypeTabs ? (
+            <div className="admin-field">
+              <span>Typ poukazu</span>
+              <div
+                className={
+                  kind === "amount"
+                    ? "admin-add-voucher-tabs is-amount"
+                    : "admin-add-voucher-tabs"
+                }
+                role="tablist"
+                aria-label="Typ poukazu"
               >
-                Zážitek
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={kind === "amount"}
-                className={kind === "amount" ? "is-active" : undefined}
-                onClick={() => setKind("amount")}
-              >
-                Na částku
-              </button>
+                <span className="admin-add-voucher-tabs-indicator" aria-hidden />
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={kind === "experience"}
+                  className={kind === "experience" ? "is-active" : undefined}
+                  onClick={() => setKind("experience")}
+                >
+                  Zážitek
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={kind === "amount"}
+                  className={kind === "amount" ? "is-active" : undefined}
+                  onClick={() => setKind("amount")}
+                >
+                  Na částku
+                </button>
+              </div>
             </div>
-          </div>
+          ) : null}
 
-          {kind === "experience" ? (
+          {kind === "experience" && hasExperiences ? (
             <div className="admin-field">
               <span>Zážitek</span>
               <AdminSelect
@@ -323,9 +333,7 @@ export function AdminAddVoucherDrawer({
                 options={
                   !settingsHydrated
                     ? [{ value: "", label: "Načítám zážitky…" }]
-                    : experienceOptions.length > 0
-                      ? experienceOptions
-                      : [{ value: "", label: "Žádné zážitky nejsou nastavené" }]
+                    : experienceOptions
                 }
                 onChange={setExperienceId}
               />

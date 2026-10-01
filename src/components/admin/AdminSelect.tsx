@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 type AdminSelectOption = {
   value: string;
@@ -21,9 +21,39 @@ export function AdminSelect({
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | undefined>();
 
   const selected =
     options.find((option) => option.value === value) ?? options[0];
+
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) {
+      setMenuStyle(undefined);
+      return;
+    }
+
+    function updatePosition() {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const maxHeight = Math.min(280, Math.max(120, window.innerHeight - rect.bottom - 12));
+      setMenuStyle({
+        position: "fixed",
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+        zIndex: 200,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +95,12 @@ export function AdminSelect({
       </button>
 
       {open ? (
-        <ul className="admin-select-menu" id={listboxId} role="listbox">
+        <ul
+          className="admin-select-menu is-fixed"
+          id={listboxId}
+          role="listbox"
+          style={menuStyle}
+        >
           {options.map((option) => (
             <li key={option.value}>
               <button
