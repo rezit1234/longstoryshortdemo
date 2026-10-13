@@ -288,7 +288,7 @@ export async function createManualSoldVoucher(
   if (insertError || !inserted) {
     if (insertError?.message?.includes("order_id")) {
       throw new Error(
-        "Chybí migrace 014 (order_id nullable) — spusť ji v Supabase.",
+        "Chybí migrace 014 (order_id nullable) - spusť ji v Supabase.",
       );
     }
     throw new Error(insertError?.message || "Poukaz se nepodařilo uložit.");

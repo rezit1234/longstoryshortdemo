@@ -13,10 +13,14 @@ import {
   type ExperienceVoucher,
 } from "@/data/vouchers";
 import {
+  DEFAULT_DELIVERY_METHODS,
   DEFAULT_PICKUP_FEE,
   DEFAULT_POST_SHIPPING_FEE,
   DEFAULT_POST_SHIPPING_FEE_SK,
+  enabledDeliveryMethods,
+  normalizeDeliveryMethods,
   type AdminVoucherSettings,
+  type DeliveryMethodsSettings,
   type ShopId,
 } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
@@ -1085,6 +1089,9 @@ export function VoucherShop({ shopId = "lss" }: { shopId?: ShopId } = {}) {
     null,
   );
   const [deliveryFees, setDeliveryFees] = useState<DeliveryFees>(DEFAULT_DELIVERY_FEES);
+  const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethodsSettings>(
+    DEFAULT_DELIVERY_METHODS,
+  );
   const [experienceVouchers, setExperienceVouchers] = useState<ExperienceVoucher[]>(
     shopId === "lss" ? EXPERIENCE_VOUCHERS : [],
   );
@@ -1126,6 +1133,9 @@ export function VoucherShop({ shopId = "lss" }: { shopId?: ShopId } = {}) {
           postShippingFee: data.settings.postShippingFee,
           postShippingFeeSk: data.settings.postShippingFeeSk,
         });
+        setDeliveryMethods(
+          normalizeDeliveryMethods(data.settings.deliveryMethods),
+        );
         setExperienceVouchers(nextExperiences);
         setTab(nextExperiences.length > 0 ? "experience" : "amount");
         setSelectedAmount((current) => {
@@ -1198,6 +1208,7 @@ export function VoucherShop({ shopId = "lss" }: { shopId?: ShopId } = {}) {
             <CheckoutPanel
               item={checkoutItem}
               deliveryFees={deliveryFees}
+              deliveryMethods={deliveryMethods}
               brandName={brand.brandName}
               shopId={shopId}
             />
@@ -1353,18 +1364,35 @@ function CheckoutHeroSection({
 function CheckoutPanel({
   item,
   deliveryFees,
+  deliveryMethods,
   brandName,
   shopId,
 }: {
   item: CheckoutItem;
   deliveryFees: DeliveryFees;
+  deliveryMethods: DeliveryMethodsSettings;
   brandName: string;
   shopId: ShopId;
 }) {
-  const [form, setForm] = useState<CheckoutFormState>(EMPTY_CHECKOUT_FORM);
+  const availableDeliveries = enabledDeliveryMethods(deliveryMethods);
+  const [form, setForm] = useState<CheckoutFormState>(() => ({
+    ...EMPTY_CHECKOUT_FORM,
+    delivery: availableDeliveries[0] ?? "email",
+  }));
   const [touched, setTouched] = useState(false);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const nextAvailable = enabledDeliveryMethods(deliveryMethods);
+    setForm((current) => {
+      if (nextAvailable.includes(current.delivery)) return current;
+      return {
+        ...current,
+        delivery: nextAvailable[0] ?? "email",
+      };
+    });
+  }, [deliveryMethods.email, deliveryMethods.post, deliveryMethods.pickup]);
 
   const unitPrice = item.kind === "amount" ? item.amount : item.price;
   const isSlovakia = form.country === "SK";
@@ -1721,47 +1749,41 @@ function CheckoutPanel({
             : "Jak chcete poukaz doručit?"}
         </p>
         <div
-          className={
-            form.delivery === "post"
-              ? "checkout-delivery-tabs is-post"
-              : form.delivery === "pickup"
-                ? "checkout-delivery-tabs is-pickup"
-                : "checkout-delivery-tabs is-email"
-          }
+          className={`checkout-delivery-tabs is-count-${availableDeliveries.length} is-idx-${Math.max(0, availableDeliveries.indexOf(form.delivery))}`}
           role="tablist"
           aria-label="Způsob doručení"
         >
           <span className="checkout-delivery-tabs-indicator" aria-hidden />
-          <button
-            type="button"
-            role="tab"
-            aria-selected={form.delivery === "email"}
-            className={form.delivery === "email" ? "is-active" : undefined}
-            onClick={() => updateForm("delivery", "email")}
-          >
-            <MailIcon className="checkout-choice-icon" />
-            E-mail
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={form.delivery === "post"}
-            className={form.delivery === "post" ? "is-active" : undefined}
-            onClick={() => updateForm("delivery", "post")}
-          >
-            <PostIcon className="checkout-choice-icon" />
-            Pošta
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={form.delivery === "pickup"}
-            className={form.delivery === "pickup" ? "is-active" : undefined}
-            onClick={() => updateForm("delivery", "pickup")}
-          >
-            <PickupIcon className="checkout-choice-icon" />
-            Pobočka
-          </button>
+          {availableDeliveries.map((method) => {
+            const label =
+              method === "email"
+                ? "E-mail"
+                : method === "post"
+                  ? "Pošta"
+                  : shopId === "bistrocentral"
+                    ? "Pobočka LSS"
+                    : "Pobočka";
+            const Icon =
+              method === "email"
+                ? MailIcon
+                : method === "post"
+                  ? PostIcon
+                  : PickupIcon;
+
+            return (
+              <button
+                key={method}
+                type="button"
+                role="tab"
+                aria-selected={form.delivery === method}
+                className={form.delivery === method ? "is-active" : undefined}
+                onClick={() => updateForm("delivery", method)}
+              >
+                <Icon className="checkout-choice-icon" />
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         {form.delivery === "email" ? (
@@ -1904,14 +1926,17 @@ function CheckoutPanel({
             <span className="checkout-shipping-option-check" aria-hidden />
             <div className="checkout-shipping-option-body">
               <div className="checkout-shipping-option-head">
-                <strong>Dárkové balení - vyzvednutí na recepci</strong>
+                <strong>
+                  {shopId === "bistrocentral"
+                    ? "Dárkové balení - vyzvednutí na recepci Long Story Short"
+                    : "Dárkové balení - vyzvednutí na recepci"}
+                </strong>
                 <span>{formatCzk(deliveryFees.pickupFee)}</span>
               </div>
               <p>
-                Do 30 minut budete mít objednávku připravenou na recepci Long
-                Story Short Hostel v Olomouci. Cena zahrnuje balné. Je možné
-                také vypsat poukaz přímo na místě na libovolnou částku. Platit
-                lze hotově i kartou.
+                {shopId === "bistrocentral"
+                  ? "Poukaz si vyzvednete na recepci Long Story Short Hostel v Olomouci (ne na Bistro Central). Do 30 minut bude objednávka připravená. Cena zahrnuje balné."
+                  : "Do 30 minut budete mít objednávku připravenou na recepci Long Story Short Hostel v Olomouci. Cena zahrnuje balné. Je možné také vypsat poukaz přímo na místě na libovolnou částku. Platit lze hotově i kartou."}
               </p>
             </div>
           </div>
@@ -2517,7 +2542,7 @@ function ExperienceItem({
   }, [open, voucher.gallery, isMobileGallery]);
 
   useLayoutEffect(() => {
-    // Na mobilu pevná menší 1:1 miniatura — ne výška podle textu.
+    // Na mobilu pevná menší 1:1 miniatura - ne výška podle textu.
     if (!previewImage || isMobileGallery) {
       setThumbSize(null);
       return;

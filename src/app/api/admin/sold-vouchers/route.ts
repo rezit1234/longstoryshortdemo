@@ -49,7 +49,7 @@ export async function GET() {
         {
           error:
             error.message.includes("sold_vouchers")
-              ? "Chybí tabulka sold_vouchers — spusť migraci 011."
+              ? "Chybí tabulka sold_vouchers - spusť migraci 011."
               : error.message,
         },
         { status: 500 },

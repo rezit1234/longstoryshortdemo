@@ -448,7 +448,7 @@ export function AdminAmountSettingsDrawer({
                     type="text"
                     inputMode="numeric"
                     value={draftAmount}
-                    placeholder="—"
+                    placeholder="-"
                     onChange={(event) => {
                       setDraftAmount(event.target.value.replace(/\D/g, ""));
                     }}
@@ -459,12 +459,12 @@ export function AdminAmountSettingsDrawer({
                 </div>
               </label>
               <p className="admin-field-hint admin-amount-vat-hint">
-                Hodnotový poukaz (cenina) — bez DPH.
+                Hodnotový poukaz (cenina) - bez DPH.
               </p>
             </>
           ) : (
             <p className="admin-field-hint admin-amount-vat-hint">
-              Vlastní částka je hodnotový poukaz (cenina) — bez DPH.
+              Vlastní částka je hodnotový poukaz (cenina) - bez DPH.
             </p>
           )}
 

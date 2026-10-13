@@ -58,7 +58,7 @@ function customerFromInvoice(
     return { name, ico: "", address: parts.join(", ") };
   }
 
-  // Firma — zatím bez ARES: jméno = kupující, IČO z formuláře.
+  // Firma - zatím bez ARES: jméno = kupující, IČO z formuláře.
   const ico = asTrimmed(invoice.companyId);
   const name = buyerName || (ico ? `Odběratel IČO ${ico}` : "Odběratel");
   return { name, ico, address: "" };
@@ -91,7 +91,7 @@ function createInvoicePdfPath(shopId: ShopId, invoiceNumber: string) {
 /**
  * Vystaví PDF fakturu pro zaplacenou objednávku, uloží do storage
  * a zapíše číslo + URL na voucher_orders.
- * Idempotentní — pokud už invoice_number existuje, nic negeneruje.
+ * Idempotentní - pokud už invoice_number existuje, nic negeneruje.
  */
 export async function issueInvoiceForPaidOrder(input: IssueInvoiceInput) {
   const admin = createAdminClient();

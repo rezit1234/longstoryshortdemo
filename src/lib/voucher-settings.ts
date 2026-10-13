@@ -5,6 +5,7 @@ import {
   MAX_AMOUNT_SLOTS,
   MAX_CHECKOUT_PREVIEW_IMAGES,
   MAX_GALLERY_IMAGES,
+  normalizeDeliveryMethods,
   normalizePositionPage,
   type AdminExperienceForm,
   type AdminVoucherSettings,
@@ -57,6 +58,10 @@ export function normalizeVoucherSettings(
     postShippingFeeSk: normalizeFee(
       input?.postShippingFeeSk,
       fallback.postShippingFeeSk,
+    ),
+    deliveryMethods: normalizeDeliveryMethods(
+      input?.deliveryMethods,
+      fallback.deliveryMethods,
     ),
     heroImage:
       input && Object.prototype.hasOwnProperty.call(input, "heroImage")

@@ -137,7 +137,7 @@ button {
   width: 100%;
   aspect-ratio: 4 / 3;
   overflow: hidden;
-  /* Match photo top — dark bg was showing as a hairline under border-radius AA */
+  /* Match photo top - dark bg was showing as a hairline under border-radius AA */
   background: #f3f0ea;
 }
 
@@ -818,7 +818,15 @@ button {
   grid-template-columns: 1fr 1fr;
 }
 
-.checkout-delivery-tabs {
+.checkout-delivery-tabs.is-count-1 {
+  grid-template-columns: 1fr;
+}
+
+.checkout-delivery-tabs.is-count-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.checkout-delivery-tabs.is-count-3 {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
@@ -852,15 +860,23 @@ button {
   opacity: 0;
 }
 
-.checkout-delivery-tabs-indicator {
+.checkout-delivery-tabs.is-count-1 .checkout-delivery-tabs-indicator {
+  width: calc(100% - 0.6rem);
+}
+
+.checkout-delivery-tabs.is-count-2 .checkout-delivery-tabs-indicator {
+  width: calc((100% - 0.6rem - 0.4rem) / 2);
+}
+
+.checkout-delivery-tabs.is-count-3 .checkout-delivery-tabs-indicator {
   width: calc((100% - 0.6rem - 0.8rem) / 3);
 }
 
-.checkout-delivery-tabs.is-post .checkout-delivery-tabs-indicator {
+.checkout-delivery-tabs.is-idx-1 .checkout-delivery-tabs-indicator {
   transform: translateX(calc(100% + 0.4rem));
 }
 
-.checkout-delivery-tabs.is-pickup .checkout-delivery-tabs-indicator {
+.checkout-delivery-tabs.is-idx-2 .checkout-delivery-tabs-indicator {
   transform: translateX(calc(200% + 0.8rem));
 }
 

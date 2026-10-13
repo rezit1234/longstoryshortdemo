@@ -30,8 +30,8 @@ INVOICE_LSS_NOTE=Neplátce DPH
 
 ## Migrace
 
-- `007_invoice_sequences.sql` — základ
-- `013_voucher_order_invoices.sql` — sloupce na order + prefixované RPC
+- `007_invoice_sequences.sql` - základ
+- `013_voucher_order_invoices.sql` - sloupce na order + prefixované RPC
 
 ## Později
 

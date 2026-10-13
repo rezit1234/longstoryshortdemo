@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateInvoicePdfBuffer } from "@/lib/invoicing/generate-invoice-pdf";
 
-/** Dočasný náhled ukázkové faktury — otevři v prohlížeči `/test`. */
+/** Dočasný náhled ukázkové faktury - otevři v prohlížeči `/test`. */
 export async function GET() {
   const invoiceNumber = "LSS-2026-0001";
   const amount = 1500;
@@ -12,7 +12,7 @@ export async function GET() {
     issueDate: "2026-09-10",
     dueDate: "2026-09-10",
     dueDateLabel: "Datum úhrady",
-    description: "Dárkový poukaz Long Story Short — 1 500 Kč",
+    description: "Dárkový poukaz Long Story Short - 1 500 Kč",
     amount,
     customerName: "Ukázková firma s.r.o.",
     customerIco: "12345678",

@@ -1,4 +1,11 @@
-import type { ShopId } from "@/data/admin-voucher-settings";
+import {
+  DEFAULT_DELIVERY_METHODS,
+  DEFAULT_PICKUP_FEE,
+  DEFAULT_POST_SHIPPING_FEE,
+  DEFAULT_POST_SHIPPING_FEE_SK,
+  normalizeDeliveryMethods,
+  type DeliveryMethodsSettings,
+} from "@/data/admin-voucher-settings";
 import {
   createComgatePayment,
   getComgatePaymentStatus,
@@ -25,39 +32,117 @@ type DeliveryFees = {
   postShippingFeeSk: number;
 };
 
-const DEFAULT_FEES: DeliveryFees = {
-  pickupFee: 20,
-  postShippingFee: 105,
-  postShippingFeeSk: 145,
+type ShopDeliveryConfig = DeliveryFees & {
+  deliveryMethods: DeliveryMethodsSettings;
 };
 
-async function loadDeliveryFees(shopId: string): Promise<DeliveryFees> {
+const DEFAULT_FEES: DeliveryFees = {
+  pickupFee: DEFAULT_PICKUP_FEE,
+  postShippingFee: DEFAULT_POST_SHIPPING_FEE,
+  postShippingFeeSk: DEFAULT_POST_SHIPPING_FEE_SK,
+};
+
+const DEFAULT_DELIVERY_CONFIG: ShopDeliveryConfig = {
+  ...DEFAULT_FEES,
+  deliveryMethods: { ...DEFAULT_DELIVERY_METHODS },
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function deliveryMethodsFromRecord(
+  value: unknown,
+): DeliveryMethodsSettings | undefined {
+  const record = asRecord(value);
+  if (!record.deliveryMethods || typeof record.deliveryMethods !== "object") {
+    return undefined;
+  }
+  return normalizeDeliveryMethods(record.deliveryMethods);
+}
+
+function configFromRow(
+  data: {
+    pickup_fee?: number | null;
+    post_shipping_fee?: number | null;
+    post_shipping_fee_sk?: number | null;
+    amount_previews?: unknown;
+  },
+  shopId: string,
+): ShopDeliveryConfig {
+  const previews = asRecord(data.amount_previews);
+  const bag = asRecord(previews.__shops);
+  const embeddedShop = asRecord(bag[shopId]);
+  const methodsSource =
+    deliveryMethodsFromRecord(previews) ??
+    deliveryMethodsFromRecord(embeddedShop);
+
+  const pickupFee =
+    typeof data.pickup_fee === "number"
+      ? data.pickup_fee
+      : typeof embeddedShop.pickupFee === "number"
+        ? embeddedShop.pickupFee
+        : typeof previews.pickupFee === "number"
+          ? previews.pickupFee
+          : DEFAULT_FEES.pickupFee;
+  const postShippingFee =
+    typeof data.post_shipping_fee === "number"
+      ? data.post_shipping_fee
+      : typeof embeddedShop.postShippingFee === "number"
+        ? embeddedShop.postShippingFee
+        : typeof previews.postShippingFee === "number"
+          ? previews.postShippingFee
+          : DEFAULT_FEES.postShippingFee;
+  const postShippingFeeSk =
+    typeof data.post_shipping_fee_sk === "number"
+      ? data.post_shipping_fee_sk
+      : typeof embeddedShop.postShippingFeeSk === "number"
+        ? embeddedShop.postShippingFeeSk
+        : typeof previews.postShippingFeeSk === "number"
+          ? previews.postShippingFeeSk
+          : DEFAULT_FEES.postShippingFeeSk;
+
+  return {
+    pickupFee,
+    postShippingFee,
+    postShippingFeeSk,
+    deliveryMethods: methodsSource ?? { ...DEFAULT_DELIVERY_METHODS },
+  };
+}
+
+async function loadShopDeliveryConfig(
+  shopId: string,
+): Promise<ShopDeliveryConfig> {
   try {
     const admin = createAdminClient();
-    const { data } = await admin
+    const native = await admin
       .from("voucher_settings")
-      .select("pickup_fee, post_shipping_fee, post_shipping_fee_sk")
+      .select(
+        "pickup_fee, post_shipping_fee, post_shipping_fee_sk, amount_previews",
+      )
       .eq("shop_id", shopId)
       .maybeSingle();
 
-    if (!data) return DEFAULT_FEES;
+    if (!native.error && native.data) {
+      return configFromRow(native.data, shopId);
+    }
 
-    return {
-      pickupFee:
-        typeof data.pickup_fee === "number"
-          ? data.pickup_fee
-          : DEFAULT_FEES.pickupFee,
-      postShippingFee:
-        typeof data.post_shipping_fee === "number"
-          ? data.post_shipping_fee
-          : DEFAULT_FEES.postShippingFee,
-      postShippingFeeSk:
-        typeof data.post_shipping_fee_sk === "number"
-          ? data.post_shipping_fee_sk
-          : DEFAULT_FEES.postShippingFeeSk,
-    };
+    const legacy = await admin
+      .from("voucher_settings")
+      .select(
+        "pickup_fee, post_shipping_fee, post_shipping_fee_sk, amount_previews",
+      )
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (!legacy.error && legacy.data) {
+      return configFromRow(legacy.data, shopId);
+    }
+
+    return DEFAULT_DELIVERY_CONFIG;
   } catch {
-    return DEFAULT_FEES;
+    return DEFAULT_DELIVERY_CONFIG;
   }
 }
 
@@ -144,10 +229,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
-  const fees = await loadDeliveryFees(body.shopId);
+  const deliveryConfig = await loadShopDeliveryConfig(body.shopId);
+  if (!deliveryConfig.deliveryMethods[body.form.delivery]) {
+    return NextResponse.json(
+      { error: "Tento způsob doručení není u obchodu dostupný." },
+      { status: 400 },
+    );
+  }
+
   const unitPrice = unitPriceFromItem(body.item);
   const quantity = body.form.quantity;
-  const shippingFee = shippingFeeFor(body.form, fees);
+  const shippingFee = shippingFeeFor(body.form, deliveryConfig);
   const itemsTotal = unitPrice * quantity;
   const total = itemsTotal + shippingFee;
   const orderNumber = generateOrderNumber(body.shopId);
@@ -193,7 +285,7 @@ export async function POST(request: Request) {
       {
         error:
           insertError?.message?.includes("voucher_orders")
-            ? "Chybí tabulka voucher_orders — spusť migraci 010."
+            ? "Chybí tabulka voucher_orders - spusť migraci 010."
             : "Objednávku se nepodařilo uložit.",
       },
       { status: 500 },

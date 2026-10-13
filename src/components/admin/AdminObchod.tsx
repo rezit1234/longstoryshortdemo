@@ -31,7 +31,7 @@ function serializeSettings(settings: AdminVoucherSettings) {
 }
 
 function formatAmountDisplay(amount: number | null) {
-  if (amount === null) return "—";
+  if (amount === null) return "-";
   return amount
     .toLocaleString("cs-CZ")
     .replace(/[\u00A0\u202F\u2009]/g, " ");
@@ -621,7 +621,7 @@ export function AdminObchod({
                     {" · "}
                     {formatCzk(experience.price)}
                     {" · "}
-                    {experience.suitableFor || "—"}
+                    {experience.suitableFor || "-"}
                   </span>
                 </div>
                 <MaskIcon src="/icons/Edit.svg" />
@@ -712,89 +712,230 @@ export function AdminObchod({
       </section>
 
       <section className="admin-panel admin-shop-panel">
-        <h2>Příplatky za dopravu</h2>
+        <h2>Způsoby doručení</h2>
         <p className="admin-section-lead">
-          E-mail je vždy zdarma. Nastavte příplatek za vyzvednutí na recepci a za
-          odeslání poštou v ČR a na Slovensko.
+          Zapněte metody ve widgetu. Po zapnutí se rozbalí nastavení příplatku.
+          Alespoň jedna metoda musí zůstat aktivní.
         </p>
 
-        <div className="admin-field-row is-triple">
-          <label className="admin-field">
-            <span>Vyzvednutí na recepci</span>
-            <div className="admin-field-control has-suffix">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={settings.pickupFee === 0 ? "0" : String(settings.pickupFee || "")}
-                aria-label="Příplatek za vyzvednutí na recepci"
-                onChange={(event) => {
-                  const digits = event.target.value.replace(/\D/g, "");
-                  setSettings((current) => ({
-                    ...current,
-                    pickupFee: digits === "" ? 0 : Number(digits),
-                  }));
-                }}
-              />
-              <span className="admin-field-control-suffix" aria-hidden>
-                Kč
-              </span>
-            </div>
-            <em>Dárkové balení při vyzvednutí na pobočce.</em>
-          </label>
+        <div className="admin-delivery-methods">
+          {(
+            [
+              {
+                key: "email" as const,
+                title: "E-mail",
+                description: "Digitální poukaz e-mailem.",
+              },
+              {
+                key: "post" as const,
+                title: "Pošta",
+                description: "Fyzické odeslání v dárkovém balení.",
+              },
+              {
+                key: "pickup" as const,
+                title: "Pobočka",
+                description: "Vyzvednutí na recepci.",
+              },
+            ] as const
+          ).map((method) => {
+            const enabled = settings.deliveryMethods[method.key];
+            const enabledCount = [
+              settings.deliveryMethods.email,
+              settings.deliveryMethods.post,
+              settings.deliveryMethods.pickup,
+            ].filter(Boolean).length;
+            const lockedOn = enabled && enabledCount <= 1;
 
-          <label className="admin-field">
-            <span>Pošta ČR</span>
-            <div className="admin-field-control has-suffix">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={
-                  settings.postShippingFee === 0
-                    ? "0"
-                    : String(settings.postShippingFee || "")
+            return (
+              <div
+                key={method.key}
+                className={
+                  enabled
+                    ? "admin-toggle-block is-open"
+                    : "admin-toggle-block"
                 }
-                aria-label="Příplatek za odeslání poštou v ČR"
-                onChange={(event) => {
-                  const digits = event.target.value.replace(/\D/g, "");
-                  setSettings((current) => ({
-                    ...current,
-                    postShippingFee: digits === "" ? 0 : Number(digits),
-                  }));
-                }}
-              />
-              <span className="admin-field-control-suffix" aria-hidden>
-                Kč
-              </span>
-            </div>
-            <em>Poštovné a balné při odeslání po České republice.</em>
-          </label>
+              >
+                <div className="admin-toggle-head">
+                  <div>
+                    <strong>{method.title}</strong>
+                    <p>{method.description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className={
+                      enabled ? "admin-switch is-on" : "admin-switch"
+                    }
+                    aria-pressed={enabled}
+                    aria-expanded={enabled}
+                    aria-controls={`delivery-fee-${method.key}`}
+                    aria-label={`${method.title}: ${enabled ? "zapnuto" : "vypnuto"}`}
+                    disabled={lockedOn}
+                    title={
+                      lockedOn
+                        ? "Alespoň jedna metoda musí zůstat zapnutá."
+                        : undefined
+                    }
+                    onClick={() => {
+                      setSettings((current) => {
+                        const nextValue = !current.deliveryMethods[method.key];
+                        const nextMethods = {
+                          ...current.deliveryMethods,
+                          [method.key]: nextValue,
+                        };
+                        if (
+                          !nextMethods.email &&
+                          !nextMethods.post &&
+                          !nextMethods.pickup
+                        ) {
+                          return current;
+                        }
+                        return {
+                          ...current,
+                          deliveryMethods: nextMethods,
+                        };
+                      });
+                    }}
+                  >
+                    <span aria-hidden />
+                  </button>
+                </div>
 
-          <label className="admin-field">
-            <span>Pošta Slovensko</span>
-            <div className="admin-field-control has-suffix">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={
-                  settings.postShippingFeeSk === 0
-                    ? "0"
-                    : String(settings.postShippingFeeSk || "")
-                }
-                aria-label="Příplatek za odeslání poštou na Slovensko"
-                onChange={(event) => {
-                  const digits = event.target.value.replace(/\D/g, "");
-                  setSettings((current) => ({
-                    ...current,
-                    postShippingFeeSk: digits === "" ? 0 : Number(digits),
-                  }));
-                }}
-              />
-              <span className="admin-field-control-suffix" aria-hidden>
-                Kč
-              </span>
-            </div>
-            <em>Poštovné a balné při odeslání na Slovensko.</em>
-          </label>
+                <div
+                  className={
+                    enabled
+                      ? "admin-delivery-accordion-shell is-open"
+                      : "admin-delivery-accordion-shell"
+                  }
+                >
+                  <div className="admin-delivery-accordion-clip">
+                    <div
+                      id={`delivery-fee-${method.key}`}
+                      className="admin-delivery-accordion"
+                      aria-hidden={!enabled}
+                      inert={!enabled ? true : undefined}
+                    >
+                      {method.key === "email" ? (
+                        <p className="admin-delivery-fee-note">
+                          E-mail je vždy zdarma - žádný příplatek.
+                        </p>
+                      ) : null}
+
+                      {method.key === "pickup" ? (
+                        <label className="admin-field">
+                          <span>Příplatek za vyzvednutí</span>
+                          <div className="admin-field-control has-suffix">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              tabIndex={enabled ? undefined : -1}
+                              value={
+                                settings.pickupFee === 0
+                                  ? "0"
+                                  : String(settings.pickupFee || "")
+                              }
+                              aria-label="Příplatek za vyzvednutí na recepci"
+                              onChange={(event) => {
+                                const digits = event.target.value.replace(
+                                  /\D/g,
+                                  "",
+                                );
+                                setSettings((current) => ({
+                                  ...current,
+                                  pickupFee:
+                                    digits === "" ? 0 : Number(digits),
+                                }));
+                              }}
+                            />
+                            <span
+                              className="admin-field-control-suffix"
+                              aria-hidden
+                            >
+                              Kč
+                            </span>
+                          </div>
+                          <em>Dárkové balení při vyzvednutí na pobočce.</em>
+                        </label>
+                      ) : null}
+
+                      {method.key === "post" ? (
+                        <div className="admin-field-row">
+                          <label className="admin-field">
+                            <span>Pošta ČR</span>
+                            <div className="admin-field-control has-suffix">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                tabIndex={enabled ? undefined : -1}
+                                value={
+                                  settings.postShippingFee === 0
+                                    ? "0"
+                                    : String(settings.postShippingFee || "")
+                                }
+                                aria-label="Příplatek za odeslání poštou v ČR"
+                                onChange={(event) => {
+                                  const digits = event.target.value.replace(
+                                    /\D/g,
+                                    "",
+                                  );
+                                  setSettings((current) => ({
+                                    ...current,
+                                    postShippingFee:
+                                      digits === "" ? 0 : Number(digits),
+                                  }));
+                                }}
+                              />
+                              <span
+                                className="admin-field-control-suffix"
+                                aria-hidden
+                              >
+                                Kč
+                              </span>
+                            </div>
+                            <em>Poštovné a balné po České republice.</em>
+                          </label>
+
+                          <label className="admin-field">
+                            <span>Pošta Slovensko</span>
+                            <div className="admin-field-control has-suffix">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                tabIndex={enabled ? undefined : -1}
+                                value={
+                                  settings.postShippingFeeSk === 0
+                                    ? "0"
+                                    : String(settings.postShippingFeeSk || "")
+                                }
+                                aria-label="Příplatek za odeslání poštou na Slovensko"
+                                onChange={(event) => {
+                                  const digits = event.target.value.replace(
+                                    /\D/g,
+                                    "",
+                                  );
+                                  setSettings((current) => ({
+                                    ...current,
+                                    postShippingFeeSk:
+                                      digits === "" ? 0 : Number(digits),
+                                  }));
+                                }}
+                              />
+                              <span
+                                className="admin-field-control-suffix"
+                                aria-hidden
+                              >
+                                Kč
+                              </span>
+                            </div>
+                            <em>Poštovné a balné na Slovensko.</em>
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 

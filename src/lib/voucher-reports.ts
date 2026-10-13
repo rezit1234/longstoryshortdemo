@@ -19,7 +19,7 @@ export type ReportCatalogVariant = {
   kind: "experience" | "amount";
 };
 
-/** Budoucí DB řádek prodaného poukazu — teď plní mock. */
+/** Budoucí DB řádek prodaného poukazu - teď plní mock. */
 export type SoldVoucherRecord = {
   code: string;
   variantId: string;
@@ -302,7 +302,7 @@ export function aggregateVoucherReport(
     ...[...vouchyBuckets.entries()]
       .sort((a, b) => vatOrder(a[0]) - vatOrder(b[0]) || a[0].localeCompare(b[0]))
       .map(([metric, bucket]) => ({
-        section: "DPH — nové VOUCHY",
+        section: "DPH - nové VOUCHY",
         metric,
         count: bucket.count,
         amountCzk: bucket.amountCzk,
@@ -327,13 +327,13 @@ export function aggregateVoucherReport(
   };
 }
 
-/** @deprecated Prefer GET /api/admin/voucher-reports — mock už není default. */
+/** @deprecated Prefer GET /api/admin/voucher-reports - mock už není default. */
 export async function generateVoucherReport(
   query: ReportQuery,
   source?: SoldVoucherSource,
 ): Promise<VoucherReport> {
   if (!source) {
-    throw new Error("Chybí zdroj prodejů — použij /api/admin/voucher-reports.");
+    throw new Error("Chybí zdroj prodejů - použij /api/admin/voucher-reports.");
   }
   const vouchers = await source.listSold(query);
   return aggregateVoucherReport(query, vouchers);

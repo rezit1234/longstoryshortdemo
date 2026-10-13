@@ -79,7 +79,7 @@ class DbSoldVoucherSource implements SoldVoucherSource {
       const vatLabel =
         typeof row.vat_label === "string" && row.vat_label.trim()
           ? row.vat_label.trim()
-          : "—";
+          : "-";
 
       vouchers.push({
         code: String(row.code),

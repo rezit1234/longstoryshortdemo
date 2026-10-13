@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   if ((count ?? 0) > 0) {
     return NextResponse.json(
-      { error: "Bootstrap už byl použit — tým není prázdný." },
+      { error: "Bootstrap už byl použit - tým není prázdný." },
       { status: 403 },
     );
   }

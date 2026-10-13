@@ -4,7 +4,7 @@ import { getShopBrand } from "@/data/shops";
 /**
  * Dodavatel na faktuře per shop.
  * Reálné IČO / účet / IBAN / adresa: env `INVOICE_<SHOP>_…`
- * (zatím placeholdery — doplnit před ostrým provozem).
+ * (zatím placeholdery - doplnit před ostrým provozem).
  */
 export interface InvoiceIssuerConfig {
   name: string;

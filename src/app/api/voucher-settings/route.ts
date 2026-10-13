@@ -50,6 +50,7 @@ function feesFromAmountPreviews(value: unknown): {
   pickupFee?: number;
   postShippingFee?: number;
   postShippingFeeSk?: number;
+  deliveryMethods?: VoucherSettingsPayload["deliveryMethods"];
   heroImage?: VoucherSettingsPayload["heroImage"];
 } {
   const record = asRecord(value);
@@ -63,6 +64,10 @@ function feesFromAmountPreviews(value: unknown): {
     postShippingFeeSk:
       typeof record.postShippingFeeSk === "number"
         ? record.postShippingFeeSk
+        : undefined,
+    deliveryMethods:
+      record.deliveryMethods && typeof record.deliveryMethods === "object"
+        ? (record.deliveryMethods as VoucherSettingsPayload["deliveryMethods"])
         : undefined,
     heroImage:
       record.heroImage == null
@@ -81,6 +86,7 @@ function stripInternalPreviewKeys(
   delete next.pickupFee;
   delete next.postShippingFee;
   delete next.postShippingFeeSk;
+  delete next.deliveryMethods;
   return next;
 }
 
@@ -106,6 +112,7 @@ function amountPreviewsForStorage(
       pickupFee: settings.pickupFee,
       postShippingFee: settings.postShippingFee,
       postShippingFeeSk: settings.postShippingFeeSk,
+      deliveryMethods: settings.deliveryMethods,
     };
   }
 
@@ -120,6 +127,7 @@ function amountPreviewsForStorage(
       pickupFee: settings.pickupFee,
       postShippingFee: settings.postShippingFee,
       postShippingFeeSk: settings.postShippingFeeSk,
+      deliveryMethods: settings.deliveryMethods,
       heroImage: settings.heroImage,
       [SHOPS_BAG_KEY]: bag,
     };
@@ -158,6 +166,7 @@ function rowToPayload(
       postShippingFee: row.post_shipping_fee ?? embedded.postShippingFee,
       postShippingFeeSk:
         row.post_shipping_fee_sk ?? embedded.postShippingFeeSk,
+      deliveryMethods: embedded.deliveryMethods,
       heroImage:
         (row.hero_image as VoucherSettingsPayload["heroImage"]) ??
         embedded.heroImage,

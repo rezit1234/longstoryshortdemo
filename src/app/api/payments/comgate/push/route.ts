@@ -160,7 +160,7 @@ export async function POST(request: Request) {
       console.info("comgate fulfill", order.order_number, result);
     } catch (fulfillError) {
       console.error("comgate fulfill failed", fulfillError);
-      // Push musí vrátit 200 i při dočasném fail fulfillmentu —
+      // Push musí vrátit 200 i při dočasném fail fulfillmentu -
       // jinak Comgate spamuje. Fulfill lze dorazit ručně / retry.
     }
   }

@@ -1,4 +1,4 @@
-PLÁN DO OSTRÉHO SPUŠTĚNÍ — Long Story Short / Bistro Central / Culinary Academy
+PLÁN DO OSTRÉHO SPUŠTĚNÍ - Long Story Short / Bistro Central / Culinary Academy
 ==============================================================================
 Stav k 30. 9. 2026
 
@@ -17,7 +17,7 @@ Hotovo v kódu (Fáze 0+1): maily bez ops, per-shop odesílatelé, patička
 Visa/MC/Comgate ve widgetu. Zbývá Vercel env + smoke platba.
 
 
-FÁZE 0 — Stabilizace a push ✓ (kód hotov; ověř env)
+FÁZE 0 - Stabilizace a push ✓ (kód hotov; ověř env)
 -------------------------------------------------
 Cíl: mít na produkci to, co už máme lokálně.
 
@@ -29,7 +29,7 @@ Cíl: mít na produkci to, co už máme lokálně.
 4. Hotovo, když: 3 shopy posílají ze svých @longstoryshort.cz adres
 
 
-FÁZE 1 — Comgate compliance ve widgetu ✓ (kód)
+FÁZE 1 - Comgate compliance ve widgetu ✓ (kód)
 ----------------------------------------------
 Cíl: splnit smluvní povinnost log / údajů před žádostí o ostrý provoz.
 
@@ -38,12 +38,12 @@ Cíl: splnit smluvní povinnost log / údajů před žádostí o ostrý provoz.
 3. ✓ Krátký text o Comgate + ČNB pod logy
 4. Push + kontrola na desktop/mobil
 
-Pozn.: CDN oficiálních PNG z Document360 teď vrací 404 — až bude pack
+Pozn.: CDN oficiálních PNG z Document360 teď vrací 404 - až bude pack
 od Comgate, vyměnit SVG v public/comgate/. Hotovo, když: loga vidět
 v iframe i na standalone stránkách shopů.
 
 
-FÁZE 2 — PDF šablony od klienta (ODLOŽENO — čeká na podklady)
+FÁZE 2 - PDF šablony od klienta (ODLOŽENO - čeká na podklady)
 -------------------------------------------------------------
 Cíl: reálné poukazy, ne testovací PDF.
 
@@ -55,23 +55,23 @@ Hotovo, když: každý prodávaný produkt má šablonu + pozice.
 → Pokračovat až budou šablony; mezitím Fáze 3+.
 
 
-FÁZE 3 — Faktury runtime (v kódu)
+FÁZE 3 - Faktury runtime (v kódu)
 ---------------------------------
 Cíl: po PAID vystavit doklad a přiložit do stejného mailu jako poukaz.
 
 1. ✓ Údaje vydavatele per shop (+ env INVOICE_*_ICO/IBAN/…)
-2. ✓ Číselná řada RPC (LSS/BC/CA-YYYY-NNNN) — migrace 013
+2. ✓ Číselná řada RPC (LSS/BC/CA-YYYY-NNNN) - migrace 013
 3. ✓ Generovat PDF z checkout dat (firma / fyzická osoba)
 4. ✓ Uložit fakturu (storage + invoice_number/pdf_url na order)
 5. ✓ Přiložit do 1. zákaznického mailu vedle poukazu
-6. (Volitelně) ARES podle IČO — až bude čas
+6. (Volitelně) ARES podle IČO - až bude čas
 7. Před ostreem: doplnit reálné IČO/účet/IBAN do env
 
 Hotovo, když: objednávka s „chci fakturu“ → mail má poukaz.pdf + faktura.pdf
 (+ spuštěná migrace 013 v Supabase)
 
 
-FÁZE 4 — Ruční „Přidat poukaz“ → DB ✓ (kód; spusť migraci 014)
+FÁZE 4 - Ruční „Přidat poukaz“ → DB ✓ (kód; spusť migraci 014)
 ----------------------------------------------------------------
 Cíl: admin drawer ukládá do sold_vouchers (stejná evidence jako online).
 
@@ -84,7 +84,7 @@ Hotovo, když: ručně přidaný poukaz jde uplatnit stejně jako koupený
 (+ spuštěná migrace 014 v Supabase).
 
 
-FÁZE 5 — Live admin data ✓ (kód)
+FÁZE 5 - Live admin data ✓ (kód)
 --------------------------------
 Cíl: pryč mocky, vše z DB.
 
@@ -96,7 +96,7 @@ Cíl: pryč mocky, vše z DB.
 Hotovo, když: admin bez mock dat funguje na produkci.
 
 
-FÁZE 6 — Comgate ostrý provoz (závisí na Comgate, ~dny až ~2 týdny karty)
+FÁZE 6 - Comgate ostrý provoz (závisí na Comgate, ~dny až ~2 týdny karty)
 ------------------------------------------------------------------------
 Cíl: přijímat reálné platby.
 
@@ -118,10 +118,10 @@ Po jejich „go“:
 POZOR: samotné COMGATE_TEST=false bez jejich aktivace → chyba 1308.
 
 
-FÁZE 7 — Soft launch QA (1 den)
+FÁZE 7 - Soft launch QA (1 den)
 -------------------------------
 Checklist:
-- [ ] LSS / BC / CA — částka + zážitek
+- [ ] LSS / BC / CA - částka + zážitek
 - [ ] Doručení: e-mail / pošta / vyzvednutí (stavy v adminu)
 - [ ] Uplatnění kódu
 - [ ] Mail ze správné adresy + přílohy
@@ -130,7 +130,7 @@ Checklist:
 - [ ] Cancelled / failed platba (stav objednávky)
 
 
-FÁZE 8 — Až dodají / později (neblokuje launch)
+FÁZE 8 - Až dodají / později (neblokuje launch)
 -----------------------------------------------
 - Import XLSX starých poukazů (až přijde soubor)
 - Auto-expirace podle valid_until

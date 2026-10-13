@@ -56,4 +56,4 @@ create index if not exists sold_vouchers_status_idx
 
 alter table public.sold_vouchers enable row level security;
 
--- Žádné policies pro anon/authenticated — service role only.
+-- Žádné policies pro anon/authenticated - service role only.

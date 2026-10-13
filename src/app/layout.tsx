@@ -42,7 +42,7 @@ const maisonNeue = localFont({
 export const metadata: Metadata = {
   title: "Dárkové poukazy | Long Story Short",
   description:
-    "Kupte dárkový poukaz Long Story Short — na částku nebo na zážitek.",
+    "Kupte dárkový poukaz Long Story Short - na částku nebo na zážitek.",
   icons: {
     icon: [
       { url: "/favicon/favicon.ico" },

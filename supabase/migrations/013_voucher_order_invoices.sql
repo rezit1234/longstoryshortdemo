@@ -8,7 +8,7 @@ create unique index if not exists voucher_orders_invoice_number_uidx
   on public.voucher_orders (invoice_number)
   where invoice_number is not null;
 
--- Přechod na (prefix, year) — bezpečně i když tabulka ještě nemá prefix.
+-- Přechod na (prefix, year) - bezpečně i když tabulka ještě nemá prefix.
 alter table public.invoice_sequences
   add column if not exists prefix text;
 

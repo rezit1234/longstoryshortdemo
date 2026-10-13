@@ -1,4 +1,4 @@
--- Long Story Short — admin users / team
+-- Long Story Short - admin users / team
 -- Spusť v Supabase → SQL Editor → New query → Run
 
 create type public.admin_role as enum ('owner', 'admin', 'staff');

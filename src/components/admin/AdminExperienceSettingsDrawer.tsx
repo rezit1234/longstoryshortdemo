@@ -234,7 +234,7 @@ export function AdminExperienceSettingsDrawer({
   const draftRef = useRef(draft);
   draftRef.current = draft;
 
-  // Jen při přepnutí varianty — ne při každém novém settings objektu z rodiče
+  // Jen při přepnutí varianty - ne při každém novém settings objektu z rodiče
   // (autosave / load by jinak tiše přepsaly lokální galerii).
   useEffect(() => {
     setDraft({
@@ -406,7 +406,7 @@ export function AdminExperienceSettingsDrawer({
   }
 
   async function uploadGalleryFiles(fileList: FileList | File[]) {
-    // FileList je „live“ — zkopírujeme File objekty hned, než se input vyresetuje.
+    // FileList je „live“ - zkopírujeme File objekty hned, než se input vyresetuje.
     const files = Array.from(fileList).map(
       (file) =>
         new File([file], file.name, {
@@ -465,7 +465,7 @@ export function AdminExperienceSettingsDrawer({
 
       if (files.length > remaining) {
         setGalleryError(
-          `Přidány jen ${remaining} obrázky — maximum je ${MAX_GALLERY_IMAGES}.`,
+          `Přidány jen ${remaining} obrázky - maximum je ${MAX_GALLERY_IMAGES}.`,
         );
       }
     } catch (err) {

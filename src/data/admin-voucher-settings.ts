@@ -288,6 +288,21 @@ function defaultVatForSeedExperience(
   return { ...DEFAULT_EXPERIENCE_VAT, singleRate: 12 };
 }
 
+export type DeliveryMethodId = "email" | "post" | "pickup";
+
+/** Zapnuté způsoby doručení poukazu ve widgetu (per shop). */
+export type DeliveryMethodsSettings = {
+  email: boolean;
+  post: boolean;
+  pickup: boolean;
+};
+
+export const DEFAULT_DELIVERY_METHODS: DeliveryMethodsSettings = {
+  email: true,
+  post: true,
+  pickup: true,
+};
+
 export type AdminVoucherSettings = {
   validityMonths: number;
   amountSlots: (number | null)[];
@@ -299,6 +314,8 @@ export type AdminVoucherSettings = {
   postShippingFee: number;
   /** Poštovné a balné při odeslání na Slovensko. */
   postShippingFeeSk: number;
+  /** Které způsoby doručení jsou ve widgetu nabízené. */
+  deliveryMethods: DeliveryMethodsSettings;
   heroImage: ExperienceGalleryImage | null;
 };
 
@@ -341,6 +358,40 @@ export function createInitialVoucherSettings(
     pickupFee: DEFAULT_PICKUP_FEE,
     postShippingFee: DEFAULT_POST_SHIPPING_FEE,
     postShippingFeeSk: DEFAULT_POST_SHIPPING_FEE_SK,
+    deliveryMethods: { ...DEFAULT_DELIVERY_METHODS },
     heroImage: null,
   };
+}
+
+export function normalizeDeliveryMethods(
+  value: unknown,
+  fallback: DeliveryMethodsSettings = DEFAULT_DELIVERY_METHODS,
+): DeliveryMethodsSettings {
+  const record =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+
+  const next: DeliveryMethodsSettings = {
+    email: typeof record?.email === "boolean" ? record.email : fallback.email,
+    post: typeof record?.post === "boolean" ? record.post : fallback.post,
+    pickup:
+      typeof record?.pickup === "boolean" ? record.pickup : fallback.pickup,
+  };
+
+  // Alespoň jedna metoda musí zůstat zapnutá.
+  if (!next.email && !next.post && !next.pickup) {
+    return { ...fallback };
+  }
+  return next;
+}
+
+export function enabledDeliveryMethods(
+  methods: DeliveryMethodsSettings,
+): DeliveryMethodId[] {
+  const ids: DeliveryMethodId[] = [];
+  if (methods.email) ids.push("email");
+  if (methods.post) ids.push("post");
+  if (methods.pickup) ids.push("pickup");
+  return ids.length > 0 ? ids : (["email"] as DeliveryMethodId[]);
 }

@@ -1,5 +1,5 @@
 -- Objednávky dárkových poukazů (Comgate + fulfillment)
--- Service role only — žádný veřejný RLS přístup.
+-- Service role only - žádný veřejný RLS přístup.
 
 create table if not exists public.voucher_orders (
   id uuid primary key default gen_random_uuid(),
@@ -44,4 +44,4 @@ create unique index if not exists voucher_orders_comgate_trans_id_unique
 
 alter table public.voucher_orders enable row level security;
 
--- Žádné policies pro anon/authenticated — zápis/čtení jen service role.
+-- Žádné policies pro anon/authenticated - zápis/čtení jen service role.

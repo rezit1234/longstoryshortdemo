@@ -225,7 +225,7 @@ async function stampAndUploadPdf(params: {
 
 /**
  * Po Comgate PAID: vygeneruje kódy, uloží sold_vouchers a natiskne PDF.
- * Idempotentní — při opakovaném pushi nic neduplikuje.
+ * Idempotentní - při opakovaném pushi nic neduplikuje.
  */
 export async function fulfillPaidOrder(orderId: string) {
   const admin = createAdminClient();

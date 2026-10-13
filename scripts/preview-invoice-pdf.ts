@@ -16,7 +16,7 @@ async function main() {
     invoiceNumber,
     issueDate: "2026-09-10",
     dueDate: "2026-09-24",
-    description: "Dárkový poukaz Long Story Short — 1 500 Kč",
+    description: "Dárkový poukaz Long Story Short - 1 500 Kč",
     amount,
     customerName: "Ukázková firma s.r.o.",
     customerIco: "12345678",

@@ -137,33 +137,33 @@ const CHEFS_TABLE_RESERVATION =
   "Rezervaci na Chef's table si, prosím, vytvořte včas na telefonním čísle Eatery restaurace 727 800 900 nebo e-mailové adrese eatery@longstoryshort.cz.";
 
 const CHEFS_TABLE_GALLERY: ExperienceGalleryImage[] = [
-  { src: "/chefstable.webp", alt: "Chef's Table — fotografie 1" },
-  { src: "/chefstable2.webp", alt: "Chef's Table — fotografie 2" },
-  { src: "/chefstable3.webp", alt: "Chef's Table — fotografie 3" },
+  { src: "/chefstable.webp", alt: "Chef's Table - fotografie 1" },
+  { src: "/chefstable2.webp", alt: "Chef's Table - fotografie 2" },
+  { src: "/chefstable3.webp", alt: "Chef's Table - fotografie 3" },
 ];
 
 const THE_ARC_GALLERY: ExperienceGalleryImage[] = [
-  { src: "/thearc.webp", alt: "The Arc — fotografie 1" },
-  { src: "/thearc2.webp", alt: "The Arc — fotografie 2" },
-  { src: "/thearc3.webp", alt: "The Arc — fotografie 3" },
+  { src: "/thearc.webp", alt: "The Arc - fotografie 1" },
+  { src: "/thearc2.webp", alt: "The Arc - fotografie 2" },
+  { src: "/thearc3.webp", alt: "The Arc - fotografie 3" },
 ];
 
 const THE_NOOK_GALLERY: ExperienceGalleryImage[] = [
-  { src: "/thenook.webp", alt: "The Nook — fotografie 1" },
-  { src: "/thenook2.webp", alt: "The Nook — fotografie 2" },
-  { src: "/thenook3.webp", alt: "The Nook — fotografie 3" },
+  { src: "/thenook.webp", alt: "The Nook - fotografie 1" },
+  { src: "/thenook2.webp", alt: "The Nook - fotografie 2" },
+  { src: "/thenook3.webp", alt: "The Nook - fotografie 3" },
 ];
 
 const THE_BIG_ONE_GALLERY: ExperienceGalleryImage[] = [
-  { src: "/thebigone.webp", alt: "The Big One — fotografie 1" },
-  { src: "/thebigone2.webp", alt: "The Big One — fotografie 2" },
-  { src: "/thebigone3.webp", alt: "The Big One — fotografie 3" },
+  { src: "/thebigone.webp", alt: "The Big One - fotografie 1" },
+  { src: "/thebigone2.webp", alt: "The Big One - fotografie 2" },
+  { src: "/thebigone3.webp", alt: "The Big One - fotografie 3" },
 ];
 
 const THE_FLAT_GALLERY: ExperienceGalleryImage[] = [
-  { src: "/theflat.webp", alt: "The Flat — fotografie 1" },
-  { src: "/theflat2.webp", alt: "The Flat — fotografie 2" },
-  { src: "/theflat3.webp", alt: "The Flat — fotografie 3" },
+  { src: "/theflat.webp", alt: "The Flat - fotografie 1" },
+  { src: "/theflat2.webp", alt: "The Flat - fotografie 2" },
+  { src: "/theflat3.webp", alt: "The Flat - fotografie 3" },
 ];
 
 const THE_BIG_ONE_CHEFS_TABLE_GALLERY: ExperienceGalleryImage[] = [
@@ -251,7 +251,7 @@ export const EXPERIENCE_VOUCHERS: ExperienceVoucher[] = [
     title: "The Big One & Chef's Table",
     subtitle: "S vinným párováním pro 2",
     price: 9500,
-    description: `1 noc v privátním pokoji The Big One | „Ten Božský“ s koupelnou a s vanou v prostoru. Snídaně je součástí dárkového poukazu. Chef's table pro 2 — pětichodová večeře dle výběru šéfkuchaře s vinným párováním. Tento poukaz je vhodný pro 2 osoby. ${CHEFS_TABLE_RESERVATION}`,
+    description: `1 noc v privátním pokoji The Big One | „Ten Božský“ s koupelnou a s vanou v prostoru. Snídaně je součástí dárkového poukazu. Chef's table pro 2 - pětichodová večeře dle výběru šéfkuchaře s vinným párováním. Tento poukaz je vhodný pro 2 osoby. ${CHEFS_TABLE_RESERVATION}`,
     suitableFor: "2 osoby",
     infoLinks: [LINK_ROOMS, LINK_EATERY],
     gallery: THE_BIG_ONE_CHEFS_TABLE_GALLERY,
@@ -261,7 +261,7 @@ export const EXPERIENCE_VOUCHERS: ExperienceVoucher[] = [
     title: "The Nook & Chef's Table",
     subtitle: "S vinným párováním pro 2",
     price: 8200,
-    description: `1 noc v privátním pokoji The Nook | „Koutek“ s koupelnou. Snídaně je součástí dárkového poukazu. Chef's table pro 2 — pětichodová večeře dle výběru šéfkuchaře s vinným párováním. Tento poukaz je vhodný pro 2 osoby.`,
+    description: `1 noc v privátním pokoji The Nook | „Koutek“ s koupelnou. Snídaně je součástí dárkového poukazu. Chef's table pro 2 - pětichodová večeře dle výběru šéfkuchaře s vinným párováním. Tento poukaz je vhodný pro 2 osoby.`,
     suitableFor: "2 osoby",
     infoLinks: [LINK_ROOMS, LINK_EATERY],
     gallery: THE_NOOK_CHEFS_TABLE_GALLERY,
@@ -271,7 +271,7 @@ export const EXPERIENCE_VOUCHERS: ExperienceVoucher[] = [
     title: "The Arc & Chef's Table",
     subtitle: "S vinným párováním pro 2",
     price: 7500,
-    description: `1 noc v privátním pokoji The Arc | „Výklenek“ s koupelnou. Snídaně je součástí dárkového poukazu. Chef's table pro 2 — pětichodová večeře dle výběru šéfkuchaře s vinným párováním. Tento poukaz je vhodný pro 2 osoby.`,
+    description: `1 noc v privátním pokoji The Arc | „Výklenek“ s koupelnou. Snídaně je součástí dárkového poukazu. Chef's table pro 2 - pětichodová večeře dle výběru šéfkuchaře s vinným párováním. Tento poukaz je vhodný pro 2 osoby.`,
     suitableFor: "2 osoby",
     infoLinks: [LINK_ROOMS, LINK_EATERY],
     gallery: THE_ARC_CHEFS_TABLE_GALLERY,
@@ -279,7 +279,7 @@ export const EXPERIENCE_VOUCHERS: ExperienceVoucher[] = [
 ];
 
 export function formatCzk(amount: number): string {
-  // cs-CZ uses narrow NBSP (U+202F) as thousands separator — too tight in UI fonts
+  // cs-CZ uses narrow NBSP (U+202F) as thousands separator - too tight in UI fonts
   const formatted = amount
     .toLocaleString("cs-CZ")
     .replace(/[\u00A0\u202F\u2009]/g, " ");
