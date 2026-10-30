@@ -3,6 +3,9 @@ import type { ShopId } from "@/data/admin-voucher-settings";
 export type CheckoutDeliveryMethod = "email" | "post" | "pickup";
 export type CheckoutItemKind = "amount" | "experience";
 
+/** Osobní zpráva pro příjemce (včetně mezer). */
+export const PERSONAL_MESSAGE_MAX_LENGTH = 40;
+
 export type CheckoutAmountItem = {
   kind: "amount";
   amount: number;
@@ -117,6 +120,13 @@ export function validateCheckoutPayload(body: CreatePaymentRequestBody): string 
 
   if (form.recipient === "other" && !form.recipientName?.trim()) {
     return "Vyplňte jméno příjemce.";
+  }
+
+  if (
+    typeof form.message === "string" &&
+    form.message.length > PERSONAL_MESSAGE_MAX_LENGTH
+  ) {
+    return `Osobní zpráva smí mít nejvýše ${PERSONAL_MESSAGE_MAX_LENGTH} znaků.`;
   }
 
   if (form.delivery === "email" && !isValidEmail(form.deliveryEmail ?? "")) {

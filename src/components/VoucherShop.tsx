@@ -25,6 +25,7 @@ import {
 } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
 import { setBlobOrigin } from "@/lib/blobOrigin";
+import { PERSONAL_MESSAGE_MAX_LENGTH } from "@/lib/checkout";
 import {
   settingsToAmountVouchers,
   settingsToExperienceVouchers,
@@ -1808,13 +1809,19 @@ function CheckoutPanel({
 
             {form.recipient === "other" ? (
               <label className="checkout-field">
-                <span>Osobní zpráva <em>(volitelná)</em></span>
+                <span>
+                  Osobní zpráva <em>(volitelná, max. {PERSONAL_MESSAGE_MAX_LENGTH} znaků)</em>
+                </span>
                 <textarea
-                  rows={3}
+                  rows={2}
+                  maxLength={PERSONAL_MESSAGE_MAX_LENGTH}
                   value={form.message}
                   placeholder="Přání k poukazu…"
                   onChange={(event) =>
-                    updateForm("message", event.target.value)
+                    updateForm(
+                      "message",
+                      event.target.value.slice(0, PERSONAL_MESSAGE_MAX_LENGTH),
+                    )
                   }
                 />
               </label>
