@@ -1,11 +1,14 @@
 import {
   ADMIN_VOUCHER_STATUS_LABELS,
+  type AdminRedeemablePart,
   type AdminSoldVoucher,
+  type AdminVoucherItemKind,
   type AdminVoucherShippingAddress,
   type AdminVoucherStatus,
 } from "@/data/admin-vouchers";
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { formatCzk } from "@/data/vouchers";
+import { parseRedeemableParts } from "@/lib/voucher-redemption";
 
 export type SoldVoucherRow = {
   code: string;
@@ -22,6 +25,12 @@ export type SoldVoucherRow = {
   delivery_method: string;
   shipping_address: AdminVoucherShippingAddress | null;
   pdf_url?: string | null;
+  item_kind?: string | null;
+  remaining_czk?: number | null;
+  redeemable_parts?: unknown;
+  is_gift?: boolean | null;
+  delivery_email?: string | null;
+  recipient_name?: string | null;
 };
 
 function formatDateCs(isoOrDate: string) {
@@ -33,6 +42,18 @@ function formatDateCs(isoOrDate: string) {
     return isoOrDate;
   }
   return `${date.getDate()}. ${date.getMonth() + 1}. ${date.getFullYear()}`;
+}
+
+/** Normalize DB date / timestamp to `YYYY-MM-DD`. */
+export function toValidUntilIso(isoOrDate: string) {
+  const trimmed = isoOrDate.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function deliveryLabel(method: string) {
@@ -66,11 +87,32 @@ function asShopId(value: string): ShopId {
   return "lss";
 }
 
+function asItemKind(value: unknown): AdminVoucherItemKind | undefined {
+  if (value === "amount" || value === "experience") return value;
+  return undefined;
+}
+
+function formatValueLabel(row: SoldVoucherRow) {
+  const unit = Number(row.unit_price_czk) || 0;
+  const itemKind = asItemKind(row.item_kind);
+  if (itemKind === "amount" && row.remaining_czk != null) {
+    const remaining = Number(row.remaining_czk);
+    if (Number.isFinite(remaining) && remaining !== unit) {
+      return `${formatCzk(remaining)} / ${formatCzk(unit)}`;
+    }
+  }
+  return formatCzk(unit);
+}
+
 export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
   const status = asStatus(row.status);
   const packaging =
     row.shipping_fee_share_czk > 0 ? formatCzk(row.shipping_fee_share_czk) : null;
   const total = row.unit_price_czk + (row.shipping_fee_share_czk || 0);
+  const parts = parseRedeemableParts(row.redeemable_parts) as
+    | AdminRedeemablePart[]
+    | null;
+  const itemKind = asItemKind(row.item_kind);
 
   return {
     code: row.code,
@@ -79,11 +121,12 @@ export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
     email: row.buyer_email,
     phone: row.buyer_phone,
     product: row.product_name,
-    value: formatCzk(row.unit_price_czk),
+    value: formatValueLabel(row),
     packagingFee: packaging,
     totalPaid: formatCzk(total),
     purchasedAt: formatDateCs(row.purchased_at),
     validUntil: formatDateCs(row.valid_until),
+    validUntilIso: toValidUntilIso(row.valid_until),
     deliveryMethod: deliveryLabel(row.delivery_method),
     status,
     statusLabel: ADMIN_VOUCHER_STATUS_LABELS[status],
@@ -92,5 +135,22 @@ export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
       typeof row.pdf_url === "string" && row.pdf_url.trim()
         ? row.pdf_url.trim()
         : null,
+    itemKind,
+    unitPriceCzk: Number(row.unit_price_czk) || 0,
+    remainingCzk:
+      itemKind === "amount"
+        ? row.remaining_czk == null
+          ? Number(row.unit_price_czk) || 0
+          : Number(row.remaining_czk)
+        : null,
+    redeemableParts: parts,
+    isGift: Boolean(row.is_gift),
+    deliveryEmail:
+      typeof row.delivery_email === "string" && row.delivery_email.trim()
+        ? row.delivery_email.trim()
+        : null,
+    recipientName:
+      typeof row.recipient_name === "string" ? row.recipient_name : "",
+    canUndo: false,
   };
 }

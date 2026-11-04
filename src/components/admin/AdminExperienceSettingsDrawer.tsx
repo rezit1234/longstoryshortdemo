@@ -196,11 +196,13 @@ export function AdminExperienceSettingsDrawer({
   isNew = false,
   onClose,
   onSave,
+  onDelete,
 }: {
   experience: AdminExperienceForm;
   isNew?: boolean;
   onClose: () => void;
   onSave: (experience: AdminExperienceForm) => void;
+  onDelete?: () => void;
 }) {
   const [isClosing, setIsClosing] = useState(false);
   const [draft, setDraft] = useState(experience);
@@ -1479,7 +1481,28 @@ export function AdminExperienceSettingsDrawer({
           </div>
         </div>
 
-        <div className="admin-voucher-drawer-footer">
+        <div className="admin-voucher-drawer-footer admin-settings-drawer-footer">
+          {onDelete ? (
+            <button
+              type="button"
+              className="admin-settings-drawer-delete"
+              aria-label={isNew ? "Zrušit novou variantu" : "Smazat variantu"}
+              title={isNew ? "Zrušit" : "Smazat"}
+              onClick={() => {
+                if (
+                  !isNew &&
+                  !window.confirm(
+                    `Opravdu smazat variantu „${draft.title.trim() || "bez názvu"}“?`,
+                  )
+                ) {
+                  return;
+                }
+                onDelete();
+              }}
+            >
+              <MaskIcon src="/icons/kos.svg" />
+            </button>
+          ) : null}
           <button type="button" className="admin-voucher-drawer-cta" onClick={handleSave}>
             <svg
               className="admin-voucher-drawer-cta-icon"

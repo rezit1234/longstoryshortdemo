@@ -5,18 +5,21 @@ const SHOPS = [
     id: "lss",
     name: "Long Story Short",
     description: "Nastavení dárkových poukazů a variant obchodu LSS.",
+    descriptionShort: "Nastavení poukazů a variant",
     widgetPath: "/lss",
   },
   {
     id: "bistrocentral",
     name: "Bistro Central",
     description: "Nastavení dárkových poukazů a variant obchodu Bistro Central.",
+    descriptionShort: "Nastavení poukazů a variant",
     widgetPath: "/bistrocentral",
   },
   {
     id: "culinaryacademy",
     name: "Culinary Academy",
     description: "Nastavení dárkových poukazů a variant obchodu Culinary Academy.",
+    descriptionShort: "Nastavení poukazů a variant",
     widgetPath: "/culinaryacademy",
   },
 ] as const;
@@ -56,7 +59,12 @@ export function AdminObchody() {
                   {shop.name}{" "}
                   <span className="admin-obchody-path">({shop.widgetPath})</span>
                 </strong>
-                <span>{shop.description}</span>
+                <span className="admin-obchody-desc admin-obchody-desc-full">
+                  {shop.description}
+                </span>
+                <span className="admin-obchody-desc admin-obchody-desc-short">
+                  {shop.descriptionShort}
+                </span>
               </div>
               <MaskIcon src="/icons/Edit.svg" />
             </Link>

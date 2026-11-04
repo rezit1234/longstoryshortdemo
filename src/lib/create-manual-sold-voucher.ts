@@ -1,9 +1,10 @@
 import {
+  applyShopCodePrefix,
   generateVoucherCode,
+  isValidNewVoucherCode,
   normalizeVoucherCode,
   formatExperienceVatLabel,
   type ShopId,
-  VOUCHER_CODE_LENGTH,
 } from "@/data/admin-voucher-settings";
 import type { VoucherPdfPlacement } from "@/data/vouchers";
 import {
@@ -17,6 +18,7 @@ import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
 } from "@/lib/voucher-pdf-overlay";
+import { redeemablePartsForExperienceId } from "@/lib/voucher-redemption";
 
 export type ManualVoucherKind = "amount" | "experience";
 
@@ -205,11 +207,13 @@ export async function createManualSoldVoucher(
 
   let code = (input.code ?? "").trim().toUpperCase();
   if (!code) {
-    code = generateVoucherCode();
+    code = generateVoucherCode(shopId);
   }
-  const codeNormalized = normalizeVoucherCode(code);
-  if (!codeNormalized || codeNormalized.length !== VOUCHER_CODE_LENGTH) {
-    throw new Error(`Kód musí mít přesně ${VOUCHER_CODE_LENGTH} znaků.`);
+  const codeNormalized = applyShopCodePrefix(code, shopId);
+  if (!isValidNewVoucherCode(codeNormalized)) {
+    throw new Error(
+      "Kód musí mít prefix obchodu a 8 znaků (např. LSSK7M2P9QX).",
+    );
   }
 
   const { data: existing } = await admin
@@ -275,13 +279,19 @@ export async function createManualSoldVoucher(
     vat_label: vatLabel,
     tax_regime: "vouchy",
     pdf_url: pdfUrl,
+    remaining_czk: input.kind === "amount" ? unitPrice : null,
+    redeemable_parts:
+      input.kind === "experience"
+        ? redeemablePartsForExperienceId(experienceId)
+        : null,
+    is_gift: false,
   };
 
   const { data: inserted, error: insertError } = await admin
     .from("sold_vouchers")
     .insert(row)
     .select(
-      "code, shop_id, product_name, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, shipping_address, pdf_url",
+      "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift",
     )
     .single();
 

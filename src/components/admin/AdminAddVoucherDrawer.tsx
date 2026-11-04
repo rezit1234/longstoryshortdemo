@@ -2,19 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  applyShopCodePrefix,
   createInitialVoucherSettings,
   type AdminVoucherSettings,
   type ShopId,
-  VOUCHER_CODE_LENGTH,
+  VOUCHER_CODE_INPUT_MAX_LENGTH,
   generateVoucherCode,
-  normalizeVoucherCode,
+  isValidNewVoucherCode,
   sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
 import type { AdminSoldVoucher } from "@/data/admin-vouchers";
 import { SHOP_BRANDS } from "@/data/shops";
 import { formatCzk } from "@/data/vouchers";
+import { defaultShopIdForRole } from "@/lib/auth";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { AdminSelect } from "./AdminSelect";
+import { useAdminUser } from "./AdminUserProvider";
 
 const DRAWER_ANIMATION_MS = 220;
 
@@ -38,8 +41,12 @@ export function AdminAddVoucherDrawer({
   onClose: () => void;
   onCreated?: (voucher: AdminSoldVoucher) => void;
 }) {
-  const fallbackSettings = useRef(createInitialVoucherSettings()).current;
-  const [shopId, setShopId] = useState<ShopId>("lss");
+  const { user } = useAdminUser();
+  const initialShopId = defaultShopIdForRole(user.role);
+  const fallbackSettings = useRef(
+    createInitialVoucherSettings(initialShopId),
+  ).current;
+  const [shopId, setShopId] = useState<ShopId>(initialShopId);
   const [settings, setSettings] = useState<AdminVoucherSettings>(fallbackSettings);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
 
@@ -81,7 +88,7 @@ export function AdminAddVoucherDrawer({
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState(() => generateVoucherCode());
+  const [code, setCode] = useState(() => generateVoucherCode(initialShopId));
   const [sendEmail, setSendEmail] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +131,10 @@ export function AdminAddVoucherDrawer({
     return () => {
       cancelled = true;
     };
+  }, [shopId]);
+
+  useEffect(() => {
+    setCode(generateVoucherCode(shopId));
   }, [shopId]);
 
   useEffect(() => {
@@ -196,9 +207,9 @@ export function AdminAddVoucherDrawer({
         return;
       }
     }
-    const normalized = normalizeVoucherCode(code);
-    if (!normalized || normalized.length !== VOUCHER_CODE_LENGTH) {
-      setError(`Kód musí mít přesně ${VOUCHER_CODE_LENGTH} znaků.`);
+    const normalized = applyShopCodePrefix(code, shopId);
+    if (!isValidNewVoucherCode(normalized)) {
+      setError("Kód musí mít prefix obchodu a 8 znaků (např. LSSK7M2P9QX).");
       return;
     }
 
@@ -410,16 +421,16 @@ export function AdminAddVoucherDrawer({
                 onChange={(event) =>
                   setCode(sanitizeVoucherCodeInput(event.target.value))
                 }
-                placeholder="K7M2P9QX"
+                placeholder="LSSK7M2P9QX"
                 autoComplete="off"
                 spellCheck={false}
-                maxLength={VOUCHER_CODE_LENGTH}
+                maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
                 aria-label="Kód poukazu"
               />
             </div>
             <em>
-              Předvyplněný kód můžete přepsat. Uloží se jako{" "}
-              {normalizeVoucherCode(code) || "XXXXXXXX"}.
+              Prefix podle obchodu je součástí kódu. Uloží se jako{" "}
+              {applyShopCodePrefix(code, shopId) || "LSSK7M2P9QX"}.
             </em>
           </div>
 

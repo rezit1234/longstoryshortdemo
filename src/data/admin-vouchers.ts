@@ -16,6 +16,14 @@ export type AdminVoucherShippingAddress = {
   country: string;
 };
 
+export type AdminVoucherItemKind = "amount" | "experience";
+
+export type AdminRedeemablePart = {
+  id: string;
+  label: string;
+  redeemed: boolean;
+};
+
 export type AdminSoldVoucher = {
   code: string;
   shopId: ShopId;
@@ -31,12 +39,22 @@ export type AdminSoldVoucher = {
   totalPaid: string;
   purchasedAt: string;
   validUntil: string;
+  /** ISO date `YYYY-MM-DD` for editing validity. */
+  validUntilIso?: string;
   deliveryMethod: string;
   status: AdminVoucherStatus;
   statusLabel: string;
   shippingAddress?: AdminVoucherShippingAddress;
   /** Veřejná URL vygenerovaného PDF (kód + QR). */
   pdfUrl?: string | null;
+  itemKind?: AdminVoucherItemKind;
+  unitPriceCzk?: number;
+  remainingCzk?: number | null;
+  redeemableParts?: AdminRedeemablePart[] | null;
+  isGift?: boolean;
+  deliveryEmail?: string | null;
+  recipientName?: string;
+  canUndo?: boolean;
 };
 
 export const ADMIN_VOUCHER_STATUS_LABELS: Record<AdminVoucherStatus, string> = {

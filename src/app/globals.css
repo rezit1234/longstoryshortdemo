@@ -17,6 +17,34 @@
   --readable-word-spacing-muted: 0.06em;
   --readable-line-height: 1.6;
   --readable-line-height-relaxed: 1.7;
+
+  /*
+   * Maison Neue — optické korekce (platí v celé app)
+   * ------------------------------------------------
+   * Ink sedí vysoko v em-boxu → vizuálně „visí“ nahoře v pilulkách.
+   * Posouváme ink DOLŮ (víc padu nahoře / míň dole).
+   *
+   * --font-control-ink-nudge → fixed-height flex controly (button/chip/pill):
+   *     padding: var(--font-control-ink-nudge) X 0
+   * --font-ink-nudge         → tabulky / nav řádky (stejný celkový pad):
+   *     padding-top:    calc(X + var(--font-ink-nudge))
+   *     padding-bottom: calc(X - var(--font-ink-nudge))
+   */
+  --font-ink-nudge: 0.08em;
+  --font-control-ink-nudge: 0.12em;
+  /* alias — starší jméno (lift = špatný směr); držet sync s nudge */
+  --font-control-ink-lift: var(--font-control-ink-nudge);
+
+  /* shadcn chart tokens (admin monochrome) */
+  --chart-1: #0a0a0a;
+  --chart-2: #6b6b6b;
+  --chart-3: #a3a3a3;
+  --chart-4: #d4d4d4;
+  --chart-5: #e6e6e6;
+}
+
+.admin-shadcn-chart {
+  min-height: 220px;
 }
 
 @theme inline {
@@ -66,6 +94,48 @@ button {
   cursor: pointer;
 }
 
+/*
+ * Maison Neue — globální chování controlů
+ * Compact UI (tlačítka, chipy, taby, inputy) nedědí prose word-spacing 0.12em.
+ * Flex pilulky dostanou optický lift přes padding-bottom.
+ */
+:where(
+  button,
+  [role="button"],
+  [role="tab"],
+  input,
+  select,
+  textarea,
+  .amount-chip,
+  .buy-button,
+  .admin-primary-btn,
+  .admin-outline-btn,
+  .admin-filter-chip,
+  .admin-status,
+  .admin-role-pill,
+  .admin-voucher-drawer-cta
+) {
+  word-spacing: normal;
+}
+
+/* Utility: fixed-height flex pill / button — ink dolů */
+.ink-control {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  word-spacing: normal;
+  padding-top: var(--font-control-ink-nudge);
+  padding-bottom: 0;
+}
+
+/* Utility: tabulková / nav buňka — stejný celkový pad, ink dolů */
+.ink-cell {
+  padding-top: calc(var(--ink-cell-pad, 0.7rem) + var(--font-ink-nudge));
+  padding-bottom: calc(var(--ink-cell-pad, 0.7rem) - var(--font-ink-nudge));
+}
+
 .voucher-shop {
   width: min(100%, var(--shop-max));
   margin: 0 auto;
@@ -77,7 +147,9 @@ button {
   padding: 0.85rem 0.9rem 1rem;
   border-top: none;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
   background-color: var(--bg);
   background-image: linear-gradient(var(--line), var(--line));
   background-size: calc(100% - 1.8rem) 1px;
@@ -98,6 +170,37 @@ button {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.shop-payment-legal {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 1.1rem;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.shop-payment-legal a {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-align: center;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: 1px;
+}
+
+.shop-payment-legal a:hover {
+  color: var(--fg);
 }
 
 .shop-hero {
@@ -204,11 +307,13 @@ button {
   appearance: none;
   border: 0;
   background: transparent;
-  padding: 0.85rem 0.4rem;
+  padding: calc(0.85rem + var(--font-ink-nudge)) 0.4rem
+    calc(0.85rem - var(--font-ink-nudge));
   font-family: var(--font-display);
   font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.12em;
+  word-spacing: normal;
   text-transform: uppercase;
   color: var(--muted);
   position: relative;
@@ -421,12 +526,13 @@ button {
   border: 1px solid var(--line);
   background: var(--bg);
   color: var(--fg);
-  padding: 0 0.35rem;
+  padding: var(--font-control-ink-nudge) 0.35rem 0;
   border-radius: 999px;
   font-size: 0.92rem;
   font-weight: 500;
   letter-spacing: 0.015em;
-  word-spacing: var(--readable-word-spacing);
+  word-spacing: normal;
+  line-height: 1;
   transition:
     background 160ms ease,
     color 160ms ease,
@@ -480,11 +586,13 @@ button {
   appearance: none;
   border: 0;
   background: transparent;
-  padding: 0 1.15rem;
+  padding: var(--font-control-ink-nudge) 1.15rem 0;
   font: inherit;
   font-size: 0.92rem;
   font-weight: 500;
   letter-spacing: 0.015em;
+  word-spacing: normal;
+  line-height: 1;
   color: var(--fg);
   outline: none;
 }
@@ -534,12 +642,14 @@ button {
   background: var(--fg);
   color: var(--bg);
   width: 100%;
-  padding: 0 1.15rem;
+  padding: var(--font-control-ink-nudge) 1.15rem 0;
   border-radius: 999px;
   font-family: var(--font-display);
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  word-spacing: normal;
+  line-height: 1;
   transition: color 700ms ease, transform 160ms ease;
 }
 
@@ -1179,6 +1289,7 @@ button {
   font: inherit;
   font-size: 0.92rem;
   font-weight: 500;
+  word-spacing: normal;
   color: var(--fg);
   outline: none;
   transition: border-color 160ms ease;
@@ -1186,6 +1297,8 @@ button {
 
 .checkout-field input:not(.checkout-quantity-input) {
   height: var(--control-h);
+  line-height: 1;
+  padding: var(--font-control-ink-nudge) 1.15rem 0;
 }
 
 .checkout-quantity {

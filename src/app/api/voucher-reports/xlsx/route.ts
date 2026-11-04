@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { getSessionProfile } from "@/lib/admin-session";
-import { canManageTeam } from "@/lib/auth";
+import { canViewManagement } from "@/lib/auth";
 import { shopLineLabel, type VoucherReport } from "@/lib/voucher-reports";
 
 export const runtime = "nodejs";
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nejste přihlášeni." }, { status: 401 });
   }
 
-  if (!canManageTeam(session.profile.role)) {
+  if (!canViewManagement(session.profile.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

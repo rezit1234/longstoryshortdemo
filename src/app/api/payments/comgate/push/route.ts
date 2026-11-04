@@ -129,28 +129,42 @@ export async function POST(request: Request) {
   if (order.status === "paid" && nextStatus === "cancelled") {
     return new NextResponse("OK", { status: 200 });
   }
-  if (order.status === nextStatus) {
+
+  // Stejný stav (kromě paid) = hotovo. U paid vždy zkusíme fulfill —
+  // kdyby první pokus po zaplacení spadl, další Comgate push to dorazí.
+  if (order.status === nextStatus && nextStatus !== "paid") {
     return new NextResponse("OK", { status: 200 });
   }
 
-  const patch: Record<string, unknown> = {
-    status: nextStatus,
-    comgate_status: verified.status,
-    comgate_method: verified.method ?? null,
-    updated_at: new Date().toISOString(),
-  };
-  if (nextStatus === "paid") {
-    patch.paid_at = new Date().toISOString();
-  }
+  if (order.status !== nextStatus) {
+    const patch: Record<string, unknown> = {
+      status: nextStatus,
+      comgate_status: verified.status,
+      comgate_method: verified.method ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    if (nextStatus === "paid") {
+      patch.paid_at = new Date().toISOString();
+    }
 
-  const { error } = await admin
-    .from("voucher_orders")
-    .update(patch)
-    .eq("id", order.id);
+    const { error } = await admin
+      .from("voucher_orders")
+      .update(patch)
+      .eq("id", order.id);
 
-  if (error) {
-    console.error("comgate push update", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    if (error) {
+      console.error("comgate push update", error);
+      return new NextResponse("Internal Server Error", { status: 500 });
+    }
+  } else {
+    await admin
+      .from("voucher_orders")
+      .update({
+        comgate_status: verified.status,
+        comgate_method: verified.method ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
   }
 
   if (nextStatus === "paid") {
@@ -161,7 +175,7 @@ export async function POST(request: Request) {
     } catch (fulfillError) {
       console.error("comgate fulfill failed", fulfillError);
       // Push musí vrátit 200 i při dočasném fail fulfillmentu -
-      // jinak Comgate spamuje. Fulfill lze dorazit ručně / retry.
+      // jinak Comgate spamuje. Další push / ruční retry dorazí fulfill.
     }
   }
 

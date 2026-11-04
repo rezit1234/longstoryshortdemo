@@ -44,3 +44,4 @@ next-env.d.ts
 tmp-faktura*.pdf
 
 .vercel
+.env*

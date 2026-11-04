@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import {
-  ASSIGNABLE_ROLES,
+  ADMIN_ROLE_LABELS,
   canManageTeam,
+  isAssignableRole,
   type AdminProfile,
   type AdminRole,
 } from "@/lib/auth";
@@ -45,9 +46,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const nextRole = body?.role as AdminRole | undefined;
 
-  if (!nextRole || !ASSIGNABLE_ROLES.includes(nextRole as "admin" | "staff")) {
+  if (!nextRole || !isAssignableRole(nextRole)) {
     return NextResponse.json(
-      { error: "Role musí být Admin nebo Obsluha." },
+      {
+        error: `Role musí být jedna z: ${Object.values(ADMIN_ROLE_LABELS)
+          .filter((label) => label !== ADMIN_ROLE_LABELS.owner)
+          .join(", ")}.`,
+      },
       { status: 400 },
     );
   }

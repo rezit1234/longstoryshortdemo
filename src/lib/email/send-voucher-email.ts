@@ -82,26 +82,26 @@ function deliveryCopyCs(
   }
 
   if (files.hasVoucher && files.hasInvoice) {
-    return "V příloze najdete dárkový poukaz a fakturu ve formátu PDF.";
+    return "V příloze tohoto e-mailu najdete dárkový poukaz i fakturu k objednávce ve formátu PDF.";
   }
   if (files.hasVoucher) {
     return "V příloze najdete dárkový poukaz v PDF. Stačí ho otevřít nebo vytisknout.";
   }
   if (files.hasInvoice) {
-    return "V příloze najdete fakturu ve formátu PDF. Kód poukazu je níže.";
+    return "V příloze tohoto e-mailu najdete fakturu k objednávce ve formátu PDF. Kód poukazu je níže.";
   }
   return "Kód poukazu najdete níže - stačí ho uvést při uplatnění.";
 }
 
 function attachmentFootnoteCs(files: ReturnType<typeof classifyAttachments>) {
   if (files.hasVoucher && files.hasInvoice) {
-    return "PDF poukazu a faktury jsou v příloze tohoto e-mailu.";
+    return "PDF poukazu a faktury k objednávce jsou v příloze tohoto e-mailu.";
   }
   if (files.hasVoucher) {
     return "PDF poukazu je v příloze tohoto e-mailu.";
   }
   if (files.hasInvoice) {
-    return "Faktura v PDF je v příloze tohoto e-mailu.";
+    return "Faktura k objednávce je v příloze tohoto e-mailu.";
   }
   return "Digitální PDF zatím není k dispozici - kód výše stačí k uplatnění.";
 }

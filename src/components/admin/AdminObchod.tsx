@@ -11,9 +11,11 @@ import {
   type AdminVoucherSettings,
 } from "@/data/admin-voucher-settings";
 import { formatCzk, type ExperienceGalleryImage, type VoucherPdfPlacement } from "@/data/vouchers";
+import { canEditShopSettings } from "@/lib/auth";
 import { AdminAmountSettingsDrawer } from "./AdminAmountSettingsDrawer";
 import { AdminExperienceSettingsDrawer } from "./AdminExperienceSettingsDrawer";
 import { AdminSelect } from "./AdminSelect";
+import { useAdminUser } from "./AdminUserProvider";
 
 const VALIDITY_OPTIONS = [
   { value: "6", label: "6 měsíců" },
@@ -142,6 +144,8 @@ export function AdminObchod({
 } = {}) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useAdminUser();
+  const canEdit = canEditShopSettings(user.role);
   const fallbackSettings = useRef(createInitialVoucherSettings(shopId)).current;
 
   const [settings, setSettings] = useState<AdminVoucherSettings>(fallbackSettings);
@@ -303,7 +307,7 @@ export function AdminObchod({
   }, [clearAutosaveTimers, saveToServer]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !canEdit) return;
     if (skipAutosaveRef.current) return;
 
     if (serializeSettings(settings) === serializeSettings(savedSettings)) {
@@ -332,7 +336,14 @@ export function AdminObchod({
         autosaveTimerRef.current = null;
       }
     };
-  }, [settings, savedSettings, hydrated, clearAutosaveTimers, saveToServer]);
+  }, [
+    settings,
+    savedSettings,
+    hydrated,
+    canEdit,
+    clearAutosaveTimers,
+    saveToServer,
+  ]);
 
   useEffect(() => {
     function onBeforeUnload(event: BeforeUnloadEvent) {
@@ -459,6 +470,39 @@ export function AdminObchod({
     }
   }
 
+  async function deleteExperience(experienceId: string) {
+    if (pendingExperience) {
+      setPendingExperience(null);
+      setActiveExperienceId(null);
+      return;
+    }
+
+    const snapshot: AdminVoucherSettings = {
+      ...settingsRef.current,
+      experiences: settingsRef.current.experiences.filter(
+        (experience) => experience.id !== experienceId,
+      ),
+    };
+
+    skipAutosaveRef.current = true;
+    setSettings(snapshot);
+    setActiveExperienceId(null);
+    clearAutosaveTimers();
+    setSaveStatus("saving");
+
+    try {
+      await saveToServer(snapshot);
+      setLoadError(null);
+    } catch (err) {
+      setSaveStatus("dirty");
+      setLoadError(
+        err instanceof Error ? err.message : "Nastavení se nepodařilo uložit.",
+      );
+    } finally {
+      skipAutosaveRef.current = false;
+    }
+  }
+
   function openAddExperience() {
     const created = createEmptyExperience();
     setPendingExperience(created);
@@ -529,29 +573,35 @@ export function AdminObchod({
   }
 
   return (
-    <div className="admin-obchod">
-      <div className="admin-page-head">
-        <div>
+    <div className={canEdit ? "admin-obchod" : "admin-obchod is-readonly"}>
+      <div className="admin-page-head admin-obchod-head">
+        <div className="admin-obchod-nav">
           <Link href="/admin/obchody" className="admin-text-link admin-obchod-back">
             <MaskIcon src="/icons/arrow-left.svg" />
             Obchody
           </Link>
-          <h1>{shopName}</h1>
-          <p>
-            Spravujte zážitkové varianty, částky a společná pravidla. Změny se
-            ukládají automaticky.
-          </p>
-          {loadError ? <p className="admin-inline-error">{loadError}</p> : null}
-          {!hydrated ? <p className="admin-section-lead">Načítám nastavení…</p> : null}
+          {canEdit ? <SaveStatusBadge status={saveStatus} /> : null}
         </div>
-        <SaveStatusBadge status={saveStatus} />
+        <h1>{shopName}</h1>
+        <p className="admin-obchod-lead admin-obchod-lead-full">
+          {canEdit
+            ? "Spravujte zážitkové varianty, částky a společná pravidla. Změny se ukládají automaticky."
+            : "Náhled nastavení obchodu. Úpravy může provádět jen vlastník."}
+        </p>
+        <p className="admin-obchod-lead admin-obchod-lead-short">
+          {canEdit
+            ? "Varianty, částky a pravidla. Ukládá se automaticky."
+            : "Náhled nastavení. Úpravy jen vlastník."}
+        </p>
+        {loadError ? <p className="admin-inline-error">{loadError}</p> : null}
+        {!hydrated ? <p className="admin-section-lead">Načítám nastavení…</p> : null}
       </div>
 
       <section className="admin-panel admin-shop-panel">
         <h2>Obecné</h2>
         <p className="admin-section-lead">
-          Platnost platí pro všechny varianty poukazů. Kódy jsou náhodné a bez
-          brand prefixu.
+          Platnost platí pro všechny varianty poukazů. Kódy začínají prefixem
+          obchodu (LSS, BC nebo CA) a 8 náhodnými znaky, bez pomlčky.
         </p>
 
         <div className="admin-field-row">
@@ -946,6 +996,9 @@ export function AdminObchod({
           onClose={closeExperienceDrawer}
           onSave={(experience) => {
             void saveExperience(experience);
+          }}
+          onDelete={() => {
+            void deleteExperience(activeExperience.id);
           }}
         />
       ) : null}

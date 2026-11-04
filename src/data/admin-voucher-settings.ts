@@ -7,18 +7,30 @@ import {
   type ExperienceInfoLink,
 } from "./vouchers";
 
-export const VOUCHER_CODE_LENGTH = 8;
-export const VOUCHER_CODE_INPUT_MAX_LENGTH = 16;
+/** Délka náhodné části za prefixem. */
+export const VOUCHER_CODE_BODY_LENGTH = 8;
+/** Max délka celého kódu (nejdelší prefix LSS + 8). */
+export const VOUCHER_CODE_LENGTH = 3 + VOUCHER_CODE_BODY_LENGTH;
+export const VOUCHER_CODE_INPUT_MAX_LENGTH = VOUCHER_CODE_LENGTH;
 export const MAX_AMOUNT_SLOTS = 4;
 export const MAX_GALLERY_IMAGES = 3;
 export const MAX_CHECKOUT_PREVIEW_IMAGES = 2;
-export const MOCK_VOUCHER_CODE = "K7M2P9QX";
+export const MOCK_VOUCHER_CODE = "LSSK7M2P9QX";
 export const MOCK_QR_URL = "https://www.longstoryshort.cz";
 
 export type ShopId = "lss" | "bistrocentral" | "culinaryacademy";
 
-/** Legacy brand prefixes still accepted on lookup. */
-const LEGACY_CODE_PREFIXES = ["LSS", "BC"] as const;
+/** Prefix kódu podle obchodu. CA u Culinary Academy je dočasné. */
+export const SHOP_CODE_PREFIXES: Record<ShopId, string> = {
+  lss: "LSS",
+  bistrocentral: "BC",
+  culinaryacademy: "CA",
+};
+
+/** Delší prefixy první (LSS před prázdným). */
+export const VOUCHER_CODE_PREFIXES = ["LSS", "BC", "CA"] as const;
+export type VoucherCodePrefix = (typeof VOUCHER_CODE_PREFIXES)[number];
+
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function randomCodeChar() {
@@ -26,51 +38,75 @@ function randomCodeChar() {
   return CODE_ALPHABET[index] ?? "A";
 }
 
-/** Náhodný kód bez brand prefixu (8 znaků). */
-export function generateVoucherCode() {
-  let code = "";
-  for (let index = 0; index < VOUCHER_CODE_LENGTH; index += 1) {
-    code += randomCodeChar();
-  }
-  return code;
+export function shopCodePrefix(shopId: ShopId) {
+  return SHOP_CODE_PREFIXES[shopId] ?? SHOP_CODE_PREFIXES.lss;
 }
 
-/**
- * Canonical kód pro lookup/uložení.
- * Nové: 8 alfanumerických znaků.
- * Legacy: LSS-XXXXXX / BC-XXXXXX.
- */
+function generateCodeBody(length = VOUCHER_CODE_BODY_LENGTH) {
+  let body = "";
+  for (let index = 0; index < length; index += 1) {
+    body += randomCodeChar();
+  }
+  return body;
+}
+
+/** Náhodný kód: prefix obchodu + 8 znaků, bez oddělovače (např. LSSK7M2P9QX). */
+export function generateVoucherCode(shopId: ShopId = "lss") {
+  return `${shopCodePrefix(shopId)}${generateCodeBody()}`;
+}
+
+function matchShopPrefix(cleaned: string): VoucherCodePrefix | null {
+  for (const prefix of VOUCHER_CODE_PREFIXES) {
+    if (cleaned.startsWith(prefix)) return prefix;
+  }
+  return null;
+}
+
+/** Canonical kód: PREFIX + 8 znaků, bez pomlčky. */
 export function normalizeVoucherCode(raw: string) {
-  const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!cleaned) return "";
 
-  for (const prefix of LEGACY_CODE_PREFIXES) {
-    const withSep = `${prefix}-`;
-    if (cleaned.startsWith(withSep)) {
-      const suffix = cleaned
-        .slice(withSep.length)
-        .replace(/[^A-Z0-9]/g, "")
-        .slice(0, 6);
-      return suffix ? `${prefix}-${suffix}` : "";
-    }
+  const prefix = matchShopPrefix(cleaned);
+  if (prefix) {
+    const body = cleaned
+      .slice(prefix.length)
+      .slice(0, VOUCHER_CODE_BODY_LENGTH);
+    return `${prefix}${body}`;
   }
 
-  // Legacy bez pomlčky jen u LSS (LSS + 6 znaků = 9). BC+6 by kolidovalo s novým 8znakým formátem.
-  if (cleaned.startsWith("LSS") && cleaned.length === 9) {
-    const suffix = cleaned.slice(3);
-    if (/^[A-Z0-9]{6}$/.test(suffix)) {
-      return `LSS-${suffix}`;
-    }
-  }
-
-  return cleaned.replace(/[^A-Z0-9]/g, "").slice(0, VOUCHER_CODE_LENGTH);
+  return cleaned.slice(0, VOUCHER_CODE_LENGTH);
 }
 
-/** Filtr vstupu v UI (uppercase, bez mezer; pomlčka jen u legacy). */
+/** Doplní / přepíše prefix podle obchodu při vytváření. */
+export function applyShopCodePrefix(raw: string, shopId: ShopId) {
+  const prefix = shopCodePrefix(shopId);
+  const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!cleaned) return "";
+
+  const existingPrefix = matchShopPrefix(cleaned);
+  const body = (
+    existingPrefix ? cleaned.slice(existingPrefix.length) : cleaned
+  ).slice(0, VOUCHER_CODE_BODY_LENGTH);
+
+  if (!body) return "";
+  return `${prefix}${body}`;
+}
+
+export function isValidNewVoucherCode(normalized: string) {
+  return VOUCHER_CODE_PREFIXES.some(
+    (prefix) =>
+      normalized.length === prefix.length + VOUCHER_CODE_BODY_LENGTH &&
+      normalized.startsWith(prefix) &&
+      /^[A-Z0-9]+$/.test(normalized.slice(prefix.length)),
+  );
+}
+
+/** Filtr vstupu v UI (uppercase, jen A–Z / 0–9). */
 export function sanitizeVoucherCodeInput(raw: string) {
   return raw
     .toUpperCase()
-    .replace(/[^A-Z0-9-]/g, "")
+    .replace(/[^A-Z0-9]/g, "")
     .slice(0, VOUCHER_CODE_INPUT_MAX_LENGTH);
 }
 

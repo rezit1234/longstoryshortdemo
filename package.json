@@ -8,12 +8,16 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "node scripts/patch-react-pdf-hyphenate.mjs",
-    "invoice:preview": "tsx scripts/preview-invoice-pdf.ts"
+    "invoice:preview": "tsx scripts/preview-invoice-pdf.ts",
+    "smoke:checklist": "npx tsx scripts/generate-smoke-checklist-pdf.tsx"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
     "next": "16.3.0",
     "pdf-lib": "^1.17.1",
@@ -21,7 +25,9 @@
     "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "sharp": "^0.35.4"
+    "recharts": "^3.10.1",
+    "sharp": "^0.35.4",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -29,6 +35,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/recharts": "^1.8.29",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",

@@ -3,7 +3,7 @@ import {
   createInitialVoucherSettings,
   type ShopId,
 } from "@/data/admin-voucher-settings";
-import { canManageTeam } from "@/lib/auth";
+import { canEditShopSettings } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -251,7 +251,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Nejste přihlášeni." }, { status: 401 });
   }
 
-  if (!canManageTeam(session.profile.role)) {
+  if (!canEditShopSettings(session.profile.role)) {
     return NextResponse.json(
       { error: "Nemáte oprávnění upravovat nastavení poukazů." },
       { status: 403 },

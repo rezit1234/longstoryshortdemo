@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { canManageTeam } from "@/lib/auth";
+import { canEditShopSettings } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nejste přihlášeni." }, { status: 401 });
   }
 
-  if (!canManageTeam(session.profile.role)) {
+  if (!canEditShopSettings(session.profile.role)) {
     return NextResponse.json(
       { error: "Nemáte oprávnění nahrávat PDF šablony." },
       { status: 403 },

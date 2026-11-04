@@ -7,6 +7,7 @@ import {
 import type { VoucherPdfPlacement } from "@/data/vouchers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeVoucherSettings } from "@/lib/voucher-settings";
+import { sendOpsFulfillmentEmail } from "@/lib/email/send-ops-fulfillment-email";
 import {
   resolveVoucherEmailRecipient,
   sendVoucherEmail,
@@ -20,6 +21,7 @@ import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
 } from "@/lib/voucher-pdf-overlay";
+import { redeemablePartsForExperienceId } from "@/lib/voucher-redemption";
 
 type OrderRow = {
   id: string;
@@ -134,6 +136,7 @@ function resolvePdfPlacement(
 async function generateUniqueCodes(
   admin: ReturnType<typeof createAdminClient>,
   count: number,
+  shopId: ShopId,
 ) {
   const codes: string[] = [];
   const normalized = new Set<string>();
@@ -141,7 +144,7 @@ async function generateUniqueCodes(
 
   while (codes.length < count && attempts < count * 40) {
     attempts += 1;
-    const code = generateVoucherCode();
+    const code = generateVoucherCode(shopId);
     const norm = normalizeVoucherCode(code);
     if (!norm || normalized.has(norm)) continue;
 
@@ -291,7 +294,7 @@ export async function fulfillPaidOrder(orderId: string) {
   const purchasedAt = typed.paid_at ? new Date(typed.paid_at) : new Date();
   const settings = await loadShopSettings(admin, typed.shop_id);
   const validUntil = toDateOnly(addMonths(purchasedAt, settings.validityMonths));
-  const codes = await generateUniqueCodes(admin, typed.quantity);
+  const codes = await generateUniqueCodes(admin, typed.quantity, typed.shop_id);
   const productName = productNameFromOrder(typed);
   const shippingAddress = shippingAddressFromDelivery(typed.delivery);
   const shippingShare = Math.floor(typed.shipping_fee_czk / typed.quantity);
@@ -337,11 +340,18 @@ export async function fulfillPaidOrder(orderId: string) {
   const deliveryEmail = asString(typed.delivery.email) || null;
   const message = asString(typed.buyer.message) || null;
 
+  const experienceId =
+    typed.item_kind === "experience" ? asString(typed.item.id).trim() : "";
+  const isGift = asString(typed.buyer.recipient) === "other";
+  const redeemableParts =
+    typed.item_kind === "experience"
+      ? redeemablePartsForExperienceId(experienceId)
+      : null;
+
   const rows = codes.map((code) => {
     let vatLabel: string | null =
       typed.item_kind === "amount" ? "Cenina bez DPH" : null;
     if (typed.item_kind === "experience") {
-      const experienceId = asString(typed.item.id).trim();
       const experience = settings.experiences.find(
         (item) => item.id === experienceId,
       );
@@ -373,6 +383,10 @@ export async function fulfillPaidOrder(orderId: string) {
     vat_label: vatLabel,
     tax_regime: "vouchy" as const,
     pdf_url: pdfUrls.get(code) ?? null,
+    remaining_czk:
+      typed.item_kind === "amount" ? typed.unit_price_czk : null,
+    redeemable_parts: redeemableParts,
+    is_gift: isGift,
   };
   });
 
@@ -467,12 +481,38 @@ export async function fulfillPaidOrder(orderId: string) {
     }
   }
 
+  let opsEmailSent = false;
+  if (deliveryMethod === "post" || deliveryMethod === "pickup") {
+    try {
+      const opsResult = await sendOpsFulfillmentEmail({
+        shopId: typed.shop_id,
+        deliveryMethod,
+        productName,
+        quantity: typed.quantity,
+        codes,
+        buyerName,
+        buyerEmail,
+        buyerPhone: asString(typed.buyer.phone),
+        recipientName,
+        recipientEmail: isGift ? deliveryEmail : null,
+        shippingAddress,
+        message,
+        unitPriceCzk: typed.unit_price_czk,
+        shippingFeeCzk: typed.shipping_fee_czk,
+      });
+      opsEmailSent = Boolean(opsResult.ok);
+    } catch (error) {
+      console.error("fulfillPaidOrder: ops email failed", error);
+    }
+  }
+
   return {
     created: rows.length,
     skipped: false as const,
     codes,
     pdfs: pdfUrls.size,
     emailsSent,
+    opsEmailSent,
     invoiceNumber,
   };
 }

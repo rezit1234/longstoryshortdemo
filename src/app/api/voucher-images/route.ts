@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { canManageTeam } from "@/lib/auth";
+import { canEditShopSettings } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 

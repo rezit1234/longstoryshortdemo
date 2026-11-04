@@ -43,9 +43,12 @@ export type AnalyticsPayload = {
 };
 
 type SoldRow = {
+  id?: string;
   shop_id: string;
   product_name: string;
+  item_kind?: string;
   unit_price_czk: number;
+  remaining_czk?: number | null;
   status: string;
   purchased_at: string;
   redeemed_at: string | null;
@@ -222,6 +225,33 @@ export async function buildAnalyticsPayload(params: {
   const current = summarizeSales(rows, range.from, range.to);
   const prev = previousRange(range.from, range.to);
   const previous = summarizeSales(rows, prev.from, prev.to);
+
+  // Počet uplatnění = záznamy historie (částečná i plná), ne jen finální status.
+  try {
+    const { data: redemptions } = await admin
+      .from("voucher_redemptions")
+      .select("id, created_at, undone_at")
+      .is("undone_at", null)
+      .gte("created_at", `${range.from}T00:00:00.000Z`)
+      .lte("created_at", `${range.to}T23:59:59.999Z`)
+      .limit(5000);
+    if (Array.isArray(redemptions)) {
+      current.redeemed = redemptions.length;
+    }
+
+    const { data: prevRedemptions } = await admin
+      .from("voucher_redemptions")
+      .select("id")
+      .is("undone_at", null)
+      .gte("created_at", `${prev.from}T00:00:00.000Z`)
+      .lte("created_at", `${prev.to}T23:59:59.999Z`)
+      .limit(5000);
+    if (Array.isArray(prevRedemptions)) {
+      previous.redeemed = prevRedemptions.length;
+    }
+  } catch {
+    // Migrace 015 ještě nemusí být nasazená — necháme redeemed_at fallback.
+  }
 
   const daySpan =
     Math.round(

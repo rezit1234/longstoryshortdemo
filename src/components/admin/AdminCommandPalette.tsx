@@ -11,7 +11,11 @@ import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { useAdminUser } from "./AdminUserProvider";
 import { IconSearch } from "./icons";
-import { canManageTeam } from "@/lib/auth";
+import {
+  canAccessAdminPath,
+  canManageTeam,
+  canViewManagement,
+} from "@/lib/auth";
 
 const QUICK_LINKS = [
   {
@@ -123,22 +127,35 @@ export function AdminCommandPalette({
   const router = useRouter();
   const { user } = useAdminUser();
   const manageAccess = canManageTeam(user.role);
+  const viewManagement = canViewManagement(user.role);
   const { openVoucher, vouchers } = useAdminVoucherDrawer();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const quickLinks = useMemo(
-    () =>
-      manageAccess ? [...QUICK_LINKS, ...MANAGE_QUICK_LINKS] : [...QUICK_LINKS],
-    [manageAccess],
-  );
+  const quickLinks = useMemo(() => {
+    const links = QUICK_LINKS.filter((item) =>
+      canAccessAdminPath(user.role, item.href),
+    );
+    if (viewManagement) {
+      return [
+        ...links,
+        ...MANAGE_QUICK_LINKS.filter((item) =>
+          canAccessAdminPath(user.role, item.href),
+        ),
+      ];
+    }
+    return links;
+  }, [user.role, viewManagement]);
 
-  const navLinks = useMemo(
-    () => (manageAccess ? [...quickLinks, ...MANAGE_NAV_LINKS] : [...quickLinks]),
-    [manageAccess, quickLinks],
-  );
+  const navLinks = useMemo(() => {
+    const manageLinks = MANAGE_NAV_LINKS.filter((item) => {
+      if (item.href === "/admin/tym") return manageAccess;
+      return viewManagement && canAccessAdminPath(user.role, item.href);
+    });
+    return [...quickLinks, ...manageLinks];
+  }, [manageAccess, quickLinks, user.role, viewManagement]);
 
   const recentVouchers = useMemo(() => getRecentAdminVouchers(4, vouchers), [vouchers]);
 

@@ -56,7 +56,7 @@ class DbSoldVoucherSource implements SoldVoucherSource {
     let dbQuery = admin
       .from("sold_vouchers")
       .select(
-        "code, product_name, shop_id, purchased_at, status, unit_price_czk, vat_label, tax_regime, redeemed_at",
+        "code, product_name, shop_id, purchased_at, status, item_kind, unit_price_czk, remaining_czk, vat_label, tax_regime, redeemed_at",
       )
       .gte("purchased_at", `${query.from}T00:00:00.000Z`)
       .lte("purchased_at", `${query.to}T23:59:59.999Z`)
@@ -81,6 +81,27 @@ class DbSoldVoucherSource implements SoldVoucherSource {
           ? row.vat_label.trim()
           : "-";
 
+      // U hodnotových: v reportu „uplatněná“ hodnota = už odečtená část nominálu.
+      // U prodeje (Aktivní) dál celý nominál. Experience beze změny.
+      const unit = Number(row.unit_price_czk) || 0;
+      const remaining =
+        row.remaining_czk == null ? null : Number(row.remaining_czk);
+      let amountCzk = unit;
+      if (
+        row.item_kind === "amount" &&
+        reportStatus === "Uplatněný" &&
+        remaining != null &&
+        Number.isFinite(remaining)
+      ) {
+        amountCzk = Math.max(0, unit - remaining);
+      } else if (
+        row.item_kind === "amount" &&
+        reportStatus === "Uplatněný" &&
+        (remaining === 0 || row.status === "redeemed")
+      ) {
+        amountCzk = unit;
+      }
+
       vouchers.push({
         code: String(row.code),
         variantId: productName,
@@ -88,7 +109,7 @@ class DbSoldVoucherSource implements SoldVoucherSource {
         shopId: asShopId(String(row.shop_id)),
         soldAt: String(row.purchased_at).slice(0, 10),
         status: reportStatus,
-        amountCzk: Number(row.unit_price_czk) || 0,
+        amountCzk,
         vatLabel,
         taxRegime: mapTaxRegime(row.tax_regime),
       });

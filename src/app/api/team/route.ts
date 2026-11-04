@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   canManageTeam,
+  isAssignableRole,
   isValidPassword,
   isValidUsername,
   MIN_PASSWORD_LENGTH,
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (role !== "admin" && role !== "staff") {
+  if (!isAssignableRole(role)) {
     return NextResponse.json(
       { error: "Neplatná role." },
       { status: 400 },

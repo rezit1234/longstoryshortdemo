@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { EmailPreviewSample } from "@/lib/email/preview-samples";
 
 export function EmailPreviewClient({
@@ -8,7 +9,16 @@ export function EmailPreviewClient({
 }: {
   samples: EmailPreviewSample[];
 }) {
-  const [activeId, setActiveId] = useState(samples[0]?.id ?? "");
+  const searchParams = useSearchParams();
+  const requestedId = searchParams.get("id");
+  const initialId =
+    (requestedId && samples.some((sample) => sample.id === requestedId)
+      ? requestedId
+      : null) ||
+    samples.find((sample) => sample.group === "ops")?.id ||
+    samples[0]?.id ||
+    "";
+  const [activeId, setActiveId] = useState(initialId);
 
   const active = useMemo(
     () => samples.find((sample) => sample.id === activeId) ?? samples[0] ?? null,
@@ -22,8 +32,8 @@ export function EmailPreviewClient({
           <p className="email-preview-kicker">Dev</p>
           <h1>Náhled e-mailů</h1>
           <p className="email-preview-lead">
-            Zákaznické šablony, které systém posílá po platbě. Logo se bere z
-            veřejné URL aplikace.
+            Zákaznické i provozní šablony po platbě. Provozní maily (pošta /
+            vyzvednutí) jdou na tomas@rezit.cz.
           </p>
         </div>
       </header>

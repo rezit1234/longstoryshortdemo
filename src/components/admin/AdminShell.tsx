@@ -8,7 +8,13 @@ import { AdminCommandPalette } from "./AdminCommandPalette";
 import { AdminUserProvider, useAdminUser } from "./AdminUserProvider";
 import { AdminVoucherDrawerProvider } from "./AdminVoucherDrawer";
 import { IconSearch, IconTeam } from "./icons";
-import { canAccessAdminPath, canManageTeam, resolveAvatarUrl } from "@/lib/auth";
+import {
+  canAccessAdminPath,
+  canManageTeam,
+  canViewManagement,
+  defaultAdminPath,
+  resolveAvatarUrl,
+} from "@/lib/auth";
 
 type NavItem =
   | {
@@ -16,12 +22,14 @@ type NavItem =
       label: string;
       iconSrc: string;
       requiresManageTeam?: boolean;
+      requiresViewManagement?: boolean;
     }
   | {
       href: string;
       label: string;
       icon: typeof IconTeam;
       requiresManageTeam?: boolean;
+      requiresViewManagement?: boolean;
     };
 
 const NAV: NavItem[] = [
@@ -36,13 +44,13 @@ const NAV: NavItem[] = [
     href: "/admin/obchody",
     label: "Obchody",
     iconSrc: "/icons/obchod.svg",
-    requiresManageTeam: true,
+    requiresViewManagement: true,
   },
   {
     href: "/admin/analytika",
     label: "Analytika a reporty",
     iconSrc: "/icons/analytika.svg",
-    requiresManageTeam: true,
+    requiresViewManagement: true,
   },
   { href: "/admin/tym", label: "Tým", icon: IconTeam, requiresManageTeam: true },
 ];
@@ -77,22 +85,52 @@ function AdminShellInner({ children }: { children: ReactNode }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [modifierKey, setModifierKey] = useState("Ctrl");
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountCloseTimerRef = useRef<number | null>(null);
 
-  const visibleNav = NAV.filter(
-    (item) => !item.requiresManageTeam || canManageTeam(user.role),
-  );
+  function clearAccountCloseTimer() {
+    if (accountCloseTimerRef.current != null) {
+      window.clearTimeout(accountCloseTimerRef.current);
+      accountCloseTimerRef.current = null;
+    }
+  }
+
+  function openAccountMenu() {
+    clearAccountCloseTimer();
+    setAccountOpen(true);
+  }
+
+  function scheduleCloseAccountMenu() {
+    clearAccountCloseTimer();
+    accountCloseTimerRef.current = window.setTimeout(() => {
+      setAccountOpen(false);
+      accountCloseTimerRef.current = null;
+    }, 120);
+  }
+
+  const visibleNav = NAV.filter((item) => {
+    if (item.requiresManageTeam && !canManageTeam(user.role)) return false;
+    if (item.requiresViewManagement && !canViewManagement(user.role)) {
+      return false;
+    }
+    return canAccessAdminPath(user.role, item.href);
+  });
 
   useEffect(() => {
     if (userLoading || !user.id) return;
     if (!canAccessAdminPath(user.role, pathname)) {
-      router.replace("/admin/prehled");
+      router.replace(defaultAdminPath(user.role));
     }
   }, [pathname, router, user.id, user.role, userLoading]);
 
   useEffect(() => {
     setMenuOpen(false);
+    clearAccountCloseTimer();
     setAccountOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    return () => clearAccountCloseTimer();
+  }, []);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -255,30 +293,69 @@ function AdminShellInner({ children }: { children: ReactNode }) {
             <div
               className={accountOpen ? "admin-account-menu is-open" : "admin-account-menu"}
               ref={accountMenuRef}
+              onMouseEnter={openAccountMenu}
+              onMouseLeave={scheduleCloseAccountMenu}
             >
               <button
                 type="button"
-                className="admin-avatar has-image"
-                aria-label="Účet"
+                className="admin-account-pill"
+                aria-label={`Účet ${user.name}`}
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
-                onClick={() => setAccountOpen((open) => !open)}
+                onClick={() => {
+                  const canHover =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(hover: hover) and (pointer: fine)")
+                      .matches;
+                  if (canHover) return;
+                  setAccountOpen((open) => !open);
+                }}
+                onFocus={openAccountMenu}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={resolveAvatarUrl(user.avatarUrl)}
-                  alt=""
-                  className="admin-avatar-img"
-                />
+                <span className="admin-account-pill-avatar" aria-hidden>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={resolveAvatarUrl(user.avatarUrl)}
+                    alt=""
+                    className="admin-avatar-img"
+                  />
+                </span>
+                <span className="admin-account-pill-copy">
+                  <strong className="admin-account-pill-name">{user.name}</strong>
+                  <span className="admin-account-pill-username">
+                    {user.roleLabel}
+                  </span>
+                </span>
+                <span
+                  className={
+                    accountOpen
+                      ? "admin-account-pill-chevron is-open"
+                      : "admin-account-pill-chevron"
+                  }
+                  aria-hidden
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M3 4.5L6 7.5L9 4.5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
               </button>
 
               {accountOpen ? (
                 <div className="admin-account-dropdown" role="menu">
                   <div className="admin-account-dropdown-head">
                     <strong>{user.name}</strong>
-                    <span>@{user.username}</span>
+                    <span>{user.roleLabel}</span>
                   </div>
-                  <div className="admin-account-dropdown-divider" aria-hidden />
+                  <div
+                    className="admin-account-dropdown-divider"
+                    aria-hidden
+                  />
                   <Link
                     href="/admin/ucet"
                     className="admin-account-dropdown-item"
@@ -288,6 +365,18 @@ function AdminShellInner({ children }: { children: ReactNode }) {
                     <NavMaskIcon src="/icons/nastaveni.svg" />
                     <span>Nastavení účtu</span>
                   </Link>
+                  <button
+                    type="button"
+                    className="admin-account-dropdown-item admin-account-dropdown-logout"
+                    role="menuitem"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      void handleLogout();
+                    }}
+                  >
+                    <NavMaskIcon src="/icons/odhlaseni.svg" />
+                    <span>Odhlásit se</span>
+                  </button>
                 </div>
               ) : null}
             </div>

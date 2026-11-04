@@ -1308,6 +1308,22 @@ export function VoucherShop({ shopId = "lss" }: { shopId?: ShopId } = {}) {
               height={72}
             />
           </a>
+          <nav className="shop-payment-legal" aria-label="Právní dokumenty">
+            <a
+              href="https://www.longstoryshort.cz/download/Soubory/WeboveStranky/VOP-web-vouchery-10-2026.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Všeobecné obchodní podmínky
+            </a>
+            <a
+              href="https://www.longstoryshort.cz/download/Soubory/WeboveStranky/GDPR-web-vouchery-10-2026.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Zásady ochrany osobních údajů
+            </a>
+          </nav>
         </footer>
       </div>
     </div>
@@ -2258,7 +2274,7 @@ function CheckoutPanel({
       <p className="checkout-legal">
         Odesláním objednávky souhlasíte s{" "}
         <a
-          href="https://www.longstoryshort.cz/pravidla-a-podminky"
+          href="https://www.longstoryshort.cz/download/Soubory/WeboveStranky/VOP-web-vouchery-10-2026.pdf"
           target="_blank"
           rel="noopener noreferrer"
         >

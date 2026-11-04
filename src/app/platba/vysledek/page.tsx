@@ -29,7 +29,7 @@ export default async function PaymentResultPage({
 
   const copy =
     status === "paid"
-      ? "Děkujeme. Objednávka je zaplacená a poukaz(y) se právě vystavují. E-mail s PDF přijde v další fázi."
+      ? "Děkujeme. Objednávka je zaplacená a poukaz(y) se právě vystavují. Potvrzení s PDF poukazu (a případně fakturou) vám brzy přijde e-mailem."
       : status === "cancelled"
         ? "Platba neproběhla nebo byla zrušena. Můžete to zkusit znovu."
         : status === "pending"

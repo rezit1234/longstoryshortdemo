@@ -5,6 +5,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties
 type AdminSelectOption = {
   value: string;
   label: string;
+  /** Native hover tooltip on the option. */
+  title?: string;
 };
 
 export function AdminSelect({
@@ -107,6 +109,7 @@ export function AdminSelect({
                 type="button"
                 role="option"
                 aria-selected={option.value === value}
+                title={option.title}
                 className={
                   option.value === value
                     ? "admin-select-option is-selected"

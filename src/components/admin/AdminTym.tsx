@@ -12,6 +12,7 @@ import { AdminSelect } from "./AdminSelect";
 import { useAdminUser } from "./AdminUserProvider";
 import {
   ADMIN_ROLE_LABELS,
+  ADMIN_ROLE_TOOLTIPS,
   ASSIGNABLE_ROLES,
   type AdminRole,
 } from "@/lib/auth";
@@ -33,6 +34,7 @@ const DRAWER_ANIMATION_MS = 220;
 const ROLE_OPTIONS = ASSIGNABLE_ROLES.map((role) => ({
   value: role,
   label: ADMIN_ROLE_LABELS[role],
+  title: ADMIN_ROLE_TOOLTIPS[role],
 }));
 
 function YouBadge() {
@@ -431,21 +433,6 @@ export function AdminTym() {
             className="admin-primary-btn admin-page-head-primary"
             onClick={() => setAddOpen(true)}
           >
-            <svg
-              className="admin-page-head-btn-icon"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              aria-hidden
-            >
-              <path
-                d="M7 2v10M2 7h10"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-              />
-            </svg>
             Přidat člena
           </button>
         </div>

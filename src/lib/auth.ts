@@ -1,3 +1,5 @@
+import type { ShopId } from "@/data/admin-voucher-settings";
+
 /** Synthetic email for username-based Supabase Auth. */
 export const AUTH_EMAIL_DOMAIN = "lss.local";
 
@@ -20,7 +22,12 @@ export function isValidPassword(password: string) {
   return password.trim().length >= MIN_PASSWORD_LENGTH;
 }
 
-export type AdminRole = "owner" | "admin" | "staff";
+export type AdminRole =
+  | "owner"
+  | "admin"
+  | "reception"
+  | "staff_plus"
+  | "staff";
 
 export type AdminProfile = {
   id: string;
@@ -34,7 +41,52 @@ export type AdminProfile = {
 export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
   owner: "Vlastník",
   admin: "Admin",
+  reception: "Recepce",
+  staff_plus: "Obsluha+",
   staff: "Obsluha",
+};
+
+/** Stručný popis oprávnění pro UI týmu. */
+export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
+  owner: [
+    "Úpravy všeho v administraci",
+    "Vystavení i uplatnění poukazů (včetně zrušení uplatnění)",
+    "Jediná role, která spravuje tým (přidání, role, odebrání)",
+  ],
+  admin: [
+    "Zobrazení celé administrace (obchody, analytika, poukazy)",
+    "Bez vystavení poukazu",
+    "Bez uplatnění / zrušení uplatnění",
+    "Bez vytváření nových položek a úprav nastavení",
+    "Bez správy týmu",
+  ],
+  reception: [
+    "Vystavení poukazu",
+    "Uplatnění poukazu",
+    "Zrušení uplatnění",
+  ],
+  staff_plus: [
+    "Vystavení poukazu",
+    "Uplatnění poukazu",
+    "Zrušení uplatnění",
+    "Výchozí obchod při přidání: Bistro Central",
+  ],
+  staff: [
+    "Uplatnění poukazu",
+    "Zrušení uplatnění",
+    "Bez vystavení poukazu",
+  ],
+};
+
+/** Jednořádkový popis role pro tooltip v selectu. */
+export const ADMIN_ROLE_TOOLTIPS: Record<AdminRole, string> = {
+  owner: "Úpravy všeho včetně správy týmu, vystavení i uplatnění poukazů.",
+  admin:
+    "Prohlížení celé administrace; bez vystavení, uplatnění, úprav nastavení a správy týmu.",
+  reception: "Vystavení poukazu, uplatnění a zrušení uplatnění.",
+  staff_plus:
+    "Vystavení, uplatnění a zrušení uplatnění; výchozí obchod Bistro Central.",
+  staff: "Jen uplatnění poukazu a zrušení uplatnění.",
 };
 
 export const DEFAULT_AVATAR_SRC = "/lsspfp.webp";
@@ -44,28 +96,84 @@ export function resolveAvatarUrl(avatarUrl: string | null | undefined) {
   return trimmed || DEFAULT_AVATAR_SRC;
 }
 
-/** Paths staff (obsluha) may open. Everyone can open account settings. */
-export const STAFF_ALLOWED_PREFIXES = [
-  "/admin/prehled",
-  "/admin/poukazy",
-  "/admin/uplatneni",
-  "/admin/ucet",
-] as const;
-
+/** Správa týmu — jen vlastník. */
 export function canManageTeam(role: AdminRole) {
+  return role === "owner";
+}
+
+/** Obchody / analytika — vlastník + admin (admin jen ke čtení). */
+export function canViewManagement(role: AdminRole) {
   return role === "owner" || role === "admin";
 }
 
-export function canAccessAdminPath(role: AdminRole, pathname: string) {
-  if (role === "owner" || role === "admin") return true;
+/** Zápis nastavení poukazů / nových položek — jen vlastník. */
+export function canEditShopSettings(role: AdminRole) {
+  return role === "owner";
+}
 
-  return STAFF_ALLOWED_PREFIXES.some(
+export function canCreateVoucher(role: AdminRole) {
+  return role === "owner" || role === "reception" || role === "staff_plus";
+}
+
+export function canRedeemVoucher(role: AdminRole) {
+  return (
+    role === "owner" ||
+    role === "reception" ||
+    role === "staff_plus" ||
+    role === "staff"
+  );
+}
+
+/** Výchozí obchod u ručního přidání poukazu. */
+export function defaultShopIdForRole(role: AdminRole): ShopId {
+  if (role === "staff_plus") return "bistrocentral";
+  return "lss";
+}
+
+const ROLE_PATH_PREFIXES: Record<AdminRole, readonly string[]> = {
+  owner: [
+    "/admin/prehled",
+    "/admin/poukazy",
+    "/admin/uplatneni",
+    "/admin/obchody",
+    "/admin/analytika",
+    "/admin/tym",
+    "/admin/ucet",
+  ],
+  admin: [
+    "/admin/prehled",
+    "/admin/poukazy",
+    "/admin/uplatneni",
+    "/admin/obchody",
+    "/admin/analytika",
+    "/admin/ucet",
+  ],
+  reception: ["/admin/poukazy", "/admin/uplatneni", "/admin/ucet"],
+  staff_plus: ["/admin/poukazy", "/admin/uplatneni", "/admin/ucet"],
+  staff: ["/admin/uplatneni", "/admin/ucet"],
+};
+
+export function canAccessAdminPath(role: AdminRole, pathname: string) {
+  const prefixes = ROLE_PATH_PREFIXES[role] ?? ROLE_PATH_PREFIXES.staff;
+  return prefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }
 
+export function defaultAdminPath(role: AdminRole) {
+  const prefixes = ROLE_PATH_PREFIXES[role] ?? ROLE_PATH_PREFIXES.staff;
+  return prefixes[0] ?? "/admin/ucet";
+}
+
 export const ASSIGNABLE_ROLES: Array<Exclude<AdminRole, "owner">> = [
   "admin",
+  "reception",
+  "staff_plus",
   "staff",
 ];
 
+export function isAssignableRole(
+  role: string,
+): role is Exclude<AdminRole, "owner"> {
+  return (ASSIGNABLE_ROLES as string[]).includes(role);
+}

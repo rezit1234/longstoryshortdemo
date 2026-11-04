@@ -85,7 +85,7 @@ export function AdminUplatneni() {
                 type="text"
                 value={codeInput}
                 onChange={(event) => handleCodeChange(event.target.value)}
-                placeholder="K7M2P9QX"
+                placeholder="LSSK7M2P9QX"
                 autoComplete="off"
                 spellCheck={false}
                 maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
@@ -93,7 +93,12 @@ export function AdminUplatneni() {
               />
             </div>
           </label>
-          <button type="submit" className="admin-primary-btn admin-redeem-submit">
+          <button
+            type="submit"
+            className="admin-primary-btn admin-redeem-submit"
+            aria-label="Zobrazit detail"
+            title="Zobrazit detail"
+          >
             <span
               className="admin-redeem-submit-icon"
               style={{
@@ -102,7 +107,7 @@ export function AdminUplatneni() {
               }}
               aria-hidden
             />
-            Zobrazit detail
+            <span className="admin-redeem-submit-label">Zobrazit detail</span>
           </button>
         </form>
 
