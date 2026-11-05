@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  ADMIN_ROLE_LABELS,
-  type AdminProfile,
-  type AdminRole,
-} from "@/lib/auth";
+import { type AdminProfile, type AdminRole } from "@/lib/auth";
+import { roleLabel } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,7 +18,7 @@ function profileResponse(profile: AdminProfile, email: string) {
     name: profile.full_name,
     username: profile.username,
     role: profile.role as AdminRole,
-    roleLabel: ADMIN_ROLE_LABELS[profile.role as AdminRole],
+    roleLabel: roleLabel(profile.role as AdminRole, profile.username),
     email,
     avatarUrl: profile.avatar_url,
   };

@@ -12,7 +12,7 @@ import { AdminSelect } from "./AdminSelect";
 
 const DRAWER_ANIMATION_MS = 220;
 
-export type MemberRole = Exclude<AdminRole, "owner">;
+export type MemberRole = Exclude<AdminRole, "owner" | "developer">;
 
 const ROLE_OPTIONS = ASSIGNABLE_ROLES.map((role) => ({
   value: role,

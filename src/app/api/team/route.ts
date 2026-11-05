@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   canManageTeam,
   isAssignableRole,
+  isHiddenTeamRole,
   isValidPassword,
   isValidUsername,
   MIN_PASSWORD_LENGTH,
@@ -50,7 +51,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    members: ((data ?? []) as AdminProfile[]).map(mapProfile),
+    members: ((data ?? []) as AdminProfile[])
+      .filter((row) => !isHiddenTeamRole(row.role, row.username))
+      .map(mapProfile),
   });
 }
 

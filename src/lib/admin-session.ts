@@ -1,5 +1,6 @@
 import {
   ADMIN_ROLE_LABELS,
+  normalizeUsername,
   type AdminProfile,
   type AdminRole,
 } from "@/lib/auth";
@@ -30,6 +31,10 @@ export async function getSessionProfile(): Promise<{
   };
 }
 
-export function roleLabel(role: AdminRole) {
+export function roleLabel(role: AdminRole, username?: string) {
+  if (role === "developer") return ADMIN_ROLE_LABELS.developer;
+  if (username && normalizeUsername(username) === "rezit") {
+    return ADMIN_ROLE_LABELS.developer;
+  }
   return ADMIN_ROLE_LABELS[role];
 }

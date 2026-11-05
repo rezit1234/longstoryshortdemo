@@ -3,6 +3,8 @@ import {
   ADMIN_ROLE_LABELS,
   canManageTeam,
   isAssignableRole,
+  isHiddenTeamRole,
+  isPrivilegedAdmin,
   type AdminProfile,
   type AdminRole,
 } from "@/lib/auth";
@@ -90,9 +92,12 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const profile = target as AdminProfile;
 
-  if (profile.role === "owner") {
+  if (
+    isPrivilegedAdmin(profile.role) ||
+    isHiddenTeamRole(profile.role, profile.username)
+  ) {
     return NextResponse.json(
-      { error: "Roli vlastníka nelze změnit." },
+      { error: "Tuto roli nelze změnit." },
       { status: 400 },
     );
   }
@@ -163,7 +168,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   const { data: target, error: targetError } = await admin
     .from("admin_profiles")
-    .select("id, role, full_name")
+    .select("id, role, full_name, username")
     .eq("id", id)
     .maybeSingle();
 
@@ -175,9 +180,17 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Člen nebyl nalezen." }, { status: 404 });
   }
 
-  if (target.role === "owner") {
+  const targetRole = target.role as AdminRole;
+  const targetUsername =
+    typeof (target as { username?: string }).username === "string"
+      ? (target as { username: string }).username
+      : undefined;
+  if (
+    isPrivilegedAdmin(targetRole) ||
+    isHiddenTeamRole(targetRole, targetUsername)
+  ) {
     return NextResponse.json(
-      { error: "Vlastníka nelze odebrat." },
+      { error: "Tohoto účtu nelze odebrat." },
       { status: 400 },
     );
   }

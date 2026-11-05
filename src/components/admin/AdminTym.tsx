@@ -110,15 +110,21 @@ function AdminMemberDetailDrawer({
   canManageRoles: boolean;
   onClose: () => void;
   onRequestRemove: () => void;
-  onRoleChange: (role: Exclude<AdminRole, "owner">) => Promise<void>;
+  onRoleChange: (role: Exclude<AdminRole, "owner" | "developer">) => Promise<void>;
   confirmOpen?: boolean;
 }) {
   const [isClosing, setIsClosing] = useState(false);
   const [roleSaving, setRoleSaving] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
-  const canRemove = member.role !== "owner" && !isSelf;
+  const canRemove =
+    member.role !== "owner" &&
+    member.role !== "developer" &&
+    !isSelf;
   const canEditRole =
-    canManageRoles && member.role !== "owner" && !isSelf;
+    canManageRoles &&
+    member.role !== "owner" &&
+    member.role !== "developer" &&
+    !isSelf;
 
   const requestClose = useCallback(() => {
     setIsClosing(true);
@@ -150,7 +156,7 @@ function AdminMemberDetailDrawer({
     setRoleError(null);
     setRoleSaving(true);
     try {
-      await onRoleChange(value as Exclude<AdminRole, "owner">);
+      await onRoleChange(value as Exclude<AdminRole, "owner" | "developer">);
     } catch (err) {
       setRoleError(err instanceof Error ? err.message : "Roli se nepodařilo změnit.");
     } finally {
@@ -360,7 +366,9 @@ export function AdminTym() {
     );
   }
 
-  async function handleRoleChange(role: Exclude<AdminRole, "owner">) {
+  async function handleRoleChange(
+    role: Exclude<AdminRole, "owner" | "developer">,
+  ) {
     if (!activeMember) return;
 
     const response = await fetch(`/api/team/${activeMember.id}`, {

