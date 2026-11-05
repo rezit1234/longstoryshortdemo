@@ -14,6 +14,11 @@ import { formatCzk, type ExperienceGalleryImage, type VoucherPdfPlacement } from
 import { canEditShopSettings } from "@/lib/auth";
 import { AdminAmountSettingsDrawer } from "./AdminAmountSettingsDrawer";
 import { AdminExperienceSettingsDrawer } from "./AdminExperienceSettingsDrawer";
+import {
+  AdminSkeletonAmountGrid,
+  AdminSkeletonBone,
+  AdminSkeletonExperienceRows,
+} from "./AdminSkeleton";
 import { AdminSelect } from "./AdminSelect";
 import { useAdminUser } from "./AdminUserProvider";
 
@@ -594,7 +599,6 @@ export function AdminObchod({
             : "Náhled nastavení. Úpravy jen vlastník."}
         </p>
         {loadError ? <p className="admin-inline-error">{loadError}</p> : null}
-        {!hydrated ? <p className="admin-section-lead">Načítám nastavení…</p> : null}
       </div>
 
       <section className="admin-panel admin-shop-panel">
@@ -607,17 +611,21 @@ export function AdminObchod({
         <div className="admin-field-row">
           <div className="admin-field">
             <span>Platnost poukazu</span>
-            <AdminSelect
-              ariaLabel="Platnost poukazu"
-              value={String(settings.validityMonths)}
-              options={VALIDITY_OPTIONS}
-              onChange={(value) =>
-                setSettings((current) => ({
-                  ...current,
-                  validityMonths: Number(value),
-                }))
-              }
-            />
+            {!hydrated ? (
+              <AdminSkeletonBone className="admin-skeleton-control" />
+            ) : (
+              <AdminSelect
+                ariaLabel="Platnost poukazu"
+                value={String(settings.validityMonths)}
+                options={VALIDITY_OPTIONS}
+                onChange={(value) =>
+                  setSettings((current) => ({
+                    ...current,
+                    validityMonths: Number(value),
+                  }))
+                }
+              />
+            )}
           </div>
         </div>
       </section>
@@ -629,7 +637,13 @@ export function AdminObchod({
           šablonu.
         </p>
 
-        <div className="admin-experience-list">
+        {!hydrated ? <AdminSkeletonExperienceRows rows={3} /> : null}
+
+        <div
+          className="admin-experience-list"
+          hidden={!hydrated}
+          aria-hidden={!hydrated}
+        >
           {settings.experiences.map((experience, index) => (
             <div
               key={experience.id}
@@ -713,7 +727,13 @@ export function AdminObchod({
           v detailu varianty.
         </p>
 
-        <div className="admin-amount-grid">
+        {!hydrated ? <AdminSkeletonAmountGrid slots={5} /> : null}
+
+        <div
+          className="admin-amount-grid"
+          hidden={!hydrated}
+          aria-hidden={!hydrated}
+        >
           {settings.amountSlots.map((amount, index) => (
             <div key={`amount-slot-${index}`} className="admin-amount-slot">
               <span>Částka {index + 1}</span>

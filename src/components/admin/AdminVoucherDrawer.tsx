@@ -31,6 +31,7 @@ type RedeemResponse = {
 
 type AdminVoucherDrawerContextValue = {
   vouchers: AdminSoldVoucher[];
+  vouchersLoading: boolean;
   openVoucher: (voucher: AdminSoldVoucher) => void;
   closeVoucher: () => void;
   redeemVoucher: (code: string) => void;
@@ -719,9 +720,11 @@ function AdminVoucherDrawerPanel({
 
 export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }) {
   const [vouchers, setVouchers] = useState<AdminSoldVoucher[]>([]);
+  const [vouchersLoading, setVouchersLoading] = useState(true);
   const [activeVoucherCode, setActiveVoucherCode] = useState<string | null>(null);
 
   const reloadVouchers = useCallback(async () => {
+    setVouchersLoading(true);
     try {
       const response = await fetch("/api/admin/sold-vouchers", {
         cache: "no-store",
@@ -734,6 +737,8 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
       setVouchers(Array.isArray(data.vouchers) ? data.vouchers : []);
     } catch {
       setVouchers([]);
+    } finally {
+      setVouchersLoading(false);
     }
   }, []);
 
@@ -814,6 +819,7 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
     <AdminVoucherDrawerContext.Provider
       value={{
         vouchers,
+        vouchersLoading,
         openVoucher: (voucher) => setActiveVoucherCode(voucher.code),
         closeVoucher: () => setActiveVoucherCode(null),
         redeemVoucher,

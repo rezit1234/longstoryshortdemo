@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { AdminSoldVoucher } from "@/data/admin-vouchers";
 import { canCreateVoucher } from "@/lib/auth";
 import { AdminAddVoucherDrawer } from "./AdminAddVoucherDrawer";
+import { AdminSkeletonTableRows } from "./AdminSkeleton";
 import { useAdminUser } from "./AdminUserProvider";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 
@@ -92,8 +93,13 @@ function voucherTypeLabel(row: AdminSoldVoucher) {
 export function AdminPoukazy() {
   const { user } = useAdminUser();
   const allowCreate = canCreateVoucher(user.role);
-  const { openVoucher, activeVoucherCode, vouchers, prependVoucher } =
-    useAdminVoucherDrawer();
+  const {
+    openVoucher,
+    activeVoucherCode,
+    vouchers,
+    vouchersLoading,
+    prependVoucher,
+  } = useAdminVoucherDrawer();
   const [filter, setFilter] = useState<FilterKey>("all");
   const [addOpen, setAddOpen] = useState(false);
 
@@ -164,7 +170,9 @@ export function AdminPoukazy() {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {vouchersLoading ? (
+                <AdminSkeletonTableRows rows={8} cols={6} />
+              ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="admin-table-empty">
                     Žádné poukazy v tomto filtru.

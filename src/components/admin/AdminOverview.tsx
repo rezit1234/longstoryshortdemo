@@ -9,6 +9,12 @@ import {
   AdminRevenueChart,
   buildAdminChartPoints,
 } from "./AdminCharts";
+import {
+  AdminSkeletonChart,
+  AdminSkeletonPopularList,
+  AdminSkeletonStatCards,
+  AdminSkeletonTableRows,
+} from "./AdminSkeleton";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 import { useAdminUser } from "./AdminUserProvider";
 
@@ -68,7 +74,8 @@ function getGreetingFirstName(fullName: string) {
 
 export function AdminOverview() {
   const { user } = useAdminUser();
-  const { openVoucher, activeVoucherCode, vouchers } = useAdminVoucherDrawer();
+  const { openVoucher, activeVoucherCode, vouchers, vouchersLoading } =
+    useAdminVoucherDrawer();
   const [shop, setShop] = useState<OverviewShopFilter>("all");
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,23 +190,27 @@ export function AdminOverview() {
         </div>
       </div>
 
-      <section className="admin-stats" aria-label="Statistiky">
-        {stats.map((stat) => (
-          <article key={stat.title} className="admin-stat-card">
-            <h2>{stat.title}</h2>
-            <p className="admin-stat-value">{stat.value}</p>
-            <p
-              className={
-                stat.trend.direction === "up"
-                  ? "admin-stat-trend is-up"
-                  : "admin-stat-trend is-down"
-              }
-            >
-              {stat.trend.label}
-            </p>
-          </article>
-        ))}
-      </section>
+      {loading ? (
+        <AdminSkeletonStatCards count={3} />
+      ) : (
+        <section className="admin-stats" aria-label="Statistiky">
+          {stats.map((stat) => (
+            <article key={stat.title} className="admin-stat-card">
+              <h2>{stat.title}</h2>
+              <p className="admin-stat-value">{stat.value}</p>
+              <p
+                className={
+                  stat.trend.direction === "up"
+                    ? "admin-stat-trend is-up"
+                    : "admin-stat-trend is-down"
+                }
+              >
+                {stat.trend.label}
+              </p>
+            </article>
+          ))}
+        </section>
+      )}
 
       <div className="admin-overview-mid">
         <section className="admin-panel admin-overview-chart-panel">
@@ -210,10 +221,14 @@ export function AdminOverview() {
             </div>
           </div>
           <div className="admin-panel-chart">
-            <AdminRevenueChart
-              points={revenuePoints}
-              ariaLabel="Graf tržeb za posledních 30 dní"
-            />
+            {loading ? (
+              <AdminSkeletonChart ariaLabel="Načítám graf tržeb" />
+            ) : (
+              <AdminRevenueChart
+                points={revenuePoints}
+                ariaLabel="Graf tržeb za posledních 30 dní"
+              />
+            )}
           </div>
         </section>
 
@@ -227,26 +242,28 @@ export function AdminOverview() {
               Spravovat
             </Link>
           </div>
-          {popularVariants.length === 0 ? (
+          {loading ? (
+            <AdminSkeletonPopularList rows={4} />
+          ) : popularVariants.length === 0 ? (
             <div className="admin-panel-empty">
               <p className="admin-table-empty">Zatím žádné varianty.</p>
             </div>
           ) : (
-          <ul className="admin-popular-list">
-            {popularVariants.map((variant) => (
-              <li key={variant.name}>
-                <div className="admin-popular-row">
-                  <div className="admin-popular-copy">
-                    <strong>{variant.name}</strong>
+            <ul className="admin-popular-list">
+              {popularVariants.map((variant) => (
+                <li key={variant.name}>
+                  <div className="admin-popular-row">
+                    <div className="admin-popular-copy">
+                      <strong>{variant.name}</strong>
+                    </div>
+                    <span className="admin-popular-count">{variant.count}×</span>
                   </div>
-                  <span className="admin-popular-count">{variant.count}×</span>
-                </div>
-                <div className="admin-popular-bar" aria-hidden>
-                  <span style={{ width: `${variant.share}%` }} />
-                </div>
-              </li>
-            ))}
-          </ul>
+                  <div className="admin-popular-bar" aria-hidden>
+                    <span style={{ width: `${variant.share}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       </div>
@@ -273,27 +290,37 @@ export function AdminOverview() {
               </tr>
             </thead>
             <tbody>
-              {recentSales.map((sale) => (
-                <tr
-                  key={sale.code}
-                  className={
-                    activeVoucherCode === sale.code
-                      ? "is-clickable is-selected"
-                      : "is-clickable"
-                  }
-                  onClick={() => openVoucher(sale)}
-                >
-                  <td>{sale.product}</td>
-                  <td>{sale.customer}</td>
-                  <td>{sale.value}</td>
-                  <td>{sale.purchasedAt}</td>
-                  <td>
-                    <span className={`admin-status is-${sale.status}`}>
-                      {sale.statusLabel}
-                    </span>
+              {vouchersLoading ? (
+                <AdminSkeletonTableRows rows={5} cols={5} />
+              ) : recentSales.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="admin-table-empty">
+                    Zatím žádné prodané poukazy.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                recentSales.map((sale) => (
+                  <tr
+                    key={sale.code}
+                    className={
+                      activeVoucherCode === sale.code
+                        ? "is-clickable is-selected"
+                        : "is-clickable"
+                    }
+                    onClick={() => openVoucher(sale)}
+                  >
+                    <td>{sale.product}</td>
+                    <td>{sale.customer}</td>
+                    <td>{sale.value}</td>
+                    <td>{sale.purchasedAt}</td>
+                    <td>
+                      <span className={`admin-status is-${sale.status}`}>
+                        {sale.statusLabel}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

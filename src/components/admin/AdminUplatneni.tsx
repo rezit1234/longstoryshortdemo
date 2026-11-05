@@ -8,6 +8,7 @@ import {
   sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
 import { getAdminVoucherByCode } from "@/data/admin-vouchers";
+import { AdminSkeletonRedeemPanel } from "./AdminSkeleton";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 
 type ResultState =
@@ -17,19 +18,19 @@ type ResultState =
 
 export function AdminUplatneni() {
   const searchParams = useSearchParams();
-  const { openVoucher, vouchers } = useAdminVoucherDrawer();
+  const { openVoucher, vouchers, vouchersLoading } = useAdminVoucherDrawer();
   const [codeInput, setCodeInput] = useState("");
   const [result, setResult] = useState<ResultState>({ kind: "idle" });
 
   useEffect(() => {
     const initialCode = searchParams.get("code");
-    if (!initialCode) return;
+    if (!initialCode || vouchersLoading) return;
 
     const next = sanitizeVoucherCodeInput(initialCode);
     setCodeInput(next);
     openByCode(normalizeVoucherCode(next));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to URL prefill
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wait for vouchers, then URL prefill
+  }, [searchParams, vouchersLoading]);
 
   function openByCode(normalized: string) {
     if (!normalized) {
@@ -77,57 +78,63 @@ export function AdminUplatneni() {
       </div>
 
       <section className="admin-panel admin-redeem-panel">
-        <form className="admin-redeem-form" onSubmit={handleSubmit}>
-          <label className="admin-redeem-field">
-            <span className="admin-redeem-label">Kód poukazu</span>
-            <div className="admin-redeem-code-control is-full">
-              <input
-                type="text"
-                value={codeInput}
-                onChange={(event) => handleCodeChange(event.target.value)}
-                placeholder="LSSK7M2P9QX"
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
-                aria-label="Kód poukazu"
-              />
-            </div>
-          </label>
-          <button
-            type="submit"
-            className="admin-primary-btn admin-redeem-submit"
-            aria-label="Zobrazit detail"
-            title="Zobrazit detail"
-          >
-            <span
-              className="admin-redeem-submit-icon"
-              style={{
-                WebkitMaskImage: "url(/icons/detail.svg)",
-                maskImage: "url(/icons/detail.svg)",
-              }}
-              aria-hidden
-            />
-            <span className="admin-redeem-submit-label">Zobrazit detail</span>
-          </button>
-        </form>
+        {vouchersLoading ? (
+          <AdminSkeletonRedeemPanel />
+        ) : (
+          <>
+            <form className="admin-redeem-form" onSubmit={handleSubmit}>
+              <label className="admin-redeem-field">
+                <span className="admin-redeem-label">Kód poukazu</span>
+                <div className="admin-redeem-code-control is-full">
+                  <input
+                    type="text"
+                    value={codeInput}
+                    onChange={(event) => handleCodeChange(event.target.value)}
+                    placeholder="LSSK7M2P9QX"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
+                    aria-label="Kód poukazu"
+                  />
+                </div>
+              </label>
+              <button
+                type="submit"
+                className="admin-primary-btn admin-redeem-submit"
+                aria-label="Zobrazit detail"
+                title="Zobrazit detail"
+              >
+                <span
+                  className="admin-redeem-submit-icon"
+                  style={{
+                    WebkitMaskImage: "url(/icons/detail.svg)",
+                    maskImage: "url(/icons/detail.svg)",
+                  }}
+                  aria-hidden
+                />
+                <span className="admin-redeem-submit-label">Zobrazit detail</span>
+              </button>
+            </form>
 
-        {result.kind === "missing" ? (
-          <div className="admin-redeem-result is-missing">
-            <p>
-              Poukaz <strong>{result.code}</strong> jsme nenašli. Zkontrolujte kód a
-              zkuste to znovu.
-            </p>
-          </div>
-        ) : null}
+            {result.kind === "missing" ? (
+              <div className="admin-redeem-result is-missing">
+                <p>
+                  Poukaz <strong>{result.code}</strong> jsme nenašli. Zkontrolujte
+                  kód a zkuste to znovu.
+                </p>
+              </div>
+            ) : null}
 
-        {result.kind === "invalid" ? (
-          <div className="admin-redeem-result is-missing">
-            <p>
-              Poukaz <strong>{result.code}</strong> nelze uplatnit. Aktuální stav:{" "}
-              <strong>{result.statusLabel.toLowerCase()}</strong>.
-            </p>
-          </div>
-        ) : null}
+            {result.kind === "invalid" ? (
+              <div className="admin-redeem-result is-missing">
+                <p>
+                  Poukaz <strong>{result.code}</strong> nelze uplatnit. Aktuální
+                  stav: <strong>{result.statusLabel.toLowerCase()}</strong>.
+                </p>
+              </div>
+            ) : null}
+          </>
+        )}
       </section>
     </div>
   );

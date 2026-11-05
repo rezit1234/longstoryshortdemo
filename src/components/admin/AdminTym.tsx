@@ -9,6 +9,10 @@ import {
 } from "./AdminAddMemberDrawer";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { AdminSelect } from "./AdminSelect";
+import {
+  AdminSkeletonMemberList,
+  AdminSkeletonTableRows,
+} from "./AdminSkeleton";
 import { useAdminUser } from "./AdminUserProvider";
 import {
   ADMIN_ROLE_LABELS,
@@ -460,66 +464,77 @@ export function AdminTym() {
               </tr>
             </thead>
             <tbody>
-              {members.map((member) => {
-                const isSelf = Boolean(user.id) && member.id === user.id;
+              {loading ? (
+                <AdminSkeletonTableRows rows={4} cols={4} />
+              ) : (
+                members.map((member) => {
+                  const isSelf = Boolean(user.id) && member.id === user.id;
 
-                return (
-                  <tr
-                    key={member.id}
-                    className={
-                      activeMemberId === member.id
-                        ? "is-clickable is-selected"
-                        : "is-clickable"
-                    }
-                    onClick={() => setActiveMemberId(member.id)}
-                  >
-                    <td>
-                      <div className="admin-member-cell">
-                        <AdminAvatar src={member.avatarUrl} name={member.name} />
-                        <div className="admin-member-cell-copy">
-                          <strong>{member.name}</strong>
-                          {isSelf ? <YouBadge /> : null}
+                  return (
+                    <tr
+                      key={member.id}
+                      className={
+                        activeMemberId === member.id
+                          ? "is-clickable is-selected"
+                          : "is-clickable"
+                      }
+                      onClick={() => setActiveMemberId(member.id)}
+                    >
+                      <td>
+                        <div className="admin-member-cell">
+                          <AdminAvatar
+                            src={member.avatarUrl}
+                            name={member.name}
+                          />
+                          <div className="admin-member-cell-copy">
+                            <strong>{member.name}</strong>
+                            {isSelf ? <YouBadge /> : null}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td>{member.username}</td>
-                    <td>
-                      <span className={`admin-role-pill is-${member.role}`}>
-                        {ADMIN_ROLE_LABELS[member.role]}
-                      </span>
-                    </td>
-                    <td>{member.joinedAt}</td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td>{member.username}</td>
+                      <td>
+                        <span className={`admin-role-pill is-${member.role}`}>
+                          {ADMIN_ROLE_LABELS[member.role]}
+                        </span>
+                      </td>
+                      <td>{member.joinedAt}</td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
 
-        <ul className="admin-member-list">
-          {members.map((member) => {
-            const isSelf = Boolean(user.id) && member.id === user.id;
+        {loading ? (
+          <AdminSkeletonMemberList rows={4} />
+        ) : (
+          <ul className="admin-member-list">
+            {members.map((member) => {
+              const isSelf = Boolean(user.id) && member.id === user.id;
 
-            return (
-              <li key={member.id}>
-                <button
-                  type="button"
-                  className="admin-member-list-item"
-                  onClick={() => setActiveMemberId(member.id)}
-                >
-                  <AdminAvatar src={member.avatarUrl} name={member.name} />
-                  <span className="admin-member-list-copy">
-                    <strong>{member.name}</strong>
-                    {isSelf ? <YouBadge /> : null}
-                  </span>
-                  <span className={`admin-role-pill is-${member.role}`}>
-                    {ADMIN_ROLE_LABELS[member.role]}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+              return (
+                <li key={member.id}>
+                  <button
+                    type="button"
+                    className="admin-member-list-item"
+                    onClick={() => setActiveMemberId(member.id)}
+                  >
+                    <AdminAvatar src={member.avatarUrl} name={member.name} />
+                    <span className="admin-member-list-copy">
+                      <strong>{member.name}</strong>
+                      {isSelf ? <YouBadge /> : null}
+                    </span>
+                    <span className={`admin-role-pill is-${member.role}`}>
+                      {ADMIN_ROLE_LABELS[member.role]}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       {addOpen ? (

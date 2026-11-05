@@ -6,6 +6,12 @@ import {
   AdminSoldBarChart,
   buildAdminChartPoints,
 } from "@/components/admin/AdminCharts";
+import {
+  AdminSkeletonChart,
+  AdminSkeletonStatCards,
+  AdminSkeletonStatusList,
+  AdminSkeletonVariantList,
+} from "@/components/admin/AdminSkeleton";
 import { formatCzk } from "@/data/vouchers";
 import {
   reportShopLabel,
@@ -635,28 +641,32 @@ export function AdminAnalytika() {
         </div>
       </div>
 
-      <section className="admin-analytics-stats" aria-label="Souhrn">
-        <article className="admin-stat-card">
-          <h2>Prodané poukazy</h2>
-          <p className="admin-stat-value">{stats.sold}</p>
-          <p className="admin-stat-note">Za vybrané období výše.</p>
-        </article>
-        <article className="admin-stat-card">
-          <h2>Tržby</h2>
-          <p className="admin-stat-value">{stats.revenue}</p>
-          <p className="admin-stat-note">Za vybrané období výše.</p>
-        </article>
-        <article className="admin-stat-card">
-          <h2>Průměrná hodnota</h2>
-          <p className="admin-stat-value">{stats.avg}</p>
-          <p className="admin-stat-note">Za vybrané období výše.</p>
-        </article>
-        <article className="admin-stat-card">
-          <h2>Uplatněné poukazy</h2>
-          <p className="admin-stat-value">{stats.redeemed}</p>
-          <p className="admin-stat-note">Za vybrané období výše.</p>
-        </article>
-      </section>
+      {loading ? (
+        <AdminSkeletonStatCards count={4} className="admin-analytics-stats" />
+      ) : (
+        <section className="admin-analytics-stats" aria-label="Souhrn">
+          <article className="admin-stat-card">
+            <h2>Prodané poukazy</h2>
+            <p className="admin-stat-value">{stats.sold}</p>
+            <p className="admin-stat-note">Za vybrané období výše.</p>
+          </article>
+          <article className="admin-stat-card">
+            <h2>Tržby</h2>
+            <p className="admin-stat-value">{stats.revenue}</p>
+            <p className="admin-stat-note">Za vybrané období výše.</p>
+          </article>
+          <article className="admin-stat-card">
+            <h2>Průměrná hodnota</h2>
+            <p className="admin-stat-value">{stats.avg}</p>
+            <p className="admin-stat-note">Za vybrané období výše.</p>
+          </article>
+          <article className="admin-stat-card">
+            <h2>Uplatněné poukazy</h2>
+            <p className="admin-stat-value">{stats.redeemed}</p>
+            <p className="admin-stat-note">Za vybrané období výše.</p>
+          </article>
+        </section>
+      )}
 
       <section className="admin-analytics-charts">
         <article className="admin-panel">
@@ -667,7 +677,11 @@ export function AdminAnalytika() {
             </div>
           </div>
           <div className="admin-panel-chart">
-            <AdminRevenueChart points={revenuePoints} ariaLabel="Graf tržeb" />
+            {loading ? (
+              <AdminSkeletonChart ariaLabel="Načítám graf tržeb" />
+            ) : (
+              <AdminRevenueChart points={revenuePoints} ariaLabel="Graf tržeb" />
+            )}
           </div>
         </article>
         <article className="admin-panel">
@@ -678,7 +692,11 @@ export function AdminAnalytika() {
             </div>
           </div>
           <div className="admin-panel-chart">
-            <AdminSoldBarChart points={soldPoints} ariaLabel="Graf prodejů" />
+            {loading ? (
+              <AdminSkeletonChart ariaLabel="Načítám graf prodejů" />
+            ) : (
+              <AdminSoldBarChart points={soldPoints} ariaLabel="Graf prodejů" />
+            )}
           </div>
         </article>
       </section>
@@ -688,17 +706,25 @@ export function AdminAnalytika() {
           <div className="admin-panel-head">
             <h2>Přehled variant</h2>
           </div>
-          <ul className="admin-variant-list">
-            {stats.variants.map((row) => (
-              <li key={row.name}>
-                <div className="admin-variant-main">
-                  <strong>{row.name}</strong>
-                  <span>{row.sales} prodejů</span>
-                </div>
-                <strong className="admin-variant-revenue">{row.revenue}</strong>
-              </li>
-            ))}
-          </ul>
+          {loading ? (
+            <AdminSkeletonVariantList rows={4} />
+          ) : stats.variants.length === 0 ? (
+            <div className="admin-panel-empty">
+              <p className="admin-table-empty">Zatím žádné varianty.</p>
+            </div>
+          ) : (
+            <ul className="admin-variant-list">
+              {stats.variants.map((row) => (
+                <li key={row.name}>
+                  <div className="admin-variant-main">
+                    <strong>{row.name}</strong>
+                    <span>{row.sales} prodejů</span>
+                  </div>
+                  <strong className="admin-variant-revenue">{row.revenue}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
         </article>
 
         <div className="admin-analytics-side">
@@ -706,14 +732,18 @@ export function AdminAnalytika() {
             <div className="admin-panel-head">
               <h2>Stav poukazů</h2>
             </div>
-            <ul className="admin-status-list">
-              {stats.statuses.map((item) => (
-                <li key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.count}</strong>
-                </li>
-              ))}
-            </ul>
+            {loading ? (
+              <AdminSkeletonStatusList rows={4} />
+            ) : (
+              <ul className="admin-status-list">
+                {stats.statuses.map((item) => (
+                  <li key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.count}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
           </article>
 
           <article className="admin-panel admin-reports-card">
