@@ -141,6 +141,55 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
     html: buildVoucherEmailHtml(multiQty),
   });
 
+  const giftToRecipient = voucherBase("lss", {
+    recipientName: "Jana Nováková",
+    deliveryMethod: "email",
+    message: "Hezké Vánoce!",
+    attachments: [fakePdf("poukaz-HPLDZ9YX.pdf")],
+  });
+  samples.push({
+    id: "customer-gift-recipient",
+    group: "customer",
+    title: "Obdarovaný - jen poukaz",
+    description: "Dárek: obdarovaný dostane jen PDF poukazu, bez faktury.",
+    subject: voucherEmailSubject(giftToRecipient),
+    shopId: "lss",
+    html: buildVoucherEmailHtml(giftToRecipient),
+  });
+
+  const giftBuyerConfirm = voucherBase("lss", {
+    purpose: "buyer_gift_confirmation",
+    buyerName: "Tomáš Dočekal",
+    recipientName: "Jana Nováková",
+    giftDeliveryEmail: "maminka@example.cz",
+    attachments: [fakePdf("faktura-LSS-20260928-001.pdf")],
+  });
+  samples.push({
+    id: "customer-gift-buyer",
+    group: "customer",
+    title: "Kupující - potvrzení dárku + faktura",
+    description:
+      "Kupující dostane potvrzení, kam poukaz odešel, a fakturu v příloze.",
+    subject: voucherEmailSubject(giftBuyerConfirm),
+    shopId: "lss",
+    html: buildVoucherEmailHtml(giftBuyerConfirm),
+  });
+
+  const invoiceOnly = voucherBase("lss", {
+    purpose: "invoice_only",
+    orderNumber: "LSS-20260928-001",
+    attachments: [fakePdf("faktura-LSS-20260928-001.pdf")],
+  });
+  samples.push({
+    id: "customer-invoice-only",
+    group: "customer",
+    title: "Faktura - samostatný e-mail",
+    description: "Když je fakturační e-mail jiný než kupující / příjemce.",
+    subject: voucherEmailSubject(invoiceOnly),
+    shopId: "lss",
+    html: buildVoucherEmailHtml(invoiceOnly),
+  });
+
   const redemptionAmount = {
     shopId: "lss" as const,
     to: "maminka@example.cz",

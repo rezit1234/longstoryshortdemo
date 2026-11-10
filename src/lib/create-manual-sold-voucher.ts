@@ -464,6 +464,12 @@ export async function createManualSoldVoucher(
     });
     if (to) {
       try {
+        const invoiceEmail = asTrimmed(invoicePayload?.email);
+        const attachInvoiceHere = Boolean(
+          invoicePdfBytes &&
+            invoiceNumber &&
+            (!invoiceEmail || invoiceEmail.toLowerCase() === to.toLowerCase()),
+        );
         const attachments: Array<{ filename: string; content: Buffer }> = [];
         if (pdfBytes) {
           attachments.push({
@@ -471,7 +477,7 @@ export async function createManualSoldVoucher(
             content: Buffer.from(pdfBytes),
           });
         }
-        if (invoicePdfBytes && invoiceNumber) {
+        if (attachInvoiceHere && invoicePdfBytes && invoiceNumber) {
           attachments.push({
             filename: `faktura-${invoiceNumber}.pdf`,
             content: invoicePdfBytes,
@@ -486,12 +492,12 @@ export async function createManualSoldVoucher(
           code: codeNormalized,
           validUntil: formatValidUntilLabel(validUntil),
           deliveryMethod: "email",
+          purpose: "voucher",
           attachments: attachments.length > 0 ? attachments : undefined,
         });
         emailSent = Boolean(result.ok);
 
-        // Pokud je e-mail dokladu jiný, pošli fakturu i tam.
-        const invoiceEmail = asTrimmed(invoicePayload?.email);
+        // Samostatný e-mail jen s fakturou (jiná fakturační adresa).
         if (
           invoicePdfBytes &&
           invoiceNumber &&
@@ -507,6 +513,7 @@ export async function createManualSoldVoucher(
             code: codeNormalized,
             validUntil: formatValidUntilLabel(validUntil),
             deliveryMethod: "email",
+            purpose: "invoice_only",
             attachments: [
               {
                 filename: `faktura-${invoiceNumber}.pdf`,

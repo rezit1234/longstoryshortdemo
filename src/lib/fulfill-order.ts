@@ -10,6 +10,7 @@ import { normalizeVoucherSettings } from "@/lib/voucher-settings";
 import { sendOpsFulfillmentEmail } from "@/lib/email/send-ops-fulfillment-email";
 import {
   resolveVoucherEmailRecipient,
+  sameEmail,
   sendVoucherEmail,
   type VoucherEmailAttachment,
 } from "@/lib/email/send-voucher-email";
@@ -478,79 +479,124 @@ export async function fulfillPaidOrder(orderId: string) {
     }
   }
 
-  const emailTo = resolveVoucherEmailRecipient({
+  const voucherTo = resolveVoucherEmailRecipient({
     deliveryMethod,
     deliveryEmail,
     buyerEmail,
   });
+  const invoiceEmailRaw = asString(typed.invoice?.email).trim();
+  // U dárku faktura defaultně na kupujícího (ne na obdarovaného).
+  const invoiceTo = invoiceAttachment
+    ? invoiceEmailRaw || (isGift ? buyerEmail : voucherTo || buyerEmail)
+    : "";
+
   let emailsSent = 0;
-  if (emailTo) {
-    const validUntilLabel = (() => {
-      const [y, m, d] = validUntil.split("-").map(Number);
-      if (!y || !m || !d) return validUntil;
-      return `${d}. ${m}. ${y}`;
-    })();
+  let invoiceDelivered = false;
 
-    const attachments: VoucherEmailAttachment[] = [];
-    for (const code of codes) {
-      const bytes = pdfBytes.get(code);
-      if (bytes) {
-        attachments.push({
-          filename: `poukaz-${code}.pdf`,
-          content: Buffer.from(bytes),
-        });
-      }
-    }
-    if (invoiceAttachment) {
-      attachments.push(invoiceAttachment);
-    }
+  const validUntilLabel = (() => {
+    const [y, m, d] = validUntil.split("-").map(Number);
+    if (!y || !m || !d) return validUntil;
+    return `${d}. ${m}. ${y}`;
+  })();
 
+  const voucherAttachments: VoucherEmailAttachment[] = [];
+  for (const code of codes) {
+    const bytes = pdfBytes.get(code);
+    if (bytes) {
+      voucherAttachments.push({
+        filename: `poukaz-${code}.pdf`,
+        content: Buffer.from(bytes),
+      });
+    }
+  }
+
+  const baseMail = {
+    shopId: typed.shop_id,
+    buyerName,
+    recipientName,
+    productName,
+    code: codes[0] ?? "",
+    codes,
+    validUntil: validUntilLabel,
+    orderNumber: typed.order_number,
+    deliveryMethod,
+  } as const;
+
+  // 1) Poukaz(y) obdarovanému / zákazníkovi — fakturu u dárku nikdy nepřikládat.
+  if (voucherTo) {
+    const attachInvoiceHere = Boolean(
+      invoiceAttachment &&
+        invoiceTo &&
+        !isGift &&
+        sameEmail(invoiceTo, voucherTo),
+    );
+    const attachments = [
+      ...voucherAttachments,
+      ...(attachInvoiceHere && invoiceAttachment ? [invoiceAttachment] : []),
+    ];
     try {
       const result = await sendVoucherEmail({
-        shopId: typed.shop_id,
-        to: emailTo,
-        buyerName,
-        recipientName,
-        productName,
-        code: codes[0] ?? "",
-        codes,
-        validUntil: validUntilLabel,
-        orderNumber: typed.order_number,
-        deliveryMethod,
+        ...baseMail,
+        to: voucherTo,
+        purpose: "voucher",
         message,
         attachments: attachments.length > 0 ? attachments : undefined,
       });
+      if (result.ok) {
+        emailsSent += 1;
+        if (attachInvoiceHere) invoiceDelivered = true;
+      }
+    } catch (error) {
+      console.error("fulfillPaidOrder: voucher email failed", error);
+    }
+  }
+
+  // 2) U dárku potvrzení kupujícímu (+ faktura, pokud má jít na něj).
+  if (
+    isGift &&
+    buyerEmail &&
+    (!voucherTo || !sameEmail(buyerEmail, voucherTo))
+  ) {
+    const attachInvoiceToBuyer = Boolean(
+      invoiceAttachment &&
+        invoiceTo &&
+        sameEmail(invoiceTo, buyerEmail) &&
+        !invoiceDelivered,
+    );
+    try {
+      const result = await sendVoucherEmail({
+        ...baseMail,
+        to: buyerEmail,
+        purpose: "buyer_gift_confirmation",
+        giftDeliveryEmail: voucherTo,
+        message: null,
+        attachments:
+          attachInvoiceToBuyer && invoiceAttachment
+            ? [invoiceAttachment]
+            : undefined,
+      });
+      if (result.ok) {
+        emailsSent += 1;
+        if (attachInvoiceToBuyer) invoiceDelivered = true;
+      }
+    } catch (error) {
+      console.error("fulfillPaidOrder: buyer confirmation failed", error);
+    }
+  }
+
+  // 3) Faktura na samostatný e-mail (firma / účetní), pokud ještě neodešla.
+  if (invoiceAttachment && invoiceTo && !invoiceDelivered) {
+    try {
+      const result = await sendVoucherEmail({
+        ...baseMail,
+        to: invoiceTo,
+        purpose: "invoice_only",
+        message: null,
+        attachments: [invoiceAttachment],
+      });
       if (result.ok) emailsSent += 1;
     } catch (error) {
-      console.error("fulfillPaidOrder: email failed", error);
-    }
-
-    // Fakturační e-mail může být jiný než příjemce poukazu (firma / dárek).
-    const invoiceEmail = asString(typed.invoice?.email).trim();
-    if (
-      invoiceAttachment &&
-      invoiceEmail &&
-      invoiceEmail.toLowerCase() !== emailTo.toLowerCase()
-    ) {
-      try {
-        const result = await sendVoucherEmail({
-          shopId: typed.shop_id,
-          to: invoiceEmail,
-          buyerName,
-          recipientName,
-          productName,
-          code: codes[0] ?? "",
-          codes,
-          validUntil: validUntilLabel,
-          orderNumber: typed.order_number,
-          deliveryMethod,
-          message: null,
-          attachments: [invoiceAttachment],
-        });
-        if (result.ok) emailsSent += 1;
-      } catch (error) {
-        console.error("fulfillPaidOrder: invoice email failed", error);
-      }
+      console.error("fulfillPaidOrder: invoice email failed", error);
     }
   }
 
