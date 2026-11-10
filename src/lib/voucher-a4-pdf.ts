@@ -88,7 +88,7 @@ export function shopUsesHardcodedA4Pdf(shopId: ShopId | string) {
 }
 
 function loadAsset(...parts: string[]) {
-  const candidate = path.join(process.cwd(), ...parts);
+  const candidate = path.join(/*turbopackIgnore: true*/ process.cwd(), ...parts);
   if (!fs.existsSync(candidate)) {
     throw new Error(`Chybí soubor ${parts.join("/")}.`);
   }

@@ -220,7 +220,9 @@ class DbSoldVoucherSource implements SoldVoucherSource {
         }
         const { data, error } = await vouchersQuery;
         if (error) throw new Error(error.message);
-        vouchers.push(...((data ?? []) as Array<Record<string, unknown>>));
+        vouchers.push(
+          ...(((data ?? []) as unknown) as Array<Record<string, unknown>>),
+        );
       }
       return vouchers;
     };

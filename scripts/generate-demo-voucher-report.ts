@@ -268,6 +268,7 @@ function buildStaffRows(vouchers: SoldVoucherRecord[]): StaffActivityRow[] {
       username: person.username,
       role: person.role,
       roleLabel: ADMIN_ROLE_LABELS[person.role],
+      avatarUrl: null,
       issued,
       redeemed,
     };

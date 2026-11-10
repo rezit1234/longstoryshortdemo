@@ -22,7 +22,7 @@ type ResultState =
 
 async function fetchVoucherByCode(
   normalized: string,
-): Promise<AdminSoldVoucher | null> {
+): Promise<AdminSoldVoucher | undefined> {
   const params = new URLSearchParams({
     q: normalized,
     page: "1",
@@ -32,12 +32,10 @@ async function fetchVoucherByCode(
   const response = await fetch(`/api/admin/sold-vouchers?${params}`, {
     cache: "no-store",
   });
-  if (!response.ok) return null;
+  if (!response.ok) return undefined;
   const data = (await response.json()) as { vouchers?: AdminSoldVoucher[] };
   const list = Array.isArray(data.vouchers) ? data.vouchers : [];
-  return (
-    list.find((row) => normalizeVoucherCode(row.code) === normalized) ?? null
-  );
+  return list.find((row) => normalizeVoucherCode(row.code) === normalized);
 }
 
 export function AdminUplatneni() {
