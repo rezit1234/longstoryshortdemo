@@ -106,7 +106,9 @@ export function buildOpsFulfillmentEmailHtml(
   const total = input.unitPriceCzk * input.quantity + input.shippingFeeCzk;
   const brandName = escapeHtml(brand.brandName);
   const website = escapeHtml(brand.websiteUrl);
-  const logoUrl = escapeHtml(shopLogoUrl(brand.logoSrc));
+  const logoUrl = escapeHtml(
+    shopLogoUrl(brand.emailLogoSrc || brand.logoSrc),
+  );
   const amountLabel = escapeHtml(formatCzk(input.unitPriceCzk));
   const soldIntro =
     input.quantity > 1

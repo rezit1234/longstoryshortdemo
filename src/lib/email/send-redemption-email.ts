@@ -77,7 +77,9 @@ export function buildRedemptionEmailHtml(input: SendRedemptionStatusEmailInput) 
   const validUntil = escapeHtml(input.validUntil);
   const brandName = escapeHtml(brand.brandName);
   const website = escapeHtml(brand.websiteUrl);
-  const logoUrl = escapeHtml(shopLogoUrl(brand.logoSrc));
+  const logoUrl = escapeHtml(
+    shopLogoUrl(brand.emailLogoSrc || brand.logoSrc),
+  );
   const body = statusCopy(input);
 
   return `<!DOCTYPE html>

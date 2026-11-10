@@ -8,6 +8,11 @@ export type ShopBrand = {
   bannerAlt: string;
   /** Logo na výsledkové stránce platby apod. */
   logoSrc: string;
+  /**
+   * Logo do e-mailů (PNG/JPEG). WebP hodně klientů (Seznam, Outlook) neumí.
+   * Když chybí, použije se logoSrc.
+   */
+  emailLogoSrc?: string;
   /** Oficiální web podniku (návrat po platbě u widgetu). */
   websiteUrl: string;
   amountMarkSrc?: string;
@@ -39,6 +44,7 @@ export const SHOP_BRANDS: Record<ShopId, ShopBrand> = {
     bannerSrc: "/bistrocentraldefault.jpeg",
     bannerAlt: "Fyzické dárkové poukazy Bistro Central",
     logoSrc: "/bistrokruh.webp",
+    emailLogoSrc: "/bistrokruh.png",
     websiteUrl: "https://www.bistrocentral.cz",
     amountMarkSrc: "/bistrokruh.webp",
     keepShopBannerInCheckout: true,
@@ -50,6 +56,7 @@ export const SHOP_BRANDS: Record<ShopId, ShopBrand> = {
     bannerSrc: "/ca.webp",
     bannerAlt: "Fyzické dárkové poukazy Culinary Academy",
     logoSrc: "/CACA.webp",
+    emailLogoSrc: "/CACA.png",
     websiteUrl: "https://www.culinaryacademy.cz",
     amountMarkSrc: "/CACA.webp",
     amountMarkCompact: true,

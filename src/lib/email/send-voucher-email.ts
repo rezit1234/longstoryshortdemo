@@ -221,7 +221,9 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
   const validUntil = escapeHtml(input.validUntil);
   const brandName = escapeHtml(brand.brandName);
   const website = escapeHtml(brand.websiteUrl);
-  const logoUrl = escapeHtml(shopLogoUrl(brand.logoSrc));
+  const logoUrl = escapeHtml(
+    shopLogoUrl(brand.emailLogoSrc || brand.logoSrc),
+  );
   const files = classifyAttachments(input.attachments ?? []);
   const giftEmail = escapeHtml((input.giftDeliveryEmail || "").trim());
 
