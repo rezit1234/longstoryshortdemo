@@ -35,6 +35,7 @@ export type CheckoutFormPayload = {
   wantInvoice: boolean;
   invoiceRecipientType: "company" | "person" | null;
   companyId: string;
+  companyName: string;
   vatId: string;
   invoiceEmail: string;
   invoiceFirstName: string;
@@ -161,8 +162,12 @@ export function validateCheckoutPayload(body: CreatePaymentRequestBody): string 
     if (!isValidEmail(form.invoiceEmail ?? "")) {
       return "Neplatný e-mail pro daňový doklad.";
     }
-    if (form.invoiceRecipientType === "company" && !form.companyId?.trim()) {
-      return "Vyplňte IČO.";
+    if (form.invoiceRecipientType === "company") {
+      const ico = (form.companyId ?? "").replace(/\D/g, "");
+      if (ico.length !== 8) return "Vyplňte platné 8místné IČO.";
+      if (!(form.companyName ?? "").trim()) {
+        return "Doplňte název firmy (ARES podle IČO nebo našeptávání).";
+      }
     }
     if (form.invoiceRecipientType === "person") {
       if (

@@ -211,6 +211,10 @@ export async function POST(request: Request) {
                   : null,
               companyId:
                 typeof raw.companyId === "string" ? raw.companyId : undefined,
+              companyName:
+                typeof raw.companyName === "string"
+                  ? raw.companyName
+                  : undefined,
               vatId: typeof raw.vatId === "string" ? raw.vatId : undefined,
               email: typeof raw.email === "string" ? raw.email : undefined,
               firstName:

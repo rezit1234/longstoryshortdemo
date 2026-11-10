@@ -12,6 +12,7 @@ import {
   sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
 import type { AdminSoldVoucher } from "@/data/admin-vouchers";
+import { AresCompanyLookup } from "@/components/AresCompanyLookup";
 import { getEnabledShopBrands } from "@/data/shops";
 import { formatCzk } from "@/data/vouchers";
 import { defaultShopIdForRole } from "@/lib/auth";
@@ -120,6 +121,7 @@ export function AdminAddVoucherDrawer({
   const [invoiceRecipientType, setInvoiceRecipientType] =
     useState<InvoiceRecipientType | null>(null);
   const [companyId, setCompanyId] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [vatId, setVatId] = useState("");
   const [invoiceEmail, setInvoiceEmail] = useState("");
   const [invoiceFirstName, setInvoiceFirstName] = useState("");
@@ -288,9 +290,15 @@ export function AdminAddVoucherDrawer({
         setError("Zadejte platný e-mail pro daňový doklad.");
         return;
       }
-      if (invoiceRecipientType === "company" && !companyId.trim()) {
-        setError("Vyplňte IČO.");
-        return;
+      if (invoiceRecipientType === "company") {
+        if (companyId.replace(/\D/g, "").length !== 8) {
+          setError("Vyplňte platné 8místné IČO.");
+          return;
+        }
+        if (!companyName.trim()) {
+          setError("Doplňte název firmy z ARES (IČO nebo našeptávání).");
+          return;
+        }
       }
       if (
         invoiceRecipientType === "person" &&
@@ -335,6 +343,7 @@ export function AdminAddVoucherDrawer({
                 wantInvoice: true,
                 recipientType: invoiceRecipientType,
                 companyId,
+                companyName,
                 vatId,
                 email: invoiceEmail.trim(),
                 firstName: invoiceFirstName.trim(),
@@ -705,39 +714,32 @@ export function AdminAddVoucherDrawer({
 
                 {invoiceRecipientType === "company" ? (
                   <>
-                    <div className="checkout-field-row">
-                      <label className="checkout-field">
-                        <span>IČO</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          value={companyId}
-                          placeholder="12345678"
-                          onChange={(event) =>
-                            setCompanyId(
-                              event.target.value.replace(/[^\d]/g, ""),
-                            )
-                          }
-                        />
-                      </label>
-                      <label className="checkout-field">
-                        <span>
-                          DIČ <em>(volitelné)</em>
-                        </span>
-                        <input
-                          type="text"
-                          autoComplete="off"
-                          value={vatId}
-                          placeholder="CZ12345678"
-                          onChange={(event) =>
-                            setVatId(
-                              event.target.value.replace(/\s/g, "").toUpperCase(),
-                            )
-                          }
-                        />
-                      </label>
-                    </div>
+                    <AresCompanyLookup
+                      value={{
+                        companyId,
+                        companyName,
+                        vatId,
+                        addressLine1: invoiceAddressLine1,
+                        city: invoiceCity,
+                        postalCode: invoicePostalCode,
+                      }}
+                      onChange={(next) => {
+                        if (next.companyId !== undefined) {
+                          setCompanyId(next.companyId);
+                        }
+                        if (next.companyName !== undefined) {
+                          setCompanyName(next.companyName);
+                        }
+                        if (next.vatId !== undefined) setVatId(next.vatId);
+                        if (next.addressLine1 !== undefined) {
+                          setInvoiceAddressLine1(next.addressLine1);
+                        }
+                        if (next.city !== undefined) setInvoiceCity(next.city);
+                        if (next.postalCode !== undefined) {
+                          setInvoicePostalCode(next.postalCode);
+                        }
+                      }}
+                    />
 
                     <label className="checkout-field">
                       <span>E-mail pro daňový doklad</span>

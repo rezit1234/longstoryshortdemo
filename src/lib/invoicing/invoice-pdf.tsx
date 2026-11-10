@@ -32,6 +32,7 @@ export type InvoicePdfData = {
   issuerEmail: string;
   customerName: string;
   customerIco: string;
+  customerDic?: string;
   customerAddress: string;
   qrCodeDataUrl?: string;
   logoDataUrl?: string;
@@ -360,6 +361,7 @@ export function InvoicePdfDocument({ data }: { data: InvoicePdfData }) {
             address={data.customerAddress}
             rows={[
               { label: "IČO", value: data.customerIco },
+              { label: "DIČ", value: data.customerDic || "" },
               { label: "Datum vystavení", value: formatDate(data.issueDate) },
               {
                 label: data.dueDateLabel ?? "Datum splatnosti",

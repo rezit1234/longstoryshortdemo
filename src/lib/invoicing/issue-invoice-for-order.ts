@@ -1,4 +1,5 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
+import { fetchAresCompanyByIco } from "@/lib/ares";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateInvoicePdfBuffer } from "./generate-invoice-pdf";
 import { getNextInvoiceNumber } from "./invoice-number";
@@ -6,6 +7,8 @@ import { getNextInvoiceNumber } from "./invoice-number";
 export type OrderInvoicePayload = {
   recipientType?: "company" | "person" | null;
   companyId?: string;
+  /** Obchodní jméno z ARES / ručně. */
+  companyName?: string;
   vatId?: string;
   email?: string;
   firstName?: string;
@@ -57,7 +60,7 @@ function toDateOnly(date: Date) {
 function customerFromInvoice(
   invoice: OrderInvoicePayload,
   buyerName: string,
-): { name: string; ico: string; address: string } {
+): { name: string; ico: string; dic: string; address: string } {
   if (invoice.recipientType === "person") {
     const name =
       [asTrimmed(invoice.firstName), asTrimmed(invoice.lastName)]
@@ -69,13 +72,54 @@ function customerFromInvoice(
         .filter(Boolean)
         .join(" "),
     ].filter(Boolean);
-    return { name, ico: "", address: parts.join(", ") };
+    return { name, ico: "", dic: "", address: parts.join(", ") };
   }
 
-  // Firma - zatím bez ARES: jméno = kupující, IČO z formuláře.
   const ico = asTrimmed(invoice.companyId);
-  const name = buyerName || (ico ? `Odběratel IČO ${ico}` : "Odběratel");
-  return { name, ico, address: "" };
+  const dic = asTrimmed(invoice.vatId).toUpperCase();
+  const name =
+    asTrimmed(invoice.companyName) ||
+    (ico ? `Odběratel IČO ${ico}` : buyerName || "Odběratel");
+  const parts = [
+    asTrimmed(invoice.addressLine1),
+    [asTrimmed(invoice.postalCode), asTrimmed(invoice.city)]
+      .filter(Boolean)
+      .join(" "),
+  ].filter(Boolean);
+  return { name, ico, dic, address: parts.join(", ") };
+}
+
+/** Doplní chybějící firemní údaje z ARES podle IČO (serverový fallback). */
+async function enrichCompanyInvoiceFromAres(
+  invoice: OrderInvoicePayload,
+): Promise<OrderInvoicePayload> {
+  if (invoice.recipientType !== "company") return invoice;
+  const ico = asTrimmed(invoice.companyId);
+  if (!ico) return invoice;
+  if (
+    asTrimmed(invoice.companyName) &&
+    asTrimmed(invoice.addressLine1) &&
+    asTrimmed(invoice.vatId)
+  ) {
+    return invoice;
+  }
+
+  try {
+    const company = await fetchAresCompanyByIco(ico);
+    if (!company) return invoice;
+    return {
+      ...invoice,
+      companyId: company.ico,
+      companyName: asTrimmed(invoice.companyName) || company.name,
+      vatId: asTrimmed(invoice.vatId) || company.dic,
+      addressLine1: asTrimmed(invoice.addressLine1) || company.addressLine1,
+      city: asTrimmed(invoice.city) || company.city,
+      postalCode: asTrimmed(invoice.postalCode) || company.postalCode,
+    };
+  } catch (error) {
+    console.error("enrichCompanyInvoiceFromAres", error);
+    return invoice;
+  }
 }
 
 function invoiceDescription(params: {
@@ -115,7 +159,8 @@ export async function issueInvoicePdf(input: IssueInvoicePdfInput) {
       ? String(input.existingInvoiceNumber).trim()
       : await getNextInvoiceNumber(input.shopId);
 
-  const customer = customerFromInvoice(input.invoice, input.buyerName);
+  const invoice = await enrichCompanyInvoiceFromAres(input.invoice);
+  const customer = customerFromInvoice(invoice, input.buyerName);
   const description = invoiceDescription({
     productName: input.productName,
     quantity,
@@ -132,6 +177,7 @@ export async function issueInvoicePdf(input: IssueInvoicePdfInput) {
     amount: input.totalCzk,
     customerName: customer.name,
     customerIco: customer.ico,
+    customerDic: customer.dic,
     customerAddress: customer.address,
     paymentMethod: input.paymentMethodLabel,
     footerNote: input.footerNote,

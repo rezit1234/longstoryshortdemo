@@ -192,6 +192,7 @@ function invoicePayload(form: CheckoutFormPayload) {
   return {
     recipientType: form.invoiceRecipientType,
     companyId: form.companyId.trim(),
+    companyName: form.companyName.trim(),
     vatId: form.vatId.trim(),
     email: form.invoiceEmail.trim(),
     firstName: form.invoiceFirstName.trim(),

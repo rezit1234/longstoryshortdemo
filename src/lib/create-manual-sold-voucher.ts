@@ -72,8 +72,9 @@ function validateManualInvoice(invoice: ManualInvoiceInput | null | undefined) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(asTrimmed(invoice.email))) {
     throw new Error("Zadejte platný e-mail pro daňový doklad.");
   }
-  if (invoice.recipientType === "company" && !asTrimmed(invoice.companyId)) {
-    throw new Error("Vyplňte IČO.");
+  if (invoice.recipientType === "company") {
+    const ico = asTrimmed(invoice.companyId).replace(/\D/g, "");
+    if (ico.length !== 8) throw new Error("Vyplňte platné 8místné IČO.");
   }
   if (invoice.recipientType === "person") {
     if (
@@ -90,6 +91,7 @@ function validateManualInvoice(invoice: ManualInvoiceInput | null | undefined) {
   return {
     recipientType: invoice.recipientType,
     companyId: asTrimmed(invoice.companyId) || undefined,
+    companyName: asTrimmed(invoice.companyName) || undefined,
     vatId: asTrimmed(invoice.vatId) || undefined,
     email: asTrimmed(invoice.email),
     firstName: asTrimmed(invoice.firstName) || undefined,
