@@ -36,6 +36,9 @@ export type InvoicePdfData = {
   customerAddress: string;
   qrCodeDataUrl?: string;
   logoDataUrl?: string;
+  /** Rozměry loga v PDF — musí držet poměr stran (kruh ≠ 66×48). */
+  logoWidth?: number;
+  logoHeight?: number;
   paymentMethod?: string;
   footerNote?: string;
   dueDateLabel?: string;
@@ -60,6 +63,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 66,
     height: 48,
+    objectFit: "contain",
   },
   headerBlock: {
     height: 48,
@@ -320,7 +324,16 @@ export function InvoicePdfDocument({ data }: { data: InvoicePdfData }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow}>
           {data.logoDataUrl ? (
-            <Image src={data.logoDataUrl} style={styles.logo} />
+            <Image
+              src={data.logoDataUrl}
+              style={[
+                styles.logo,
+                {
+                  width: data.logoWidth ?? 66,
+                  height: data.logoHeight ?? 48,
+                },
+              ]}
+            />
           ) : (
             <View />
           )}

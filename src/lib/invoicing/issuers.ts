@@ -118,7 +118,7 @@ const DEFAULTS: Record<ShopId, InvoiceIssuerConfig> = {
   bistrocentral: {
     ...LEGAL_ENTITY,
     invoicePrefix: "BC",
-    logoSrc: "/bistrokruh.webp",
+    logoSrc: "/bistrokruh.png",
   },
   culinaryacademy: {
     ...LEGAL_ENTITY,

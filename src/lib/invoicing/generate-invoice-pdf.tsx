@@ -10,6 +10,8 @@ export type { InvoicePdfData };
 type GenerateInvoicePdfInput = Omit<
   InvoicePdfData,
   | "logoDataUrl"
+  | "logoWidth"
+  | "logoHeight"
   | "issuerName"
   | "issuerAddress"
   | "issuerIco"
@@ -42,7 +44,7 @@ export async function generateInvoicePdfBuffer(
 ): Promise<Buffer> {
   registerPdfFonts();
   const issuer = getInvoiceIssuer(data.shopId ?? "lss");
-  const logoDataUrl = await getInvoiceLogoDataUrl(issuer.logoSrc);
+  const logo = await getInvoiceLogoDataUrl(issuer.logoSrc);
 
   const payload: InvoicePdfData = {
     ...data,
@@ -56,7 +58,9 @@ export async function generateInvoicePdfBuffer(
     issuerSwift: data.issuerSwift ?? issuer.swift,
     issuerPhone: data.issuerPhone ?? issuer.phone,
     issuerEmail: data.issuerEmail ?? issuer.email,
-    logoDataUrl,
+    logoDataUrl: logo.dataUrl,
+    logoWidth: logo.width,
+    logoHeight: logo.height,
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
