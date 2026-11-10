@@ -271,11 +271,43 @@ export function AdminPoukazy() {
       setRows((current) => current.filter((row) => row.code !== code));
       setTotal((current) => Math.max(0, current - 1));
     };
+    const onUpserted = (event: Event) => {
+      const voucher = (
+        event as CustomEvent<{ voucher?: AdminSoldVoucher }>
+      ).detail?.voucher;
+      if (!voucher) {
+        void loadPage();
+        return;
+      }
+      const matchesFilter = filter === "all" || voucher.status === filter;
+      setRows((current) => {
+        const idx = current.findIndex((row) => row.code === voucher.code);
+        const wasVisible = idx !== -1;
+        if (wasVisible !== matchesFilter) {
+          queueMicrotask(() => {
+            setTotal((total) =>
+              matchesFilter ? total + 1 : Math.max(0, total - 1),
+            );
+          });
+        }
+        if (!matchesFilter) {
+          return wasVisible
+            ? current.filter((row) => row.code !== voucher.code)
+            : current;
+        }
+        if (idx === -1) return [voucher, ...current];
+        const next = [...current];
+        next[idx] = voucher;
+        return next;
+      });
+    };
     window.addEventListener("admin-sold-voucher-deleted", onDeleted);
+    window.addEventListener("admin-sold-voucher-upserted", onUpserted);
     return () => {
       window.removeEventListener("admin-sold-voucher-deleted", onDeleted);
+      window.removeEventListener("admin-sold-voucher-upserted", onUpserted);
     };
-  }, [loadPage]);
+  }, [filter, loadPage]);
 
   const filterLabel =
     FILTERS.find((item) => item.key === filter)?.label ?? "Všechny";

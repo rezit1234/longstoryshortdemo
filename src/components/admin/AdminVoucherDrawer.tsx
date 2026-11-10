@@ -981,6 +981,11 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
       const without = current.filter((row) => row.code !== voucher.code);
       return [voucher, ...without];
     });
+    window.dispatchEvent(
+      new CustomEvent("admin-sold-voucher-upserted", {
+        detail: { voucher },
+      }),
+    );
   }, []);
 
   const removeVoucher = useCallback((code: string) => {
@@ -1025,25 +1030,50 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
     [upsertVoucher],
   );
 
-  const activateVoucher = useCallback((code: string) => {
-    const normalized = normalizeVoucherCode(code);
-    setVouchers((current) =>
-      current.map((voucher) =>
-        voucher.code === normalized
-          ? {
-              ...voucher,
-              status: "active",
-              statusLabel: ADMIN_VOUCHER_STATUS_LABELS.active,
-            }
-          : voucher,
-      ),
-    );
-    void fetch(`/api/admin/sold-vouchers/${encodeURIComponent(normalized)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "active" }),
-    }).catch(() => undefined);
-  }, []);
+  const activateVoucher = useCallback(
+    (code: string) => {
+      const normalized = normalizeVoucherCode(code);
+      setVouchers((current) => {
+        const existing = current.find((voucher) => voucher.code === normalized);
+        if (!existing) return current;
+        const next: AdminSoldVoucher = {
+          ...existing,
+          status: "active",
+          statusLabel: ADMIN_VOUCHER_STATUS_LABELS.active,
+        };
+        queueMicrotask(() => {
+          window.dispatchEvent(
+            new CustomEvent("admin-sold-voucher-upserted", {
+              detail: { voucher: next },
+            }),
+          );
+        });
+        const without = current.filter((voucher) => voucher.code !== normalized);
+        return [next, ...without];
+      });
+      void (async () => {
+        try {
+          const response = await fetch(
+            `/api/admin/sold-vouchers/${encodeURIComponent(normalized)}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "active" }),
+            },
+          );
+          const data = (await response.json().catch(() => ({}))) as {
+            voucher?: AdminSoldVoucher;
+          };
+          if (response.ok && data.voucher) {
+            upsertVoucher(data.voucher);
+          }
+        } catch {
+          /* ignore — optimistic update už proběhl */
+        }
+      })();
+    },
+    [upsertVoucher],
+  );
 
   useEffect(() => {
     if (!activeVoucherCode) return;
