@@ -312,8 +312,13 @@ export async function generateA4VoucherPdf(
     color: RULE_COLOR,
   });
 
+  // Dárek = Od + Zpráva. Nákup pro sebe = kompaktní layout bez prázdných polí.
+  const isGiftLayout = Boolean(
+    input.fromName?.trim() || input.message?.trim(),
+  );
+
   // Souhrn rozložený přes celou výšku mezi linkami (vzduch mezi řádky)
-  const rowCount = 4;
+  const rowCount = isGiftLayout ? 4 : 3;
   const padTop = 30;
   const padBottom = 30;
   const firstLabelY = HEADER_LINE_Y - padTop;
@@ -371,66 +376,109 @@ export async function generateA4VoucherPdf(
     color: rgb(0, 0, 0),
   });
 
-  drawLabelValue(
-    page,
-    fontRegular,
-    "Pozornost pro",
-    input.recipientName,
-    LEFT_X,
-    rowLabelY(1),
-    rowValueY(1),
-    leftMaxWidth,
-  );
-  drawLabelValue(
-    page,
-    fontRegular,
-    "Hodnota poukazu",
-    formatAmount(input.amountCzk),
-    rightColX,
-    rowLabelY(1),
-    rowValueY(1),
-    rightMaxWidth,
-  );
-  drawLabelValue(
-    page,
-    fontRegular,
-    "Od",
-    input.fromName,
-    LEFT_X,
-    rowLabelY(2),
-    rowValueY(2),
-    leftMaxWidth,
-  );
-  drawLabelValue(
-    page,
-    fontRegular,
-    "Vydáno",
-    formatCzechDate(input.issuedAt),
-    rightColX,
-    rowLabelY(2),
-    rowValueY(2),
-    rightMaxWidth,
-  );
-  drawLabelValue(
-    page,
-    fontRegular,
-    "Zpráva",
-    input.message,
-    LEFT_X,
-    rowLabelY(3),
-    rowValueY(3),
-    leftMaxWidth,
-  );
-  drawLabelValue(
-    page,
-    fontRegular,
-    "Platné do",
-    formatCzechDate(input.validUntil),
-    rightColX,
-    rowLabelY(3),
-    rowValueY(3),
-    rightMaxWidth,
-  );
+  if (isGiftLayout) {
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Pozornost pro",
+      input.recipientName,
+      LEFT_X,
+      rowLabelY(1),
+      rowValueY(1),
+      leftMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Hodnota poukazu",
+      formatAmount(input.amountCzk),
+      rightColX,
+      rowLabelY(1),
+      rowValueY(1),
+      rightMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Od",
+      input.fromName,
+      LEFT_X,
+      rowLabelY(2),
+      rowValueY(2),
+      leftMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Vydáno",
+      formatCzechDate(input.issuedAt),
+      rightColX,
+      rowLabelY(2),
+      rowValueY(2),
+      rightMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Zpráva",
+      input.message,
+      LEFT_X,
+      rowLabelY(3),
+      rowValueY(3),
+      leftMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Platné do",
+      formatCzechDate(input.validUntil),
+      rightColX,
+      rowLabelY(3),
+      rowValueY(3),
+      rightMaxWidth,
+    );
+  } else {
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Jméno zákazníka",
+      input.recipientName,
+      LEFT_X,
+      rowLabelY(1),
+      rowValueY(1),
+      leftMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Hodnota poukazu",
+      formatAmount(input.amountCzk),
+      rightColX,
+      rowLabelY(1),
+      rowValueY(1),
+      rightMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Vydáno",
+      formatCzechDate(input.issuedAt),
+      LEFT_X,
+      rowLabelY(2),
+      rowValueY(2),
+      leftMaxWidth,
+    );
+    drawLabelValue(
+      page,
+      fontRegular,
+      "Platné do",
+      formatCzechDate(input.validUntil),
+      rightColX,
+      rowLabelY(2),
+      rowValueY(2),
+      rightMaxWidth,
+    );
+  }
 
   // Oddělovací linka pod souhrnem (celá šířka)
   drawHorizontalRule(page, CUT_LINE_Y);

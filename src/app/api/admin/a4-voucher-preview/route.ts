@@ -40,11 +40,18 @@ export async function GET(request: Request) {
     url.searchParams.get("title")?.trim() ||
     (kind === "amount" ? "Dárkový poukaz" : "Chef's Table");
   const amountCzk = asPositiveNumber(url.searchParams.get("amount"), 1000);
+  const selfPurchase =
+    url.searchParams.get("self") === "1" ||
+    url.searchParams.get("gift") === "0";
   const recipientName =
-    url.searchParams.get("recipient")?.trim() || "Jan Novák";
-  const fromName = url.searchParams.get("from")?.trim() || "Petr Svoboda";
-  const message =
-    url.searchParams.get("message")?.trim() || "Užijte si to!";
+    url.searchParams.get("recipient")?.trim() ||
+    (selfPurchase ? "Jan Novák" : "Jana Nováková");
+  const fromName = selfPurchase
+    ? null
+    : url.searchParams.get("from")?.trim() || "Petr Svoboda";
+  const message = selfPurchase
+    ? null
+    : url.searchParams.get("message")?.trim() || "Užijte si to!";
 
   const issuedAt = new Date();
   const validUntil = new Date(issuedAt);
