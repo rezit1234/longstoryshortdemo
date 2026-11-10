@@ -97,45 +97,54 @@ function sameEmail(a: string, b: string) {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+/** 1 = dárkový poukaz, 2+ = dárkové poukazy */
+function darkovyPoukazCs(plural: boolean) {
+  return plural ? "dárkové poukazy" : "dárkový poukaz";
+}
+
 function deliveryCopyCs(
   method: string,
   files: ReturnType<typeof classifyAttachments>,
   voucherCount: number,
 ) {
   const plural = voucherCount > 1;
-  const voucherWord = plural ? "poukazy" : "poukaz";
+  const poukazLabel = plural ? "Poukazy" : "Poukaz";
+  const darkovy = darkovyPoukazCs(plural);
   const digitalWord = plural ? "digitální verze" : "digitální verzi";
+  const codesLabel = plural ? "Kódy" : "Kód";
 
   if (method === "post") {
     if (files.hasVoucher && files.hasInvoice) {
-      return `Poukaz${plural ? "y" : ""} vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme ${digitalWord} i fakturu v PDF.`;
+      return `${poukazLabel} vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme ${digitalWord} i fakturu v PDF.`;
     }
     if (files.hasVoucher) {
-      return `Poukaz${plural ? "y" : ""} vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme i ${digitalWord} v PDF.`;
+      return `${poukazLabel} vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme i ${digitalWord} v PDF.`;
     }
-    return `Poukaz${plural ? "y" : ""} vám pošleme poštou v dárkovém balení. Kód${plural ? "y" : ""} níže stačí k uplatnění.`;
+    return `${poukazLabel} vám pošleme poštou v dárkovém balení. ${codesLabel} níže stačí k uplatnění.`;
   }
 
   if (method === "pickup") {
     if (files.hasVoucher && files.hasInvoice) {
-      return `Poukaz${plural ? "y" : ""} si vyzvednete osobně. Pro jistotu přikládáme ${digitalWord} i fakturu v PDF.`;
+      return `${poukazLabel} si vyzvednete osobně. Pro jistotu přikládáme ${digitalWord} i fakturu v PDF.`;
     }
     if (files.hasVoucher) {
-      return `Poukaz${plural ? "y" : ""} si vyzvednete osobně. Pro jistotu přikládáme i ${digitalWord} v PDF.`;
+      return `${poukazLabel} si vyzvednete osobně. Pro jistotu přikládáme i ${digitalWord} v PDF.`;
     }
-    return `Poukaz${plural ? "y" : ""} si vyzvednete osobně. Kód${plural ? "y" : ""} níže stačí k uplatnění.`;
+    return `${poukazLabel} si vyzvednete osobně. ${codesLabel} níže stačí k uplatnění.`;
   }
 
   if (files.hasVoucher && files.hasInvoice) {
-    return `V příloze tohoto e-mailu najdete dárkový ${voucherWord} i fakturu k objednávce ve formátu PDF.`;
+    return `V příloze tohoto e-mailu najdete ${darkovy} i fakturu k objednávce ve formátu PDF.`;
   }
   if (files.hasVoucher) {
-    return `V příloze najdete dárkový ${voucherWord} v PDF. Stačí ${plural ? "je" : "ho"} otevřít nebo vytisknout.`;
+    return `V příloze najdete ${darkovy} v PDF. Stačí ${plural ? "je" : "ho"} otevřít nebo vytisknout.`;
   }
   if (files.hasInvoice) {
     return `V příloze tohoto e-mailu najdete fakturu k objednávce ve formátu PDF.`;
   }
-  return `Kód${plural ? "y" : ""} poukazu najdete níže — stačí ${plural ? "je" : "ho"} uvést při uplatnění.`;
+  return plural
+    ? "Kódy poukazů najdete níže — stačí je uvést při uplatnění."
+    : "Kód poukazu najdete níže — stačí ho uvést při uplatnění.";
 }
 
 function attachmentFootnoteCs(
@@ -186,7 +195,7 @@ function emailShell(params: {
               <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">${params.footnote}</p>
               <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#777;">
                 ${params.brandName}<br/>
-                <a href="${params.website}" style="color:#111;">${params.website.replace(/^https?:\/\//, "")}</a>
+                ${params.website.replace(/^https?:\/\//, "")}
               </p>
             </td>
           </tr>
@@ -267,9 +276,9 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
       greetingName: buyer,
       bodyHtml: `
         <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">
-          děkujeme za nákup. Objednávka proběhla úspěšně a dárkový ${
-            plural ? "poukazy jsme odeslali" : "poukaz jsme odeslali"
-          } na e-mail <strong>${sentTo}</strong>${
+          děkujeme za nákup. Objednávka proběhla úspěšně a ${darkovyPoukazCs(
+            plural,
+          )} jsme odeslali na e-mail <strong>${sentTo}</strong>${
             input.recipientName
               ? ` pro <strong>${recipient}</strong>`
               : ""
@@ -301,8 +310,12 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
         </table>
       `,
       footnote: files.hasInvoice
-        ? "PDF daňového dokladu je v příloze tohoto e-mailu. Samotný poukaz dorazil obdarovanému."
-        : "Samotný dárkový poukaz dorazil obdarovanému na zadaný e-mail.",
+        ? plural
+          ? "PDF daňového dokladu je v příloze tohoto e-mailu. Samotné poukazy dorazily obdarovanému."
+          : "PDF daňového dokladu je v příloze tohoto e-mailu. Samotný poukaz dorazil obdarovanému."
+        : plural
+          ? "Samotné dárkové poukazy dorazily obdarovanému na zadaný e-mail."
+          : "Samotný dárkový poukaz dorazil obdarovanému na zadaný e-mail.",
     });
   }
 
@@ -388,17 +401,36 @@ export async function sendVoucherEmail(input: SendVoucherEmailInput) {
       ? input.recipientName || input.buyerName
       : input.buyerName || input.recipientName;
 
+  const htmlContent = buildVoucherEmailHtml(input);
   return sendBrevoEmail({
     to: input.to,
     toName,
     subject: voucherEmailSubject(input),
-    htmlContent: buildVoucherEmailHtml(input),
+    htmlContent,
+    textContent: htmlToPlainText(htmlContent),
     shopId: input.shopId,
     attachments: files.map((file) => ({
       name: file.filename,
       content: file.content,
     })),
   });
+}
+
+function htmlToPlainText(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/tr>/gi, "\n")
+    .replace(/<\/(h1|h2|h3|div|table|td|th)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export function resolveVoucherEmailRecipient(params: {

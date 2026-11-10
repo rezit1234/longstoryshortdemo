@@ -10,6 +10,8 @@ type SendBrevoEmailInput = {
   toName?: string;
   subject: string;
   htmlContent: string;
+  /** Plain-text alternativa — lepší signál transakční pošty u filtrů (Seznam). */
+  textContent?: string;
   attachments?: BrevoAttachment[];
   /** Odesílatel podle obchodu (EMAIL_FROM_LSS / …). */
   shopId?: ShopId;
@@ -90,6 +92,10 @@ export async function sendBrevoEmail(input: SendBrevoEmailInput) {
     content: file.content.toString("base64"),
   }));
 
+  // Seznam Email Profi řadí Brevo maily s trackingem (sendibt*) do Newsletters.
+  // Vypnutí: Brevo → Settings → Contacts → Per-contact pixel tracking consent = Yes
+  // a „Track contacts whose consent is unknown“ = No. API pak s false níže
+  // tracking neaplikuje (bez sendibt odkazů / open pixelu).
   const payload: Record<string, unknown> = {
     sender: {
       name: sender.name,
@@ -99,11 +105,18 @@ export async function sendBrevoEmail(input: SendBrevoEmailInput) {
       {
         email: to,
         name: input.toName?.trim() || undefined,
+        contactPixelTrackingConsent: false,
       },
     ],
     subject: input.subject,
     htmlContent: input.htmlContent,
+    tags: ["transactional", "voucher"],
   };
+
+  const textContent = input.textContent?.trim();
+  if (textContent) {
+    payload.textContent = textContent;
+  }
 
   if (attachments.length > 0) {
     payload.attachment = attachments;

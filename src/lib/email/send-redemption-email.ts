@@ -114,7 +114,7 @@ export function buildRedemptionEmailHtml(input: SendRedemptionStatusEmailInput) 
               </p>
               <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#777;">
                 ${brandName}<br/>
-                <a href="${website}" style="color:#111;">${website.replace(/^https?:\/\//, "")}</a>
+                ${website.replace(/^https?:\/\//, "")}
               </p>
             </td>
           </tr>

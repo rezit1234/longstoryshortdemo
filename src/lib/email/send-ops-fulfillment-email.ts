@@ -65,12 +65,17 @@ function deliveryMethodLabel(method: "post" | "pickup") {
 }
 
 export function opsFulfillmentEmailSubject(
-  input: Pick<SendOpsFulfillmentEmailInput, "shopId" | "deliveryMethod">,
+  input: Pick<
+    SendOpsFulfillmentEmailInput,
+    "shopId" | "deliveryMethod" | "quantity" | "codes"
+  >,
 ) {
   const brand = getShopBrand(input.shopId);
   const kind =
     input.deliveryMethod === "post" ? "k odeslání" : "k vyzvednutí";
-  return `Právě jste prodali dárkový poukaz (${kind}) — ${brand.brandName}`;
+  const plural = input.quantity > 1 || input.codes.length > 1;
+  const label = plural ? "dárkové poukazy" : "dárkový poukaz";
+  return `Právě jste prodali ${label} (${kind}) — ${brand.brandName}`;
 }
 
 function appBaseUrl() {
@@ -107,11 +112,19 @@ export function buildOpsFulfillmentEmailHtml(
     input.quantity > 1
       ? `prodali jste ${input.quantity} dárkové poukazy na částku ${amountLabel}`
       : `prodali jste dárkový poukaz na částku ${amountLabel}`;
+  const plural = input.quantity > 1 || input.codes.length > 1;
   const action =
     input.deliveryMethod === "post"
-      ? "Připravte prosím dárkové balení a následně poukaz odešlete poštou."
-      : "Připravte prosím poukaz k osobnímu vyzvednutí na pobočce.";
+      ? plural
+        ? "Připravte prosím dárkové balení a následně poukazy odešlete poštou."
+        : "Připravte prosím dárkové balení a následně poukaz odešlete poštou."
+      : plural
+        ? "Připravte prosím poukazy k osobnímu vyzvednutí na pobočce."
+        : "Připravte prosím poukaz k osobnímu vyzvednutí na pobočce.";
   const introHtml = `Dobrý den, ${soldIntro}. ${action}`;
+  const soldTitle = plural
+    ? "Právě jste prodali dárkové poukazy"
+    : "Právě jste prodali dárkový poukaz";
 
   const recipientName = input.recipientName?.trim() || "";
   const recipientEmail = input.recipientEmail?.trim() || "";
@@ -171,7 +184,7 @@ export function buildOpsFulfillmentEmailHtml(
         }
       : null,
     {
-      label: "Kód poukazu",
+      label: plural ? "Kódy poukazů" : "Kód poukazu",
       valueHtml: codesHtml,
       valueStyle: "font-size:16px;",
     },
@@ -193,7 +206,7 @@ export function buildOpsFulfillmentEmailHtml(
               <div style="margin:0 0 18px;text-align:left;">
                 <img src="${logoUrl}" alt="${brandName}" width="96" style="display:block;max-width:96px;width:96px;height:auto;border:0;outline:none;text-decoration:none;" />
               </div>
-              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:left;font-weight:700;">Právě jste prodali dárkový poukaz</h1>
+              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:left;font-weight:700;">${soldTitle}</h1>
               <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">${introHtml}</p>
               <table role="presentation" width="100%" style="margin:20px 0;border-collapse:collapse;">
                 ${rows}
