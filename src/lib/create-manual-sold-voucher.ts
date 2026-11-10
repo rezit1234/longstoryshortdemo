@@ -11,16 +11,33 @@ import {
   resolveVoucherEmailRecipient,
   sendVoucherEmail,
 } from "@/lib/email/send-voucher-email";
+import {
+  issueInvoicePdf,
+  type OrderInvoicePayload,
+} from "@/lib/invoicing/issue-invoice-for-order";
 import { mapSoldVoucherRow, type SoldVoucherRow } from "@/lib/sold-vouchers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeVoucherSettings } from "@/lib/voucher-settings";
+import {
+  generateA4VoucherPdf,
+  shopUsesHardcodedA4Pdf,
+} from "@/lib/voucher-a4-pdf";
 import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
 } from "@/lib/voucher-pdf-overlay";
 import { redeemablePartsForExperienceId } from "@/lib/voucher-redemption";
+import {
+  formatPaymentMethodLabel,
+  normalizeManualPaymentMethodInput,
+  type ManualPaymentMethod,
+} from "@/lib/voucher-payment-method";
 
 export type ManualVoucherKind = "amount" | "experience";
+
+export type ManualInvoiceInput = OrderInvoicePayload & {
+  wantInvoice: boolean;
+};
 
 export type CreateManualSoldVoucherInput = {
   shopId: ShopId;
@@ -32,7 +49,57 @@ export type CreateManualSoldVoucherInput = {
   buyerPhone?: string;
   code?: string;
   sendEmail?: boolean;
+  /** admin_profiles.id — kdo poukaz ručně vystavil */
+  issuedBy?: string | null;
+  paymentMethod?: ManualPaymentMethod | string;
+  paymentMethodNote?: string | null;
+  invoice?: ManualInvoiceInput | null;
 };
+
+function asTrimmed(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function validateManualInvoice(invoice: ManualInvoiceInput | null | undefined) {
+  if (!invoice?.wantInvoice) return null;
+
+  if (
+    invoice.recipientType !== "person" &&
+    invoice.recipientType !== "company"
+  ) {
+    throw new Error("Zvolte typ daňového dokladu.");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(asTrimmed(invoice.email))) {
+    throw new Error("Zadejte platný e-mail pro daňový doklad.");
+  }
+  if (invoice.recipientType === "company" && !asTrimmed(invoice.companyId)) {
+    throw new Error("Vyplňte IČO.");
+  }
+  if (invoice.recipientType === "person") {
+    if (
+      !asTrimmed(invoice.firstName) ||
+      !asTrimmed(invoice.lastName) ||
+      !asTrimmed(invoice.addressLine1) ||
+      !asTrimmed(invoice.city) ||
+      !asTrimmed(invoice.postalCode)
+    ) {
+      throw new Error("Vyplňte údaje daňového dokladu na jméno.");
+    }
+  }
+
+  return {
+    recipientType: invoice.recipientType,
+    companyId: asTrimmed(invoice.companyId) || undefined,
+    vatId: asTrimmed(invoice.vatId) || undefined,
+    email: asTrimmed(invoice.email),
+    firstName: asTrimmed(invoice.firstName) || undefined,
+    lastName: asTrimmed(invoice.lastName) || undefined,
+    addressLine1: asTrimmed(invoice.addressLine1) || undefined,
+    city: asTrimmed(invoice.city) || undefined,
+    postalCode: asTrimmed(invoice.postalCode) || undefined,
+    note: asTrimmed(invoice.note) || undefined,
+  } satisfies OrderInvoicePayload;
+}
 
 function addMonths(date: Date, months: number) {
   const next = new Date(date);
@@ -118,6 +185,32 @@ function resolvePlacement(
   return settings.amountPreviews.customPdf ?? null;
 }
 
+async function uploadIssuedPdf(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  shopId: ShopId;
+  code: string;
+  bytes: Uint8Array;
+}): Promise<{ url: string; bytes: Uint8Array }> {
+  const path = createIssuedPdfPath(params.shopId, params.code);
+  const { error: uploadError } = await params.admin.storage
+    .from("voucher-pdfs")
+    .upload(path, Buffer.from(params.bytes), {
+      contentType: "application/pdf",
+      upsert: false,
+      cacheControl: "3600",
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const {
+    data: { publicUrl },
+  } = params.admin.storage.from("voucher-pdfs").getPublicUrl(path);
+
+  return { url: publicUrl, bytes: params.bytes };
+}
+
 async function stampAndUploadPdf(params: {
   admin: ReturnType<typeof createAdminClient>;
   shopId: ShopId;
@@ -141,24 +234,12 @@ async function stampAndUploadPdf(params: {
     qrPosition: params.placement.qrPosition,
   });
 
-  const path = createIssuedPdfPath(params.shopId, params.code);
-  const { error: uploadError } = await params.admin.storage
-    .from("voucher-pdfs")
-    .upload(path, Buffer.from(stamped), {
-      contentType: "application/pdf",
-      upsert: false,
-      cacheControl: "3600",
-    });
-
-  if (uploadError) {
-    throw new Error(uploadError.message);
-  }
-
-  const {
-    data: { publicUrl },
-  } = params.admin.storage.from("voucher-pdfs").getPublicUrl(path);
-
-  return { url: publicUrl, bytes: stamped };
+  return uploadIssuedPdf({
+    admin: params.admin,
+    shopId: params.shopId,
+    code: params.code,
+    bytes: stamped,
+  });
 }
 
 export async function createManualSoldVoucher(
@@ -175,6 +256,12 @@ export async function createManualSoldVoucher(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
     throw new Error("Zadejte platný e-mail.");
   }
+
+  const payment = normalizeManualPaymentMethodInput({
+    paymentMethod: input.paymentMethod,
+    paymentMethodNote: input.paymentMethodNote,
+  });
+  const invoicePayload = validateManualInvoice(input.invoice);
 
   const admin = createAdminClient();
   const settings = await loadShopSettings(admin, shopId);
@@ -212,7 +299,7 @@ export async function createManualSoldVoucher(
   const codeNormalized = applyShopCodePrefix(code, shopId);
   if (!isValidNewVoucherCode(codeNormalized)) {
     throw new Error(
-      "Kód musí mít prefix obchodu a 8 znaků (např. LSSK7M2P9QX).",
+      "Kód musí mít prefix obchodu a 7 znaků (např. LSSK7M2P9A).",
     );
   }
 
@@ -239,8 +326,32 @@ export async function createManualSoldVoucher(
     experienceId,
     unitPrice,
   );
-  if (placement) {
-    try {
+  try {
+    if (shopUsesHardcodedA4Pdf(shopId)) {
+      const bytes = await generateA4VoucherPdf({
+        shopId,
+        code: codeNormalized,
+        kind: input.kind === "experience" ? "experience" : "amount",
+        serviceTitle:
+          input.kind === "experience"
+            ? productName
+            : `${Math.round(unitPrice).toLocaleString("cs-CZ")} Kč`,
+        amountCzk: unitPrice,
+        recipientName: buyerName,
+        fromName: null,
+        issuedAt: purchasedAt,
+        validUntil,
+        message: null,
+      });
+      const uploaded = await uploadIssuedPdf({
+        admin,
+        shopId,
+        code: codeNormalized,
+        bytes,
+      });
+      pdfUrl = uploaded.url;
+      pdfBytes = uploaded.bytes;
+    } else if (placement) {
       const stamped = await stampAndUploadPdf({
         admin,
         shopId,
@@ -251,9 +362,31 @@ export async function createManualSoldVoucher(
         pdfUrl = stamped.url;
         pdfBytes = stamped.bytes;
       }
-    } catch (error) {
-      console.error("createManualSoldVoucher: PDF stamp failed", error);
     }
+  } catch (error) {
+    console.error("createManualSoldVoucher: PDF failed", error);
+  }
+
+  let invoiceNumber: string | null = null;
+  let invoicePdfBytes: Buffer | null = null;
+  if (invoicePayload) {
+    const paymentLabel =
+      formatPaymentMethodLabel(
+        payment.paymentMethod,
+        payment.paymentMethodNote,
+      ) || "Ruční platba";
+    const issued = await issueInvoicePdf({
+      shopId,
+      totalCzk: unitPrice,
+      productName,
+      buyerName,
+      invoice: invoicePayload,
+      paymentMethodLabel: paymentLabel,
+      footerNote: `Tato faktura byla vystavena k ručně evidovanému poukazu. Platba: ${paymentLabel}.`,
+      issuedAt: purchasedAt,
+    });
+    invoiceNumber = issued.invoiceNumber;
+    invoicePdfBytes = issued.pdfBytes;
   }
 
   const row = {
@@ -285,13 +418,16 @@ export async function createManualSoldVoucher(
         ? redeemablePartsForExperienceId(experienceId)
         : null,
     is_gift: false,
+    issued_by: input.issuedBy?.trim() || null,
+    payment_method: payment.paymentMethod,
+    payment_method_note: payment.paymentMethodNote,
   };
 
   const { data: inserted, error: insertError } = await admin
     .from("sold_vouchers")
     .insert(row)
     .select(
-      "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift",
+      "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note",
     )
     .single();
 
@@ -299,6 +435,19 @@ export async function createManualSoldVoucher(
     if (insertError?.message?.includes("order_id")) {
       throw new Error(
         "Chybí migrace 014 (order_id nullable) - spusť ji v Supabase.",
+      );
+    }
+    if (insertError?.message?.includes("issued_by")) {
+      throw new Error(
+        "Chybí migrace 018 (issued_by) - spusť ji v Supabase.",
+      );
+    }
+    if (
+      insertError?.message &&
+      /payment_method/i.test(insertError.message)
+    ) {
+      throw new Error(
+        "Chybí migrace 019 (payment_method) - spusť ji v Supabase.",
       );
     }
     throw new Error(insertError?.message || "Poukaz se nepodařilo uložit.");
@@ -313,6 +462,19 @@ export async function createManualSoldVoucher(
     });
     if (to) {
       try {
+        const attachments: Array<{ filename: string; content: Buffer }> = [];
+        if (pdfBytes) {
+          attachments.push({
+            filename: `poukaz-${codeNormalized}.pdf`,
+            content: Buffer.from(pdfBytes),
+          });
+        }
+        if (invoicePdfBytes && invoiceNumber) {
+          attachments.push({
+            filename: `faktura-${invoiceNumber}.pdf`,
+            content: invoicePdfBytes,
+          });
+        }
         const result = await sendVoucherEmail({
           shopId,
           to,
@@ -322,16 +484,35 @@ export async function createManualSoldVoucher(
           code: codeNormalized,
           validUntil: formatValidUntilLabel(validUntil),
           deliveryMethod: "email",
-          attachments: pdfBytes
-            ? [
-                {
-                  filename: `poukaz-${codeNormalized}.pdf`,
-                  content: Buffer.from(pdfBytes),
-                },
-              ]
-            : undefined,
+          attachments: attachments.length > 0 ? attachments : undefined,
         });
         emailSent = Boolean(result.ok);
+
+        // Pokud je e-mail dokladu jiný, pošli fakturu i tam.
+        const invoiceEmail = asTrimmed(invoicePayload?.email);
+        if (
+          invoicePdfBytes &&
+          invoiceNumber &&
+          invoiceEmail &&
+          invoiceEmail.toLowerCase() !== to.toLowerCase()
+        ) {
+          await sendVoucherEmail({
+            shopId,
+            to: invoiceEmail,
+            buyerName,
+            recipientName: buyerName,
+            productName,
+            code: codeNormalized,
+            validUntil: formatValidUntilLabel(validUntil),
+            deliveryMethod: "email",
+            attachments: [
+              {
+                filename: `faktura-${invoiceNumber}.pdf`,
+                content: invoicePdfBytes,
+              },
+            ],
+          });
+        }
       } catch (error) {
         console.error("createManualSoldVoucher: email failed", error);
       }
@@ -342,5 +523,6 @@ export async function createManualSoldVoucher(
     voucher: mapSoldVoucherRow(inserted as SoldVoucherRow),
     emailSent,
     pdfGenerated: Boolean(pdfUrl),
+    invoiceNumber,
   };
 }

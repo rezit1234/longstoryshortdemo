@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/chart";
 import { formatCzk } from "@/data/vouchers";
 
-export type AdminChartPeriod = "7d" | "30d" | "3m" | "1y";
+export type AdminChartPeriod = "week" | "month" | "year" | "all";
 
 export type AdminChartPoint = {
   label: string;
@@ -88,11 +88,11 @@ export function buildAdminChartPoints(
     return {
       value,
       label:
-        period === "1y"
+        period === "year" || period === "all"
           ? formatChartMonthShort(date)
           : formatChartDayLabel(date),
       tooltipLabel:
-        period === "1y"
+        period === "year" || period === "all"
           ? formatChartMonthLong(date)
           : formatChartTooltipDate(date),
     };

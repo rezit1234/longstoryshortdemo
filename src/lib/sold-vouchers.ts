@@ -8,6 +8,11 @@ import {
 } from "@/data/admin-vouchers";
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { formatCzk } from "@/data/vouchers";
+import {
+  formatPaymentMethodLabel,
+  isManualPaymentMethod,
+  type ManualPaymentMethod,
+} from "@/lib/voucher-payment-method";
 import { parseRedeemableParts } from "@/lib/voucher-redemption";
 
 export type SoldVoucherRow = {
@@ -31,6 +36,10 @@ export type SoldVoucherRow = {
   is_gift?: boolean | null;
   delivery_email?: string | null;
   recipient_name?: string | null;
+  payment_method?: string | null;
+  payment_method_note?: string | null;
+  redeemed_note?: string | null;
+  redeemed_at?: string | null;
 };
 
 function formatDateCs(isoOrDate: string) {
@@ -152,5 +161,27 @@ export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
     recipientName:
       typeof row.recipient_name === "string" ? row.recipient_name : "",
     canUndo: false,
+    paymentMethod: isManualPaymentMethod(row.payment_method)
+      ? (row.payment_method as ManualPaymentMethod)
+      : null,
+    paymentMethodNote:
+      typeof row.payment_method_note === "string" &&
+      row.payment_method_note.trim()
+        ? row.payment_method_note.trim()
+        : null,
+    paymentMethodLabel: formatPaymentMethodLabel(
+      isManualPaymentMethod(row.payment_method) ? row.payment_method : null,
+      row.payment_method_note,
+    ),
+    redeemedNote:
+      typeof row.redeemed_note === "string" && row.redeemed_note.trim()
+        ? row.redeemed_note.trim()
+        : null,
+    redeemedLabel:
+      typeof row.redeemed_note === "string" && row.redeemed_note.trim()
+        ? row.redeemed_note.trim()
+        : status === "redeemed"
+          ? "Uplatněno"
+          : null,
   };
 }

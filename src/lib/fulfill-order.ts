@@ -18,6 +18,10 @@ import {
   type OrderInvoicePayload,
 } from "@/lib/invoicing/issue-invoice-for-order";
 import {
+  generateA4VoucherPdf,
+  shopUsesHardcodedA4Pdf,
+} from "@/lib/voucher-a4-pdf";
+import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
 } from "@/lib/voucher-pdf-overlay";
@@ -188,6 +192,32 @@ function createIssuedPdfPath(shopId: ShopId, code: string) {
   return `issued/${shopId}/${safe}-${id}.pdf`;
 }
 
+async function uploadIssuedPdf(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  shopId: ShopId;
+  code: string;
+  bytes: Uint8Array;
+}): Promise<{ url: string; bytes: Uint8Array }> {
+  const path = createIssuedPdfPath(params.shopId, params.code);
+  const { error: uploadError } = await params.admin.storage
+    .from("voucher-pdfs")
+    .upload(path, Buffer.from(params.bytes), {
+      contentType: "application/pdf",
+      upsert: false,
+      cacheControl: "3600",
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const {
+    data: { publicUrl },
+  } = params.admin.storage.from("voucher-pdfs").getPublicUrl(path);
+
+  return { url: publicUrl, bytes: params.bytes };
+}
+
 async function stampAndUploadPdf(params: {
   admin: ReturnType<typeof createAdminClient>;
   shopId: ShopId;
@@ -206,24 +236,12 @@ async function stampAndUploadPdf(params: {
     qrPosition: params.placement.qrPosition,
   });
 
-  const path = createIssuedPdfPath(params.shopId, params.code);
-  const { error: uploadError } = await params.admin.storage
-    .from("voucher-pdfs")
-    .upload(path, Buffer.from(stamped), {
-      contentType: "application/pdf",
-      upsert: false,
-      cacheControl: "3600",
-    });
-
-  if (uploadError) {
-    throw new Error(uploadError.message);
-  }
-
-  const {
-    data: { publicUrl },
-  } = params.admin.storage.from("voucher-pdfs").getPublicUrl(path);
-
-  return { url: publicUrl, bytes: stamped };
+  return uploadIssuedPdf({
+    admin: params.admin,
+    shopId: params.shopId,
+    code: params.code,
+    bytes: stamped,
+  });
 }
 
 /**
@@ -299,35 +317,14 @@ export async function fulfillPaidOrder(orderId: string) {
   const shippingAddress = shippingAddressFromDelivery(typed.delivery);
   const shippingShare = Math.floor(typed.shipping_fee_czk / typed.quantity);
   const placement = resolvePdfPlacement(settings, typed);
+  const useA4 = shopUsesHardcodedA4Pdf(typed.shop_id);
 
   let templateBytes: Uint8Array | null = null;
-  if (placement?.pdfTemplate?.url) {
+  if (!useA4 && placement?.pdfTemplate?.url) {
     try {
       templateBytes = await fetchPdfTemplateBytes(placement.pdfTemplate.url);
     } catch (error) {
       console.error("fulfillPaidOrder: template download failed", error);
-    }
-  }
-
-  const pdfUrls = new Map<string, string>();
-  const pdfBytes = new Map<string, Uint8Array>();
-  if (templateBytes && placement) {
-    for (const code of codes) {
-      try {
-        const stamped = await stampAndUploadPdf({
-          admin,
-          shopId: typed.shop_id,
-          code,
-          placement,
-          templateBytes,
-        });
-        if (stamped) {
-          pdfUrls.set(code, stamped.url);
-          pdfBytes.set(code, stamped.bytes);
-        }
-      } catch (error) {
-        console.error("fulfillPaidOrder: PDF stamp failed", code, error);
-      }
     }
   }
 
@@ -347,6 +344,52 @@ export async function fulfillPaidOrder(orderId: string) {
     typed.item_kind === "experience"
       ? redeemablePartsForExperienceId(experienceId)
       : null;
+
+  const pdfUrls = new Map<string, string>();
+  const pdfBytes = new Map<string, Uint8Array>();
+  for (const code of codes) {
+    try {
+      if (useA4) {
+        const bytes = await generateA4VoucherPdf({
+          shopId: typed.shop_id,
+          code,
+          kind: typed.item_kind === "experience" ? "experience" : "amount",
+          serviceTitle:
+            typed.item_kind === "experience"
+              ? productName
+              : `${Math.round(typed.unit_price_czk).toLocaleString("cs-CZ")} Kč`,
+          amountCzk: typed.unit_price_czk,
+          recipientName,
+          fromName: isGift ? buyerName : null,
+          issuedAt: purchasedAt,
+          validUntil,
+          message,
+        });
+        const uploaded = await uploadIssuedPdf({
+          admin,
+          shopId: typed.shop_id,
+          code,
+          bytes,
+        });
+        pdfUrls.set(code, uploaded.url);
+        pdfBytes.set(code, uploaded.bytes);
+      } else if (templateBytes && placement) {
+        const stamped = await stampAndUploadPdf({
+          admin,
+          shopId: typed.shop_id,
+          code,
+          placement,
+          templateBytes,
+        });
+        if (stamped) {
+          pdfUrls.set(code, stamped.url);
+          pdfBytes.set(code, stamped.bytes);
+        }
+      }
+    } catch (error) {
+      console.error("fulfillPaidOrder: PDF failed", code, error);
+    }
+  }
 
   const rows = codes.map((code) => {
     let vatLabel: string | null =
@@ -448,35 +491,65 @@ export async function fulfillPaidOrder(orderId: string) {
       return `${d}. ${m}. ${y}`;
     })();
 
-    for (const [index, code] of codes.entries()) {
+    const attachments: VoucherEmailAttachment[] = [];
+    for (const code of codes) {
       const bytes = pdfBytes.get(code);
-      const attachments: VoucherEmailAttachment[] = [];
       if (bytes) {
         attachments.push({
           filename: `poukaz-${code}.pdf`,
           content: Buffer.from(bytes),
         });
       }
-      if (index === 0 && invoiceAttachment) {
-        attachments.push(invoiceAttachment);
-      }
+    }
+    if (invoiceAttachment) {
+      attachments.push(invoiceAttachment);
+    }
+
+    try {
+      const result = await sendVoucherEmail({
+        shopId: typed.shop_id,
+        to: emailTo,
+        buyerName,
+        recipientName,
+        productName,
+        code: codes[0] ?? "",
+        codes,
+        validUntil: validUntilLabel,
+        orderNumber: typed.order_number,
+        deliveryMethod,
+        message,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+      if (result.ok) emailsSent += 1;
+    } catch (error) {
+      console.error("fulfillPaidOrder: email failed", error);
+    }
+
+    // Fakturační e-mail může být jiný než příjemce poukazu (firma / dárek).
+    const invoiceEmail = asString(typed.invoice?.email).trim();
+    if (
+      invoiceAttachment &&
+      invoiceEmail &&
+      invoiceEmail.toLowerCase() !== emailTo.toLowerCase()
+    ) {
       try {
         const result = await sendVoucherEmail({
           shopId: typed.shop_id,
-          to: emailTo,
+          to: invoiceEmail,
           buyerName,
           recipientName,
           productName,
-          code,
+          code: codes[0] ?? "",
+          codes,
           validUntil: validUntilLabel,
           orderNumber: typed.order_number,
           deliveryMethod,
-          message,
-          attachments: attachments.length > 0 ? attachments : undefined,
+          message: null,
+          attachments: [invoiceAttachment],
         });
         if (result.ok) emailsSent += 1;
       } catch (error) {
-        console.error("fulfillPaidOrder: email failed", code, error);
+        console.error("fulfillPaidOrder: invoice email failed", error);
       }
     }
   }

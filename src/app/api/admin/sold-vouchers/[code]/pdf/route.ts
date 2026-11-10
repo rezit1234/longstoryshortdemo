@@ -1,13 +1,14 @@
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import { getSessionProfile } from "@/lib/admin-session";
+import { regenerateSoldVoucherPdfIfSupported } from "@/lib/regenerate-sold-voucher-pdf";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
 /**
- * Stažení vygenerovaného PDF poukazu (auth required).
- * Preferuje stream ze storage; fallback na redirect na public URL.
+ * Stažení PDF poukazu (auth required).
+ * LSS/BC: vždy znovu vygeneruje aktuální A4 (oprava starých „prázdných“ razítek).
  */
 export async function GET(
   _request: Request,
@@ -28,14 +29,31 @@ export async function GET(
     const admin = createAdminClient();
     const { data, error } = await admin
       .from("sold_vouchers")
-      .select("code, pdf_url")
+      .select(
+        "code, shop_id, product_name, item_kind, unit_price_czk, valid_until, purchased_at, buyer_name, recipient_name, message, pdf_url, is_gift",
+      )
       .eq("code_normalized", code)
       .maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    if (!data?.pdf_url) {
+    if (!data) {
+      return NextResponse.json({ error: "Poukaz nenalezen." }, { status: 404 });
+    }
+
+    const regenerated = await regenerateSoldVoucherPdfIfSupported(data);
+    if (regenerated) {
+      return new NextResponse(new Uint8Array(regenerated.bytes), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="poukaz-${data.code}.pdf"`,
+          "Cache-Control": "private, no-store",
+        },
+      });
+    }
+
+    if (!data.pdf_url) {
       return NextResponse.json(
         { error: "PDF pro tento poukaz ještě není vygenerované." },
         { status: 404 },

@@ -804,7 +804,7 @@
 
 .admin-overview-head {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1.25rem;
   flex-wrap: wrap;
@@ -1220,11 +1220,15 @@
   justify-content: center;
   box-sizing: border-box;
   min-height: 1.55rem;
-  padding: var(--admin-control-ink-nudge) 0.55rem 0;
+  padding: 0.18em 0.55rem 0;
   border-radius: 999px;
   font-weight: 600;
   font-size: 0.78rem;
   line-height: 1;
+  letter-spacing: 0.01em;
+  word-spacing: normal;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
 .admin-status.is-active {
@@ -1305,7 +1309,8 @@
   height: 2.5rem !important;
   min-height: 2.5rem !important;
   max-height: 2.5rem !important;
-  padding: var(--admin-control-ink-nudge) 1.1rem 0 !important;
+  /* Ikona + text: symetrický pad, text dolů přes .admin-page-head-btn-label */
+  padding: 0 1.1rem !important;
   font-size: 0.9rem;
   font-weight: 500;
   line-height: 1;
@@ -1320,6 +1325,13 @@
   height: 0.95rem;
   flex-shrink: 0;
   display: block;
+}
+
+/* Maison Neue: jen text dolů, ikona zůstane ve středu. */
+.admin-page-head-btn-label {
+  display: inline-block;
+  line-height: 1;
+  transform: translateY(0.06em);
 }
 
 .admin-page-head-actions .admin-page-head-secondary {
@@ -1339,7 +1351,7 @@
 }
 
 .admin-export-label-short {
-  display: none;
+  display: none !important;
 }
 
 .admin-page-head h1 {
@@ -1436,6 +1448,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.4rem;
   height: 2.5rem;
   padding: var(--admin-control-ink-nudge) 1.1rem 0;
   border-radius: 999px;
@@ -1468,15 +1481,21 @@
   align-items: center;
   justify-content: center;
   height: 2.35rem;
-  padding: var(--admin-control-ink-nudge) 1rem 0;
+  /* Maison Neue ink sedí vysoko — silnější nudge než u obecných controlů */
+  padding: 0.22em 1rem 0;
   border-radius: 999px;
   border: 1px solid var(--admin-line);
   background: var(--admin-surface);
   color: var(--admin-muted);
   font: inherit;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1;
+  letter-spacing: 0.01em;
+  word-spacing: normal;
+  /* Subpixel AA — na Windows u malého Demi čitelnější než grayscale antialias */
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
   cursor: pointer;
   transition:
     background 140ms ease,
@@ -1495,6 +1514,18 @@
   color: var(--admin-accent-fg);
 }
 
+.admin-poukazy-head-main {
+  display: contents;
+}
+
+.admin-poukazy-mobile-filter-actions {
+  display: none;
+}
+
+.admin-poukazy-lead-mobile {
+  display: none;
+}
+
 .admin-poukazy-panel {
   padding-top: 0.35rem;
 }
@@ -1507,6 +1538,90 @@
 .admin-poukazy-table td {
   padding-top: calc(0.62rem + var(--admin-ink-nudge));
   padding-bottom: calc(0.62rem - var(--admin-ink-nudge));
+}
+
+.admin-poukazy-redeemed {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--admin-muted, #667);
+}
+
+.admin-poukazy-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+}
+
+.admin-poukazy-pagination-meta {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 2.5rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--admin-muted);
+}
+
+.admin-poukazy-pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+/* Stejná velikost / zarovnání textu jako Export CSV + Přidat poukaz nahoře. */
+.admin-poukazy-pagination-controls .admin-primary-btn,
+.admin-poukazy-pagination-controls .admin-outline-btn,
+.admin-poukazy-pagination-controls .admin-page-head-primary,
+.admin-poukazy-pagination-controls .admin-page-head-secondary {
+  box-sizing: border-box;
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  max-height: 2.5rem !important;
+  min-width: 6.75rem;
+  padding: 0 1.1rem !important;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.admin-poukazy-pagination-controls .admin-page-head-secondary {
+  border: 1px solid var(--admin-line);
+  background: var(--admin-surface);
+  color: var(--admin-muted);
+}
+
+.admin-poukazy-pagination-controls .admin-page-head-secondary:hover:not(:disabled) {
+  color: var(--admin-fg);
+}
+
+.admin-poukazy-pagination-controls .admin-outline-btn:disabled,
+.admin-poukazy-pagination-controls .admin-primary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.admin-poukazy-page-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  min-width: 3.25rem;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--admin-muted);
 }
 
 .admin-poukazy-type {
@@ -2881,7 +2996,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: var(--admin-control-ink-nudge) 0.95rem 0;
+  padding: 0 0.95rem;
   border: 1px solid var(--admin-line);
   border-radius: 12px;
   background: var(--admin-bg);
@@ -2900,28 +3015,38 @@
   border-color: var(--admin-fg);
 }
 
+.admin-select-trigger-label {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1;
+  /* Maison Neue: jen text dolů, chevron zůstane ve středu */
+  transform: translateY(0.06em);
+}
+
 .admin-select-chevron-wrap {
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 0.95rem;
+  height: 0.95rem;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: var(--admin-muted);
 }
 
 .admin-select-chevron {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(45deg);
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+  transform: rotate(0deg);
   transform-origin: 50% 50%;
-  opacity: 0.7;
-  transition: transform 140ms ease;
+  transition: transform 160ms ease;
 }
 
 .admin-select.is-open .admin-select-chevron {
-  transform: rotate(225deg);
+  transform: rotate(180deg);
 }
 
 .admin-select-menu {
@@ -2931,8 +3056,11 @@
   right: 0;
   z-index: 5;
   margin: 0;
-  padding: 0.35rem;
+  padding: 0.4rem;
   list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
   border: 1px solid var(--admin-line);
   border-radius: 12px;
   background: var(--admin-surface);
@@ -2945,6 +3073,12 @@
   z-index: 200;
 }
 
+.admin-select-menu > li {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
 .admin-select-option {
   appearance: none;
   width: 100%;
@@ -2953,10 +3087,10 @@
   background: transparent;
   color: var(--admin-fg);
   display: block;
-  padding: calc(0.7rem + var(--admin-control-ink-nudge)) 0.75rem 0.7rem;
+  padding: calc(0.78rem + var(--admin-control-ink-nudge)) 0.8rem 0.78rem;
   font: inherit;
   font-size: 0.92rem;
-  line-height: 1;
+  line-height: 1.2;
   word-spacing: normal;
   text-align: left;
   cursor: pointer;
@@ -3220,13 +3354,14 @@
   color: var(--admin-muted);
 }
 
-.admin-experience-row-add {
+.admin-experience-row.admin-experience-row-add {
   appearance: none;
+  display: flex;
   width: 100%;
   align-items: center;
   justify-content: center;
-  min-height: 0;
-  padding: 0.85rem 1rem;
+  min-height: 3.25rem;
+  padding: 0.75rem 1rem;
   border-style: dashed;
   border-color: color-mix(in srgb, var(--admin-muted) 28%, var(--admin-line));
   background: color-mix(in srgb, var(--admin-bg) 50%, var(--admin-surface));
@@ -3235,8 +3370,8 @@
   color: var(--admin-muted);
 }
 
-.admin-experience-row-add:hover,
-.admin-experience-row-add:focus-visible {
+.admin-experience-row.admin-experience-row-add:hover,
+.admin-experience-row.admin-experience-row-add:focus-visible {
   border-color: color-mix(in srgb, var(--admin-fg) 24%, var(--admin-line));
   background: color-mix(in srgb, var(--admin-bg) 62%, var(--admin-surface));
   color: var(--admin-fg);
@@ -3248,6 +3383,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  margin: 0;
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1;
@@ -3256,6 +3392,12 @@
 .admin-experience-row-add-label .admin-page-head-btn-icon {
   width: 0.95rem;
   height: 0.95rem;
+  flex-shrink: 0;
+  display: block;
+}
+
+.admin-experience-row-add-label .admin-page-head-btn-label {
+  transform: translateY(0.06em);
 }
 
 .admin-settings-drawer-body {
@@ -3552,15 +3694,66 @@
   margin-bottom: 0;
 }
 
-.admin-analytika-filters {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.4rem;
+.admin-analytika-filter-btn {
+  color: var(--admin-accent-fg);
+  gap: 0.45rem;
 }
 
-.admin-analytika-filters .admin-filters {
-  justify-content: flex-end;
+.admin-analytika-filter-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+  display: block;
+  color: inherit;
+}
+
+/* Maison Neue: text dolů, ikona zůstane opticky ve středu. */
+.admin-analytika-filter-label {
+  display: inline-block;
+  line-height: 1;
+  transform: translateY(0.06em);
+}
+
+.admin-analytika-filters-modal .admin-reports-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.admin-staff-activity-panel {
+  margin-bottom: 0.85rem;
+}
+
+.admin-staff-activity-panel .admin-panel-head p {
+  margin: 0.25rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.9rem;
+}
+
+.admin-staff-activity-user {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.admin-staff-activity-user-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.admin-staff-activity-table td strong {
+  display: block;
+  font-weight: 600;
+}
+
+.admin-staff-activity-username {
+  display: block;
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  font-weight: 400;
 }
 
 .admin-analytics-stats {
@@ -3601,6 +3794,7 @@
 
 .admin-reports-open-btn {
   width: 100%;
+  gap: 0.45rem;
 }
 
 .admin-confirm-dialog.admin-reports-modal {
@@ -3646,9 +3840,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.45rem;
   height: 2.75rem;
   min-height: 2.75rem;
-  padding: 0 1.2rem;
+  padding: 0.08em 1.2rem 0;
   line-height: 1;
   box-sizing: border-box;
 }
@@ -3668,6 +3863,7 @@
 .admin-reports-modal-close > span {
   display: block;
   line-height: 1;
+  transform: translateY(0.06em);
 }
 
 .admin-reports-form {
@@ -4143,9 +4339,11 @@
 }
 
 .admin-member-avatar {
+  box-sizing: border-box;
   width: 2rem;
   height: 2rem;
   border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--admin-line) 70%, white);
   background: var(--admin-fg);
   color: var(--admin-accent-fg);
   display: inline-grid;
@@ -4245,8 +4443,27 @@
 .admin-member-remove-btn {
   width: 100%;
   height: 3.1rem;
+  gap: 0.5rem;
+  padding: 0 1.35rem;
   border-color: color-mix(in srgb, #dc2626 28%, var(--admin-line));
   color: #b91c1c;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-member-remove-btn .admin-member-remove-icon {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.admin-member-remove-btn .admin-page-head-btn-label {
+  transform: none;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 .admin-member-remove-btn:hover {
@@ -4700,15 +4917,6 @@
     max-width: 100%;
   }
 
-  .admin-analytika-filters {
-    align-items: stretch;
-    width: 100%;
-  }
-
-  .admin-analytika-filters .admin-filters {
-    justify-content: flex-start;
-  }
-
   .admin-page-head .admin-primary-btn,
   .admin-page-head .admin-outline-btn,
   .admin-page-head .admin-filters {
@@ -4729,18 +4937,20 @@
 
   .admin-page-head-actions .admin-export-btn {
     flex: 0 0 25%;
+    order: 2;
   }
 
   .admin-page-head-actions .admin-page-head-primary {
     flex: 1 1 0;
+    order: 1;
   }
 
   .admin-export-label-full {
-    display: none;
+    display: none !important;
   }
 
   .admin-export-label-short {
-    display: inline;
+    display: inline-block !important;
   }
 
   .admin-tym-table {
@@ -4760,8 +4970,7 @@
 
   /* Full-bleed carousel filtrů až k okraji obrazovky */
   .admin-poukazy > .admin-filters,
-  .admin-overview .admin-overview-shop-filters,
-  .admin-analytika .admin-analytika-filters .admin-filters {
+  .admin-overview .admin-overview-shop-filters {
     width: calc(100% + 1.8rem);
     max-width: none;
     margin-inline: -0.9rem;
@@ -4772,8 +4981,7 @@
   }
 
   .admin-poukazy > .admin-filters::-webkit-scrollbar,
-  .admin-overview .admin-overview-shop-filters::-webkit-scrollbar,
-  .admin-analytika .admin-analytika-filters .admin-filters::-webkit-scrollbar {
+  .admin-overview .admin-overview-shop-filters::-webkit-scrollbar {
     display: none;
   }
 
@@ -4792,6 +5000,23 @@
 
   .admin-overview-shop-filters {
     justify-content: flex-start;
+  }
+
+  .admin-poukazy-mobile-filter-actions {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  .admin-poukazy-lead-desktop {
+    display: none !important;
+  }
+
+  .admin-poukazy-lead-mobile {
+    display: block;
+  }
+
+  .admin-poukazy > .admin-poukazy-status-filters {
+    display: none;
   }
 
   .admin-overview-mid {
@@ -4943,8 +5168,7 @@
   }
 
   .admin-poukazy > .admin-filters,
-  .admin-overview .admin-overview-shop-filters,
-  .admin-analytika .admin-analytika-filters .admin-filters {
+  .admin-overview .admin-overview-shop-filters {
     width: calc(100% + 1.5rem);
     margin-inline: -0.75rem;
     padding-inline: 0.75rem;
@@ -5379,6 +5603,10 @@
 
 .admin-voucher-valid-until-save,
 .admin-voucher-valid-until-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   min-height: 2rem;
   padding: 0.25rem 0.7rem;
   border-radius: 999px;
@@ -5564,6 +5792,29 @@
   background: #f5f5f5;
 }
 
+.admin-voucher-drawer-cta.is-secondary.is-danger {
+  color: #b91c1c;
+  border-color: #f0c4c4;
+}
+
+.admin-voucher-drawer-cta.is-secondary.is-danger:hover {
+  background: #fef2f2;
+}
+
+.admin-redemption-undone {
+  text-decoration: line-through;
+  color: var(--admin-muted);
+}
+
+.admin-redemption-badge {
+  margin-left: 0.55rem;
+  vertical-align: middle;
+}
+
+tr.is-undone-redemption td {
+  color: var(--admin-muted);
+}
+
 .admin-voucher-drawer-email-feedback {
   margin: 0.85rem 0 0;
   font-size: 0.88rem;
@@ -5643,18 +5894,31 @@
   font-weight: 600;
 }
 
-.admin-add-voucher-email-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.55rem;
-  margin-top: 0.35rem;
-  font-size: 0.9rem;
-  line-height: 1.35;
-  cursor: pointer;
+.admin-add-voucher-invoice {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
 }
 
-.admin-add-voucher-email-toggle input {
-  margin-top: 0.15rem;
+.admin-add-voucher-invoice .checkout-section-label {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--admin-muted);
+}
+
+.admin-add-voucher-invoice .checkout-field {
+  color: var(--admin-fg);
+}
+
+.admin-add-voucher-invoice .checkout-field span {
+  color: var(--admin-muted);
+}
+
+.admin-add-voucher-invoice .checkout-field input {
+  background: var(--admin-surface);
+  border-color: var(--admin-line);
+  color: var(--admin-fg);
 }
 
 .admin-add-voucher-error {

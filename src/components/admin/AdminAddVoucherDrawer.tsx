@@ -6,32 +6,56 @@ import {
   createInitialVoucherSettings,
   type AdminVoucherSettings,
   type ShopId,
-  VOUCHER_CODE_INPUT_MAX_LENGTH,
+  VOUCHER_CODE_LENGTH,
   generateVoucherCode,
   isValidNewVoucherCode,
   sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
 import type { AdminSoldVoucher } from "@/data/admin-vouchers";
-import { SHOP_BRANDS } from "@/data/shops";
+import { getEnabledShopBrands } from "@/data/shops";
 import { formatCzk } from "@/data/vouchers";
 import { defaultShopIdForRole } from "@/lib/auth";
+import {
+  MANUAL_PAYMENT_METHOD_LABELS,
+  MANUAL_PAYMENT_METHODS,
+  type ManualPaymentMethod,
+} from "@/lib/voucher-payment-method";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { AdminSelect } from "./AdminSelect";
 import { useAdminUser } from "./AdminUserProvider";
+import { IconCancel } from "./icons";
 
 const DRAWER_ANIMATION_MS = 220;
 
 type VoucherKind = "experience" | "amount";
 
-const SHOP_OPTIONS = (
-  Object.keys(SHOP_BRANDS) as ShopId[]
-).map((id) => ({
-  value: id,
-  label: SHOP_BRANDS[id].brandName,
+const SHOP_OPTIONS = getEnabledShopBrands().map((brand) => ({
+  value: brand.id,
+  label: brand.brandName,
 }));
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "", label: "Vyberte…" },
+  ...MANUAL_PAYMENT_METHODS.map((method) => ({
+    value: method,
+    label: MANUAL_PAYMENT_METHOD_LABELS[method],
+  })),
+];
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+type InvoiceRecipientType = "person" | "company";
+
+function splitFullName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0] ?? "", lastName: "" };
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
 }
 
 export function AdminAddVoucherDrawer({
@@ -89,9 +113,44 @@ export function AdminAddVoucherDrawer({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState(() => generateVoucherCode(initialShopId));
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentMethodNote, setPaymentMethodNote] = useState("");
   const [sendEmail, setSendEmail] = useState(true);
+  const [wantInvoice, setWantInvoice] = useState(false);
+  const [invoiceRecipientType, setInvoiceRecipientType] =
+    useState<InvoiceRecipientType | null>(null);
+  const [companyId, setCompanyId] = useState("");
+  const [vatId, setVatId] = useState("");
+  const [invoiceEmail, setInvoiceEmail] = useState("");
+  const [invoiceFirstName, setInvoiceFirstName] = useState("");
+  const [invoiceLastName, setInvoiceLastName] = useState("");
+  const [invoiceAddressLine1, setInvoiceAddressLine1] = useState("");
+  const [invoiceCity, setInvoiceCity] = useState("");
+  const [invoicePostalCode, setInvoicePostalCode] = useState("");
+  const [invoiceNote, setInvoiceNote] = useState("");
+  const [linkedFirstName, setLinkedFirstName] = useState(true);
+  const [linkedLastName, setLinkedLastName] = useState(true);
+  const [linkedInvoiceEmail, setLinkedInvoiceEmail] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!wantInvoice || invoiceRecipientType !== "person") return;
+    const parts = splitFullName(fullName);
+    if (linkedFirstName) setInvoiceFirstName(parts.firstName);
+    if (linkedLastName) setInvoiceLastName(parts.lastName);
+  }, [
+    fullName,
+    wantInvoice,
+    invoiceRecipientType,
+    linkedFirstName,
+    linkedLastName,
+  ]);
+
+  useEffect(() => {
+    if (!wantInvoice || !linkedInvoiceEmail) return;
+    setInvoiceEmail(email);
+  }, [email, wantInvoice, linkedInvoiceEmail]);
 
   const requestClose = useCallback(() => {
     if (saving) return;
@@ -207,10 +266,43 @@ export function AdminAddVoucherDrawer({
         return;
       }
     }
+    if (!paymentMethod) {
+      setError("Vyberte způsob platby.");
+      return;
+    }
+    if (paymentMethod === "jine" && !paymentMethodNote.trim()) {
+      setError("Uveďte způsob platby.");
+      return;
+    }
     const normalized = applyShopCodePrefix(code, shopId);
     if (!isValidNewVoucherCode(normalized)) {
-      setError("Kód musí mít prefix obchodu a 8 znaků (např. LSSK7M2P9QX).");
+      setError("Kód musí mít prefix obchodu a 7 znaků (např. LSSK7M2P9A).");
       return;
+    }
+    if (wantInvoice) {
+      if (!invoiceRecipientType) {
+        setError("Zvolte typ daňového dokladu.");
+        return;
+      }
+      if (!isValidEmail(invoiceEmail)) {
+        setError("Zadejte platný e-mail pro daňový doklad.");
+        return;
+      }
+      if (invoiceRecipientType === "company" && !companyId.trim()) {
+        setError("Vyplňte IČO.");
+        return;
+      }
+      if (
+        invoiceRecipientType === "person" &&
+        (!invoiceFirstName.trim() ||
+          !invoiceLastName.trim() ||
+          !invoiceAddressLine1.trim() ||
+          !invoiceCity.trim() ||
+          !invoicePostalCode.trim())
+      ) {
+        setError("Vyplňte údaje daňového dokladu na jméno.");
+        return;
+      }
     }
 
     setSaving(true);
@@ -235,6 +327,24 @@ export function AdminAddVoucherDrawer({
           buyerPhone: phone.trim(),
           code: normalized,
           sendEmail,
+          paymentMethod: paymentMethod as ManualPaymentMethod,
+          paymentMethodNote:
+            paymentMethod === "jine" ? paymentMethodNote.trim() : null,
+          invoice: wantInvoice
+            ? {
+                wantInvoice: true,
+                recipientType: invoiceRecipientType,
+                companyId,
+                vatId,
+                email: invoiceEmail.trim(),
+                firstName: invoiceFirstName.trim(),
+                lastName: invoiceLastName.trim(),
+                addressLine1: invoiceAddressLine1.trim(),
+                city: invoiceCity.trim(),
+                postalCode: invoicePostalCode.trim(),
+                note: invoiceNote.trim(),
+              }
+            : { wantInvoice: false },
         }),
       });
 
@@ -413,35 +523,354 @@ export function AdminAddVoucherDrawer({
           </label>
 
           <div className="admin-field">
+            <span>Způsob platby</span>
+            <AdminSelect
+              ariaLabel="Vyberte způsob platby"
+              value={paymentMethod}
+              options={PAYMENT_METHOD_OPTIONS}
+              onChange={(value) => {
+                setPaymentMethod(value);
+                if (value !== "jine") setPaymentMethodNote("");
+              }}
+            />
+          </div>
+
+          {paymentMethod === "jine" ? (
+            <label className="admin-field">
+              <span>Uveďte způsob platby</span>
+              <input
+                type="text"
+                value={paymentMethodNote}
+                placeholder="Např. bankovní převod"
+                onChange={(event) => setPaymentMethodNote(event.target.value)}
+              />
+            </label>
+          ) : null}
+
+          <div className="admin-field">
             <span>Kód poukazu</span>
             <div className="admin-redeem-code-control is-full">
               <input
                 type="text"
                 value={code}
                 onChange={(event) =>
-                  setCode(sanitizeVoucherCodeInput(event.target.value))
+                  setCode(
+                    sanitizeVoucherCodeInput(
+                      event.target.value,
+                      VOUCHER_CODE_LENGTH,
+                    ),
+                  )
                 }
-                placeholder="LSSK7M2P9QX"
+                placeholder="LSSK7M2P9A"
                 autoComplete="off"
                 spellCheck={false}
-                maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
+                maxLength={VOUCHER_CODE_LENGTH}
                 aria-label="Kód poukazu"
               />
             </div>
             <em>
               Prefix podle obchodu je součástí kódu. Uloží se jako{" "}
-              {applyShopCodePrefix(code, shopId) || "LSSK7M2P9QX"}.
+              {applyShopCodePrefix(code, shopId) || "LSSK7M2P9A"}.
             </em>
           </div>
 
-          <label className="admin-add-voucher-email-toggle">
-            <input
-              type="checkbox"
-              checked={sendEmail}
-              onChange={(event) => setSendEmail(event.target.checked)}
-            />
-            <span>Odeslat poukaz e-mailem po uložení</span>
-          </label>
+          <div className="checkout-invoice admin-add-voucher-invoice">
+            <label
+              className={
+                sendEmail
+                  ? "checkout-invoice-toggle is-checked"
+                  : "checkout-invoice-toggle"
+              }
+            >
+              <input
+                type="checkbox"
+                checked={sendEmail}
+                onChange={(event) => setSendEmail(event.target.checked)}
+              />
+              <span className="checkout-invoice-toggle-mark" aria-hidden>
+                <svg viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M3.5 8.2 6.6 11.2 12.5 4.8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="checkout-invoice-toggle-label">
+                Odeslat poukaz e-mailem po uložení
+              </span>
+            </label>
+
+            <label
+              className={
+                wantInvoice
+                  ? "checkout-invoice-toggle is-checked"
+                  : "checkout-invoice-toggle"
+              }
+            >
+              <input
+                type="checkbox"
+                checked={wantInvoice}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setWantInvoice(next);
+                  if (!next) {
+                    setInvoiceRecipientType(null);
+                    return;
+                  }
+                  if (!invoiceRecipientType) {
+                    setInvoiceRecipientType("person");
+                  }
+                  const parts = splitFullName(fullName);
+                  if (linkedFirstName) setInvoiceFirstName(parts.firstName);
+                  if (linkedLastName) setInvoiceLastName(parts.lastName);
+                  if (linkedInvoiceEmail) setInvoiceEmail(email);
+                }}
+              />
+              <span className="checkout-invoice-toggle-mark" aria-hidden>
+                <svg viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M3.5 8.2 6.6 11.2 12.5 4.8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="checkout-invoice-toggle-label">
+                Vystavit daňový doklad
+              </span>
+            </label>
+
+            {wantInvoice ? (
+              <div className="checkout-invoice-fields">
+                <div className="checkout-section">
+                  <p className="checkout-section-label">Doklad vystavit</p>
+                  <div
+                    className={
+                      invoiceRecipientType === "person"
+                        ? "checkout-choice-tabs checkout-invoice-type-tabs is-person"
+                        : invoiceRecipientType === "company"
+                          ? "checkout-choice-tabs checkout-invoice-type-tabs is-company"
+                          : "checkout-choice-tabs checkout-invoice-type-tabs is-unset"
+                    }
+                    role="tablist"
+                    aria-label="Typ daňového dokladu"
+                  >
+                    <span
+                      className="checkout-choice-tabs-indicator"
+                      aria-hidden
+                    />
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={invoiceRecipientType === "company"}
+                      className={
+                        invoiceRecipientType === "company"
+                          ? "is-active"
+                          : undefined
+                      }
+                      onClick={() => setInvoiceRecipientType("company")}
+                    >
+                      Na firmu
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={invoiceRecipientType === "person"}
+                      className={
+                        invoiceRecipientType === "person"
+                          ? "is-active"
+                          : undefined
+                      }
+                      onClick={() => {
+                        setInvoiceRecipientType("person");
+                        const parts = splitFullName(fullName);
+                        if (linkedFirstName) {
+                          setInvoiceFirstName(parts.firstName);
+                        }
+                        if (linkedLastName) {
+                          setInvoiceLastName(parts.lastName);
+                        }
+                        if (linkedInvoiceEmail) setInvoiceEmail(email);
+                      }}
+                    >
+                      Na jméno
+                    </button>
+                  </div>
+                </div>
+
+                {invoiceRecipientType === "company" ? (
+                  <>
+                    <div className="checkout-field-row">
+                      <label className="checkout-field">
+                        <span>IČO</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          value={companyId}
+                          placeholder="12345678"
+                          onChange={(event) =>
+                            setCompanyId(
+                              event.target.value.replace(/[^\d]/g, ""),
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="checkout-field">
+                        <span>
+                          DIČ <em>(volitelné)</em>
+                        </span>
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          value={vatId}
+                          placeholder="CZ12345678"
+                          onChange={(event) =>
+                            setVatId(
+                              event.target.value.replace(/\s/g, "").toUpperCase(),
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label className="checkout-field">
+                      <span>E-mail pro daňový doklad</span>
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        value={invoiceEmail}
+                        placeholder="jan@email.cz"
+                        onChange={(event) => {
+                          setLinkedInvoiceEmail(false);
+                          setInvoiceEmail(event.target.value);
+                        }}
+                      />
+                    </label>
+
+                    <label className="checkout-field">
+                      <span>
+                        Poznámka <em>(volitelné)</em>
+                      </span>
+                      <input
+                        type="text"
+                        value={invoiceNote}
+                        placeholder="Např. číslo objednávky u vás"
+                        onChange={(event) => setInvoiceNote(event.target.value)}
+                      />
+                    </label>
+                  </>
+                ) : null}
+
+                {invoiceRecipientType === "person" ? (
+                  <>
+                    <div className="checkout-field-row">
+                      <label className="checkout-field">
+                        <span>Jméno</span>
+                        <input
+                          type="text"
+                          autoComplete="given-name"
+                          value={invoiceFirstName}
+                          placeholder="Jan"
+                          onChange={(event) => {
+                            setLinkedFirstName(false);
+                            setInvoiceFirstName(event.target.value);
+                          }}
+                        />
+                      </label>
+                      <label className="checkout-field">
+                        <span>Příjmení</span>
+                        <input
+                          type="text"
+                          autoComplete="family-name"
+                          value={invoiceLastName}
+                          placeholder="Novák"
+                          onChange={(event) => {
+                            setLinkedLastName(false);
+                            setInvoiceLastName(event.target.value);
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <label className="checkout-field">
+                      <span>Adresa</span>
+                      <input
+                        type="text"
+                        autoComplete="street-address"
+                        value={invoiceAddressLine1}
+                        placeholder="Ulice a číslo popisné"
+                        onChange={(event) =>
+                          setInvoiceAddressLine1(event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <div className="checkout-field-row">
+                      <label className="checkout-field">
+                        <span>Město</span>
+                        <input
+                          type="text"
+                          autoComplete="address-level2"
+                          value={invoiceCity}
+                          placeholder="Olomouc"
+                          onChange={(event) =>
+                            setInvoiceCity(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="checkout-field">
+                        <span>PSČ</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="postal-code"
+                          value={invoicePostalCode}
+                          placeholder="779 00"
+                          onChange={(event) =>
+                            setInvoicePostalCode(
+                              event.target.value.replace(/[^\d\s]/g, ""),
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label className="checkout-field">
+                      <span>E-mail pro daňový doklad</span>
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        value={invoiceEmail}
+                        placeholder="jan@email.cz"
+                        onChange={(event) => {
+                          setLinkedInvoiceEmail(false);
+                          setInvoiceEmail(event.target.value);
+                        }}
+                      />
+                    </label>
+
+                    <label className="checkout-field">
+                      <span>
+                        Poznámka <em>(volitelné)</em>
+                      </span>
+                      <input
+                        type="text"
+                        value={invoiceNote}
+                        placeholder="Např. číslo objednávky u vás"
+                        onChange={(event) => setInvoiceNote(event.target.value)}
+                      />
+                    </label>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
           {error ? <p className="admin-add-voucher-error">{error}</p> : null}
         </div>
@@ -453,7 +882,8 @@ export function AdminAddVoucherDrawer({
             onClick={requestClose}
             disabled={saving}
           >
-            Zrušit
+            <IconCancel className="admin-page-head-btn-icon" />
+            <span className="admin-page-head-btn-label">Zrušit</span>
           </button>
           <button
             type="button"

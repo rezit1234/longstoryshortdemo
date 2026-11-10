@@ -29,6 +29,20 @@ type IssueInvoiceInput = {
   paidAt?: string | null;
 };
 
+export type IssueInvoicePdfInput = {
+  shopId: ShopId;
+  totalCzk: number;
+  shippingFeeCzk?: number;
+  quantity?: number;
+  productName: string;
+  buyerName: string;
+  invoice: OrderInvoicePayload;
+  paymentMethodLabel: string;
+  footerNote: string;
+  issuedAt?: Date;
+  existingInvoiceNumber?: string | null;
+};
+
 function asTrimmed(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -88,6 +102,65 @@ function createInvoicePdfPath(shopId: ShopId, invoiceNumber: string) {
   return `invoices/${shopId}/${safe}-${id}.pdf`;
 }
 
+/** Vygeneruje a uloží PDF faktury (bez vazby na voucher_orders). */
+export async function issueInvoicePdf(input: IssueInvoicePdfInput) {
+  const admin = createAdminClient();
+  const issuedAt = input.issuedAt ?? new Date();
+  const issueDate = toDateOnly(issuedAt);
+  const quantity = input.quantity ?? 1;
+  const shippingFeeCzk = input.shippingFeeCzk ?? 0;
+
+  const invoiceNumber =
+    input.existingInvoiceNumber && String(input.existingInvoiceNumber).trim()
+      ? String(input.existingInvoiceNumber).trim()
+      : await getNextInvoiceNumber(input.shopId);
+
+  const customer = customerFromInvoice(input.invoice, input.buyerName);
+  const description = invoiceDescription({
+    productName: input.productName,
+    quantity,
+    shippingFeeCzk,
+  });
+
+  const pdfBytes = await generateInvoicePdfBuffer({
+    shopId: input.shopId,
+    invoiceNumber,
+    issueDate,
+    dueDate: issueDate,
+    dueDateLabel: "Datum úhrady",
+    description,
+    amount: input.totalCzk,
+    customerName: customer.name,
+    customerIco: customer.ico,
+    customerAddress: customer.address,
+    paymentMethod: input.paymentMethodLabel,
+    footerNote: input.footerNote,
+  });
+
+  const path = createInvoicePdfPath(input.shopId, invoiceNumber);
+  const { error: uploadError } = await admin.storage
+    .from("voucher-pdfs")
+    .upload(path, pdfBytes, {
+      contentType: "application/pdf",
+      upsert: false,
+      cacheControl: "3600",
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const {
+    data: { publicUrl },
+  } = admin.storage.from("voucher-pdfs").getPublicUrl(path);
+
+  return {
+    invoiceNumber,
+    pdfUrl: publicUrl,
+    pdfBytes,
+  };
+}
+
 /**
  * Vystaví PDF fakturu pro zaplacenou objednávku, uloží do storage
  * a zapíše číslo + URL na voucher_orders.
@@ -115,58 +188,28 @@ export async function issueInvoiceForPaidOrder(input: IssueInvoiceInput) {
     };
   }
 
-  const issuedAt = input.paidAt ? new Date(input.paidAt) : new Date();
-  const issueDate = toDateOnly(issuedAt);
-  const invoiceNumber =
-    existing?.invoice_number && String(existing.invoice_number).trim()
-      ? String(existing.invoice_number)
-      : await getNextInvoiceNumber(input.shopId);
-
-  const customer = customerFromInvoice(input.invoice, input.buyerName);
-  const description = invoiceDescription({
-    productName: input.productName,
-    quantity: input.quantity,
-    shippingFeeCzk: input.shippingFeeCzk,
-  });
-
-  const pdfBytes = await generateInvoicePdfBuffer({
+  const issued = await issueInvoicePdf({
     shopId: input.shopId,
-    invoiceNumber,
-    issueDate,
-    dueDate: issueDate,
-    dueDateLabel: "Datum úhrady",
-    description,
-    amount: input.totalCzk,
-    customerName: customer.name,
-    customerIco: customer.ico,
-    customerAddress: customer.address,
-    paymentMethod: "Online platba (Comgate)",
+    totalCzk: input.totalCzk,
+    shippingFeeCzk: input.shippingFeeCzk,
+    quantity: input.quantity,
+    productName: input.productName,
+    buyerName: input.buyerName,
+    invoice: input.invoice,
+    paymentMethodLabel: "Online platba (Comgate)",
     footerNote:
       "Tato faktura byla uhrazena online přes platební bránu Comgate.",
+    issuedAt: input.paidAt ? new Date(input.paidAt) : new Date(),
+    existingInvoiceNumber: existing?.invoice_number
+      ? String(existing.invoice_number)
+      : null,
   });
-
-  const path = createInvoicePdfPath(input.shopId, invoiceNumber);
-  const { error: uploadError } = await admin.storage
-    .from("voucher-pdfs")
-    .upload(path, pdfBytes, {
-      contentType: "application/pdf",
-      upsert: false,
-      cacheControl: "3600",
-    });
-
-  if (uploadError) {
-    throw new Error(uploadError.message);
-  }
-
-  const {
-    data: { publicUrl },
-  } = admin.storage.from("voucher-pdfs").getPublicUrl(path);
 
   const { error: updateError } = await admin
     .from("voucher_orders")
     .update({
-      invoice_number: invoiceNumber,
-      invoice_pdf_url: publicUrl,
+      invoice_number: issued.invoiceNumber,
+      invoice_pdf_url: issued.pdfUrl,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.orderId);
@@ -177,8 +220,8 @@ export async function issueInvoiceForPaidOrder(input: IssueInvoiceInput) {
 
   return {
     skipped: false as const,
-    invoiceNumber,
-    pdfUrl: publicUrl,
-    pdfBytes,
+    invoiceNumber: issued.invoiceNumber,
+    pdfUrl: issued.pdfUrl,
+    pdfBytes: issued.pdfBytes,
   };
 }

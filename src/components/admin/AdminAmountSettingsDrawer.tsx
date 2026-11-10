@@ -17,6 +17,7 @@ import {
 import { AdminDismissButton } from "./AdminDismissButton";
 import { AdminPdfCodePositionEditor } from "./AdminPdfCodePositionEditor";
 import { AdminPdfQrPositionEditor } from "./AdminPdfQrPositionEditor";
+import { IconPlus, IconSave } from "./icons";
 
 const DRAWER_ANIMATION_MS = 220;
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
@@ -35,23 +36,7 @@ function MaskIcon({ src }: { src: string }) {
 }
 
 function PlusIcon() {
-  return (
-    <svg
-      className="admin-page-head-btn-icon"
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d="M7 2v10M2 7h10"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <IconPlus className="admin-page-head-btn-icon" />;
 }
 
 function TargetIcon() {
@@ -151,6 +136,7 @@ function normalizeIncomingPdf(
 }
 
 export function AdminAmountSettingsDrawer({
+  shopId = "lss",
   slotKey,
   slotLabel,
   amount,
@@ -159,6 +145,7 @@ export function AdminAmountSettingsDrawer({
   onClose,
   onSave,
 }: {
+  shopId?: string;
   slotKey: number | "custom";
   slotLabel: string;
   amount: number | null;
@@ -171,6 +158,8 @@ export function AdminAmountSettingsDrawer({
     pdf: VoucherPdfPlacement | null;
   }) => void;
 }) {
+  const usesHardcodedA4 =
+    shopId === "lss" || shopId === "bistrocentral";
   const [isClosing, setIsClosing] = useState(false);
   const [draftAmount, setDraftAmount] = useState(
     amount === null ? "" : String(amount),
@@ -182,6 +171,7 @@ export function AdminAmountSettingsDrawer({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [a4PreviewOpen, setA4PreviewOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [qrEditorOpen, setQrEditorOpen] = useState(false);
   const previewInputRef = useRef<HTMLInputElement>(null);
@@ -205,6 +195,16 @@ export function AdminAmountSettingsDrawer({
   const displayPreview = draftPreview ?? fallbackPreview;
   const hasOverride = draftPreview !== null;
   const isCustom = slotKey === "custom";
+  const a4PreviewAmount = Math.max(1, parsedDraftAmount || amount || 1000);
+  const a4PreviewUrl = (() => {
+    const params = new URLSearchParams({
+      shopId,
+      kind: "amount",
+      title: "Dárkový poukaz",
+      amount: String(a4PreviewAmount),
+    });
+    return `/api/admin/a4-voucher-preview?${params.toString()}`;
+  })();
 
   useEffect(() => {
     setDraftAmount(amount === null ? "" : String(amount));
@@ -215,6 +215,7 @@ export function AdminAmountSettingsDrawer({
     setUploadingPreview(false);
     setUploadingPdf(false);
     setPdfPreviewOpen(false);
+    setA4PreviewOpen(false);
     setCodeEditorOpen(false);
     setQrEditorOpen(false);
   }, [slotKey, amount, preview, pdf]);
@@ -233,7 +234,9 @@ export function AdminAmountSettingsDrawer({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (pdfPreviewOpen || codeEditorOpen || qrEditorOpen) return;
+        if (pdfPreviewOpen || a4PreviewOpen || codeEditorOpen || qrEditorOpen) {
+          return;
+        }
         requestClose();
       }
     };
@@ -245,7 +248,13 @@ export function AdminAmountSettingsDrawer({
       document.body.style.overflow = "";
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [requestClose, pdfPreviewOpen, codeEditorOpen, qrEditorOpen]);
+  }, [
+    requestClose,
+    pdfPreviewOpen,
+    a4PreviewOpen,
+    codeEditorOpen,
+    qrEditorOpen,
+  ]);
 
   async function uploadPreviewFile(fileList: FileList | File[]) {
     const file = Array.from(fileList)[0];
@@ -387,9 +396,10 @@ export function AdminAmountSettingsDrawer({
 
   function handleSave() {
     const hasPdf =
-      draftPdf.pdfTemplate !== null ||
-      draftPdf.codePosition !== null ||
-      draftPdf.qrPosition !== null;
+      !usesHardcodedA4 &&
+      (draftPdf.pdfTemplate !== null ||
+        draftPdf.codePosition !== null ||
+        draftPdf.qrPosition !== null);
 
     onSave({
       amount: isCustom ? null : parsedDraftAmount,
@@ -518,7 +528,7 @@ export function AdminAmountSettingsDrawer({
                       event.target.value = "";
                     }}
                   />
-                  <MaskIcon src="/icons/Edit.svg" />
+                  <PlusIcon />
                   {uploadingPreview
                     ? "Nahrávám…"
                     : hasOverride
@@ -535,6 +545,24 @@ export function AdminAmountSettingsDrawer({
             {previewError ? <p className="admin-drawer-error">{previewError}</p> : null}
           </div>
 
+          {usesHardcodedA4 ? (
+            <div className="admin-field">
+              <span>PDF poukazu</span>
+              <div className="admin-upload-zone is-compact">
+                <strong>Náhled A4 doručenky</strong>
+                <p className="admin-field-hint">
+                  Generuje se automaticky podle částky této varianty.
+                </p>
+                <button
+                  type="button"
+                  className="admin-outline-btn"
+                  onClick={() => setA4PreviewOpen(true)}
+                >
+                  Zobrazit náhled
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="admin-field">
             <span>PDF šablona poukazu</span>
             <div className="admin-pdf-steps">
@@ -703,26 +731,12 @@ export function AdminAmountSettingsDrawer({
               </div>
             </div>
           </div>
+          )}
         </div>
 
         <div className="admin-voucher-drawer-footer">
           <button type="button" className="admin-voucher-drawer-cta" onClick={handleSave}>
-            <svg
-              className="admin-voucher-drawer-cta-icon"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.207Z"
-                fill="currentColor"
-              />
-            </svg>
+            <IconSave className="admin-voucher-drawer-cta-icon" />
             Uložit
           </button>
         </div>
@@ -732,6 +746,16 @@ export function AdminAmountSettingsDrawer({
         <PdfPreviewLightbox
           pdf={draftPdf.pdfTemplate}
           onClose={() => setPdfPreviewOpen(false)}
+        />
+      ) : null}
+
+      {a4PreviewOpen ? (
+        <PdfPreviewLightbox
+          pdf={{
+            url: a4PreviewUrl,
+            fileName: "Náhled A4 doručenky.pdf",
+          }}
+          onClose={() => setA4PreviewOpen(false)}
         />
       ) : null}
 

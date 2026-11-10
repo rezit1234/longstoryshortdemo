@@ -20,6 +20,7 @@ import {
 } from "@/lib/voucher-qr-box";
 import { usePdfEditorStage } from "@/hooks/usePdfEditorStage";
 import { AdminDismissButton } from "./AdminDismissButton";
+import { IconCancel } from "./icons";
 
 type Interaction =
   | {
@@ -375,7 +376,8 @@ export function AdminPdfQrPositionEditor({
 
         <div className="admin-code-editor-footer">
           <button type="button" className="admin-outline-btn" onClick={onClose}>
-            Zrušit
+            <IconCancel className="admin-page-head-btn-icon" />
+            <span className="admin-page-head-btn-label">Zrušit</span>
           </button>
           <button
             type="button"

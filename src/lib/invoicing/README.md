@@ -14,17 +14,27 @@ a přiloží k prvnímu zákaznickému mailu.
 | `register-pdf-fonts.ts` | Roboto Regular + Bold |
 | `invoice-logo.ts` | logo shopu → PNG data URL |
 | `invoice-number.ts` | `LSS\|BC\|CA-YYYY-NNNN` + VS |
-| `issuers.ts` | dodavatel per shop (+ env) |
+| `issuers.ts` | dodavatel (právní subjekt + env) |
 | `spayd.ts` | SPAYD string + QR data URL |
 
-## Env (před ostreem doplnit)
+## Dodavatel (výchozí)
+
+Všechny shopy vystavují za **LONG STORY SHORT s.r.o.**  
+(IČO 04845099, DIČ CZ04845099, účet 2114248863/2700, kontakt recepce).
+
+Volitelně přepsat přes env:
 
 ```
-INVOICE_LSS_ICO=
+INVOICE_LSS_NAME=
 INVOICE_LSS_ADDRESS=
+INVOICE_LSS_ICO=
+INVOICE_LSS_DIC=
 INVOICE_LSS_BANK_ACCOUNT=
 INVOICE_LSS_IBAN=
-INVOICE_LSS_NOTE=Neplátce DPH
+INVOICE_LSS_SWIFT=
+INVOICE_LSS_PHONE=
+INVOICE_LSS_EMAIL=
+INVOICE_LSS_NOTE=
 # stejně INVOICE_BISTROCENTRAL_* / INVOICE_CULINARYACADEMY_*
 ```
 

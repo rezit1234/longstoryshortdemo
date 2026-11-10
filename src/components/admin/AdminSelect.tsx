@@ -67,15 +67,19 @@ export function AdminSelect({
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setOpen(false);
+      }
     }
 
     document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [open]);
 
@@ -90,9 +94,23 @@ export function AdminSelect({
         aria-controls={listboxId}
         onClick={() => setOpen((current) => !current)}
       >
-        <span>{selected?.label}</span>
+        <span className="admin-select-trigger-label">{selected?.label}</span>
         <span className="admin-select-chevron-wrap" aria-hidden>
-          <span className="admin-select-chevron" />
+          <svg
+            className="admin-select-chevron"
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+          >
+            <path
+              d="M3 4.5L6 7.5L9 4.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
       </button>
 

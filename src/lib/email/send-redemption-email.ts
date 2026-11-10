@@ -1,6 +1,7 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
 import { sendBrevoEmail } from "@/lib/email/brevo";
+import { emailDetailRows } from "@/lib/email/email-detail-rows";
 import { formatCzk } from "@/data/vouchers";
 
 export type SendRedemptionStatusEmailInput = {
@@ -95,18 +96,18 @@ export function buildRedemptionEmailHtml(input: SendRedemptionStatusEmailInput) 
               <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">Dobrý den, ${name},</p>
               <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">informujeme vás, že ${body}</p>
               <table role="presentation" width="100%" style="margin:20px 0;border-collapse:collapse;">
-                <tr>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;color:#666;">Produkt</td>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;text-align:right;"><strong>${product}</strong></td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;color:#666;">Kód poukazu</td>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:16px;text-align:right;letter-spacing:0.08em;"><strong>${code}</strong></td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;border-top:1px solid #eee;border-bottom:1px solid #eee;font-size:14px;color:#666;">Platnost do</td>
-                  <td style="padding:8px 0;border-top:1px solid #eee;border-bottom:1px solid #eee;font-size:14px;text-align:right;"><strong>${validUntil}</strong></td>
-                </tr>
+                ${emailDetailRows([
+                  { label: "Produkt", valueHtml: `<strong>${product}</strong>` },
+                  {
+                    label: "Kód poukazu",
+                    valueHtml: `<strong style="letter-spacing:0.08em;">${code}</strong>`,
+                    valueStyle: "font-size:16px;",
+                  },
+                  {
+                    label: "Platnost do",
+                    valueHtml: `<strong>${validUntil}</strong>`,
+                  },
+                ])}
               </table>
               <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">
                 Tento e-mail slouží jen jako potvrzení stavu poukazu.

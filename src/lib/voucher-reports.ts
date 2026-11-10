@@ -6,9 +6,12 @@ import {
 } from "@/data/admin-voucher-settings";
 import { normalizeVoucherSettings } from "@/lib/voucher-settings";
 
+import type { StaffActivityRow } from "@/lib/admin-staff-activity";
+
 export type ReportShopFilter = "all" | ShopId;
 export type ReportTaxRegime = "vouchy" | "legacy";
 export type ReportVoucherStatus = "Aktivní" | "Uplatněný" | "Expirovaný";
+export type ReportActivityFilter = "all" | "issued" | "redeemed";
 
 export type ReportCatalogVariant = {
   id: string;
@@ -30,6 +33,8 @@ export type SoldVoucherRecord = {
   amountCzk: number;
   vatLabel: string;
   taxRegime: ReportTaxRegime;
+  issuedByName?: string | null;
+  redeemedByName?: string | null;
 };
 
 export type ReportAggregateRow = {
@@ -44,9 +49,13 @@ export type VoucherReport = {
   from: string;
   to: string;
   shop: ReportShopFilter;
+  userId: string | null;
+  userLabel: string | null;
+  activity: ReportActivityFilter;
   isDemo: boolean;
   summary: { sold: number; redeemed: number; revenueCzk: number };
   aggregateRows: ReportAggregateRow[];
+  staffRows: StaffActivityRow[];
   vouchers: SoldVoucherRecord[];
 };
 
@@ -54,6 +63,8 @@ export type ReportQuery = {
   from: string;
   to: string;
   shop: ReportShopFilter;
+  userId?: string | null;
+  activity?: ReportActivityFilter;
 };
 
 /**
@@ -320,9 +331,13 @@ export function aggregateVoucherReport(
     from: query.from,
     to: query.to,
     shop: query.shop,
+    userId: query.userId ?? null,
+    userLabel: null,
+    activity: query.activity ?? "all",
     isDemo: false,
     summary: { sold, redeemed, revenueCzk },
     aggregateRows,
+    staffRows: [],
     vouchers,
   };
 }

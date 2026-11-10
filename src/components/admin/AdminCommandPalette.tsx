@@ -36,6 +36,12 @@ const QUICK_LINKS = [
     description: "Ověření a uplatnění kódu",
     iconSrc: "/icons/uplatneni.svg",
   },
+  {
+    href: "/admin/historie-uplatneni",
+    label: "Historie uplatnění",
+    description: "Přehled všech uplatnění poukazů",
+    iconSrc: "/icons/historie-uplatneni.svg",
+  },
 ] as const;
 
 const MANAGE_QUICK_LINKS = [
@@ -158,6 +164,48 @@ export function AdminCommandPalette({
   }, [manageAccess, quickLinks, user.role, viewManagement]);
 
   const recentVouchers = useMemo(() => getRecentAdminVouchers(4, vouchers), [vouchers]);
+  const [remoteVouchers, setRemoteVouchers] = useState<AdminSoldVoucher[]>([]);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!open || trimmed.length < 2) {
+      setRemoteVouchers([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const params = new URLSearchParams({
+            q: trimmed,
+            page: "1",
+            pageSize: "12",
+            status: "all",
+          });
+          const response = await fetch(`/api/admin/sold-vouchers?${params}`, {
+            cache: "no-store",
+          });
+          if (!response.ok) return;
+          const data = (await response.json()) as {
+            vouchers?: AdminSoldVoucher[];
+          };
+          if (!cancelled) {
+            setRemoteVouchers(
+              Array.isArray(data.vouchers) ? data.vouchers : [],
+            );
+          }
+        } catch {
+          if (!cancelled) setRemoteVouchers([]);
+        }
+      })();
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, query]);
 
   const searchItems = useMemo<SearchItem[]>(() => {
     const trimmed = query.trim();
@@ -168,14 +216,19 @@ export function AdminCommandPalette({
       .filter((item) => item.label.toLowerCase().includes(normalized))
       .map((item) => ({ type: "nav" as const, ...item }));
 
-    const voucherMatches = searchAdminVouchers(trimmed, vouchers).map((voucher) => ({
+    const localMatches = searchAdminVouchers(trimmed, vouchers);
+    const byCode = new Map<string, AdminSoldVoucher>();
+    for (const voucher of [...localMatches, ...remoteVouchers]) {
+      byCode.set(voucher.code, voucher);
+    }
+    const voucherMatches = [...byCode.values()].map((voucher) => ({
       type: "voucher" as const,
       voucher,
       iconVariant: getVoucherIconVariant(trimmed, voucher),
     }));
 
     return [...navMatches, ...voucherMatches];
-  }, [navLinks, query, vouchers]);
+  }, [navLinks, query, remoteVouchers, vouchers]);
 
   const defaultItems = useMemo<SearchItem[]>(
     () => [

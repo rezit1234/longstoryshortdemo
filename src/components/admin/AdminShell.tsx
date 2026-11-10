@@ -41,6 +41,11 @@ const NAV: NavItem[] = [
     iconSrc: "/icons/uplatneni.svg",
   },
   {
+    href: "/admin/historie-uplatneni",
+    label: "Historie uplatnění",
+    iconSrc: "/icons/historie-uplatneni.svg",
+  },
+  {
     href: "/admin/obchody",
     label: "Obchody",
     iconSrc: "/icons/obchod.svg",

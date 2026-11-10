@@ -1,6 +1,7 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
 import { sendBrevoEmail } from "@/lib/email/brevo";
+import { emailDetailRows } from "@/lib/email/email-detail-rows";
 
 export type VoucherEmailAttachment = {
   filename: string;
@@ -13,12 +14,15 @@ export type SendVoucherEmailInput = {
   buyerName: string;
   recipientName?: string;
   productName: string;
+  /** Primární / první kód (zpětná kompatibilita). */
   code: string;
+  /** Všechny kódy objednávky — jeden mail i při množství > 1. */
+  codes?: string[];
   validUntil: string;
   orderNumber?: string;
   deliveryMethod: string;
   message?: string | null;
-  /** PDF poukazu a později i faktura - jeden mail, víc příloh. */
+  /** PDF poukazů (+ faktura) v jednom mailu. */
   attachments?: VoucherEmailAttachment[];
 };
 
@@ -43,74 +47,105 @@ function shopLogoUrl(logoSrc: string) {
   return `${appBaseUrl()}${path}`;
 }
 
+function resolveCodes(input: Pick<SendVoucherEmailInput, "code" | "codes">) {
+  const fromList = (input.codes ?? [])
+    .map((code) => code.trim())
+    .filter(Boolean);
+  if (fromList.length > 0) {
+    return [...new Set(fromList)];
+  }
+  const single = input.code.trim();
+  return single ? [single] : [];
+}
+
 function classifyAttachments(attachments: VoucherEmailAttachment[]) {
   const hasInvoice = attachments.some((file) =>
     /faktura|invoice/i.test(file.filename),
   );
-  const hasVoucher = attachments.some((file) =>
+  const voucherCount = attachments.filter((file) =>
     /poukaz|voucher/i.test(file.filename),
-  );
+  ).length;
+  const hasVoucher =
+    voucherCount > 0 || (attachments.length > 0 && !hasInvoice);
   return {
     count: attachments.length,
+    voucherCount: hasVoucher
+      ? Math.max(voucherCount, hasInvoice ? attachments.length - 1 : attachments.length)
+      : 0,
     hasInvoice,
-    hasVoucher: hasVoucher || (attachments.length > 0 && !hasInvoice),
+    hasVoucher,
   };
 }
 
 function deliveryCopyCs(
   method: string,
   files: ReturnType<typeof classifyAttachments>,
+  voucherCount: number,
 ) {
+  const plural = voucherCount > 1;
+  const voucherWord = plural ? "poukazy" : "poukaz";
+  const digitalWord = plural ? "digitální verze" : "digitální verzi";
+
   if (method === "post") {
     if (files.hasVoucher && files.hasInvoice) {
-      return "Poukaz vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme digitální poukaz i fakturu v PDF.";
+      return `Poukaz${plural ? "y" : ""} vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme ${digitalWord} i fakturu v PDF.`;
     }
     if (files.hasVoucher) {
-      return "Poukaz vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme i digitální verzi v PDF.";
+      return `Poukaz${plural ? "y" : ""} vám pošleme poštou v dárkovém balení. Pro jistotu přikládáme i ${digitalWord} v PDF.`;
     }
-    return "Poukaz vám pošleme poštou v dárkovém balení. Kód níže stačí k uplatnění.";
+    return `Poukaz${plural ? "y" : ""} vám pošleme poštou v dárkovém balení. Kód${plural ? "y" : ""} níže stačí k uplatnění.`;
   }
 
   if (method === "pickup") {
     if (files.hasVoucher && files.hasInvoice) {
-      return "Poukaz si vyzvednete osobně. Pro jistotu přikládáme digitální poukaz i fakturu v PDF.";
+      return `Poukaz${plural ? "y" : ""} si vyzvednete osobně. Pro jistotu přikládáme ${digitalWord} i fakturu v PDF.`;
     }
     if (files.hasVoucher) {
-      return "Poukaz si vyzvednete osobně. Pro jistotu přikládáme i digitální verzi v PDF.";
+      return `Poukaz${plural ? "y" : ""} si vyzvednete osobně. Pro jistotu přikládáme i ${digitalWord} v PDF.`;
     }
-    return "Poukaz si vyzvednete osobně. Kód níže stačí k uplatnění.";
+    return `Poukaz${plural ? "y" : ""} si vyzvednete osobně. Kód${plural ? "y" : ""} níže stačí k uplatnění.`;
   }
 
   if (files.hasVoucher && files.hasInvoice) {
-    return "V příloze tohoto e-mailu najdete dárkový poukaz i fakturu k objednávce ve formátu PDF.";
+    return `V příloze tohoto e-mailu najdete dárkový ${voucherWord} i fakturu k objednávce ve formátu PDF.`;
   }
   if (files.hasVoucher) {
-    return "V příloze najdete dárkový poukaz v PDF. Stačí ho otevřít nebo vytisknout.";
+    return `V příloze najdete dárkový ${voucherWord} v PDF. Stačí ${plural ? "je" : "ho"} otevřít nebo vytisknout.`;
   }
   if (files.hasInvoice) {
-    return "V příloze tohoto e-mailu najdete fakturu k objednávce ve formátu PDF. Kód poukazu je níže.";
+    return `V příloze tohoto e-mailu najdete fakturu k objednávce ve formátu PDF. Kód${plural ? "y" : ""} poukazu ${plural ? "jsou" : "je"} níže.`;
   }
-  return "Kód poukazu najdete níže - stačí ho uvést při uplatnění.";
+  return `Kód${plural ? "y" : ""} poukazu najdete níže — stačí ${plural ? "je" : "ho"} uvést při uplatnění.`;
 }
 
-function attachmentFootnoteCs(files: ReturnType<typeof classifyAttachments>) {
+function attachmentFootnoteCs(
+  files: ReturnType<typeof classifyAttachments>,
+  voucherCount: number,
+) {
+  const plural = voucherCount > 1;
   if (files.hasVoucher && files.hasInvoice) {
-    return "PDF poukazu a faktury k objednávce jsou v příloze tohoto e-mailu.";
+    return plural
+      ? "PDF všech poukazů a faktury k objednávce jsou v příloze tohoto e-mailu."
+      : "PDF poukazu a faktury k objednávce jsou v příloze tohoto e-mailu.";
   }
   if (files.hasVoucher) {
-    return "PDF poukazu je v příloze tohoto e-mailu.";
+    return plural
+      ? "PDF všech poukazů jsou v příloze tohoto e-mailu."
+      : "PDF poukazu je v příloze tohoto e-mailu.";
   }
   if (files.hasInvoice) {
     return "Faktura k objednávce je v příloze tohoto e-mailu.";
   }
-  return "Digitální PDF zatím není k dispozici - kód výše stačí k uplatnění.";
+  return "Kód výše stačí k uplatnění.";
 }
 
 function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
   const brand = getShopBrand(input.shopId);
   const name = escapeHtml(input.recipientName || input.buyerName || "vážení");
   const product = escapeHtml(input.productName);
-  const code = escapeHtml(input.code);
+  const codes = resolveCodes(input);
+  const voucherCount = Math.max(codes.length, 1);
+  const plural = voucherCount > 1;
   const validUntil = escapeHtml(input.validUntil);
   const brandName = escapeHtml(brand.brandName);
   const website = escapeHtml(brand.websiteUrl);
@@ -119,6 +154,32 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
   const message = input.message?.trim()
     ? `<p style="margin:16px 0 0;padding:12px 14px;background:#f5f5f5;border-radius:8px;"><strong>Vzkaz:</strong><br/>${escapeHtml(input.message.trim())}</p>`
     : "";
+
+  const codesHtml = codes
+    .map(
+      (code) =>
+        `<strong style="letter-spacing:0.08em;">${escapeHtml(code)}</strong>`,
+    )
+    .join("<br/>");
+
+  const detailRows = [
+    { label: "Produkt", valueHtml: `<strong>${product}</strong>` },
+    plural
+      ? {
+          label: "Množství",
+          valueHtml: `<strong>${voucherCount}×</strong>`,
+        }
+      : null,
+    {
+      label: plural ? "Kódy poukazů" : "Kód poukazu",
+      valueHtml: codesHtml || "—",
+      valueStyle: "font-size:16px;",
+    },
+    {
+      label: "Platnost do",
+      valueHtml: `<strong>${validUntil}</strong>`,
+    },
+  ];
 
   return `<!DOCTYPE html>
 <html lang="cs">
@@ -132,25 +193,23 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
               <div style="margin:0 0 18px;text-align:left;">
                 <img src="${logoUrl}" alt="${brandName}" width="96" style="display:block;max-width:96px;width:96px;height:auto;border:0;outline:none;text-decoration:none;" />
               </div>
-              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:left;font-weight:700;">Váš dárkový poukaz</h1>
+              <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:left;font-weight:700;">${
+                plural ? "Vaše dárkové poukazy" : "Váš dárkový poukaz"
+              }</h1>
               <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">Dobrý den, ${name},</p>
-              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">děkujeme za nákup. ${deliveryCopyCs(input.deliveryMethod, files)}</p>
+              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">děkujeme za nákup. ${deliveryCopyCs(
+                input.deliveryMethod,
+                files,
+                voucherCount,
+              )}</p>
               <table role="presentation" width="100%" style="margin:20px 0;border-collapse:collapse;">
-                <tr>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;color:#666;">Produkt</td>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;text-align:right;"><strong>${product}</strong></td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:14px;color:#666;">Kód poukazu</td>
-                  <td style="padding:8px 0;border-top:1px solid #eee;font-size:16px;text-align:right;letter-spacing:0.08em;"><strong>${code}</strong></td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;border-top:1px solid #eee;border-bottom:1px solid #eee;font-size:14px;color:#666;">Platnost do</td>
-                  <td style="padding:8px 0;border-top:1px solid #eee;border-bottom:1px solid #eee;font-size:14px;text-align:right;"><strong>${validUntil}</strong></td>
-                </tr>
+                ${emailDetailRows(detailRows)}
               </table>
               ${message}
-              <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">${attachmentFootnoteCs(files)}</p>
+              <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">${attachmentFootnoteCs(
+                files,
+                voucherCount,
+              )}</p>
               <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#777;">
                 ${brandName}<br/>
                 <a href="${website}" style="color:#111;">${website.replace(/^https?:\/\//, "")}</a>
@@ -167,18 +226,27 @@ function buildVoucherEmailHtml(input: SendVoucherEmailInput) {
 
 export { buildVoucherEmailHtml };
 
-export function voucherEmailSubject(input: Pick<SendVoucherEmailInput, "shopId" | "attachments">) {
+export function voucherEmailSubject(
+  input: Pick<SendVoucherEmailInput, "shopId" | "attachments" | "code" | "codes">,
+) {
   const brand = getShopBrand(input.shopId);
+  const codes = resolveCodes(input);
+  const plural = codes.length > 1;
   const hasInvoice = (input.attachments ?? []).some((file) =>
     /faktura|invoice/i.test(file.filename),
   );
-  return hasInvoice
-    ? `Váš dárkový poukaz a faktura - ${brand.brandName}`
+  if (hasInvoice) {
+    return plural
+      ? `Vaše dárkové poukazy a faktura - ${brand.brandName}`
+      : `Váš dárkový poukaz a faktura - ${brand.brandName}`;
+  }
+  return plural
+    ? `Vaše dárkové poukazy - ${brand.brandName}`
     : `Váš dárkový poukaz - ${brand.brandName}`;
 }
 
 /**
- * Jeden zákaznický e-mail po platbě: poukaz (+ později faktura ve stejné příloze).
+ * Jeden zákaznický e-mail po platbě: všechny poukazy (+ faktura) v přílohách.
  */
 export async function sendVoucherEmail(input: SendVoucherEmailInput) {
   const files = input.attachments ?? [];

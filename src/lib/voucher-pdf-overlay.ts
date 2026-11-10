@@ -108,7 +108,7 @@ async function buildQrPng(payload: string, pixelSize: number) {
 
 /**
  * Natiskne kód + QR do PDF šablony podle % pozic z admin editoru.
- * Kód a QR můžou být na různých stránkách (`position.page`).
+ * Používá se u obchodů bez hardcoded A4 (např. Culinary Academy).
  */
 export async function stampVoucherPdf(
   input: StampVoucherPdfInput,

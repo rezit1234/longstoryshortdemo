@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       from: url.searchParams.get("from"),
       to: url.searchParams.get("to"),
       period: url.searchParams.get("period"),
+      userId: url.searchParams.get("user"),
     });
     return NextResponse.json(payload);
   } catch (error) {

@@ -1,6 +1,7 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
 import { sendBrevoEmail } from "@/lib/email/brevo";
+import { emailDetailRows } from "@/lib/email/email-detail-rows";
 
 export type OpsFulfillmentShippingAddress = {
   name: string;
@@ -85,20 +86,6 @@ function shopLogoUrl(logoSrc: string) {
   return `${appBaseUrl()}${path}`;
 }
 
-function detailRow(
-  label: string,
-  valueHtml: string,
-  options?: { first?: boolean; last?: boolean; valueStyle?: string },
-) {
-  const borderTop = options?.first ? "" : "border-top:1px solid #eee;";
-  const borderBottom = options?.last ? "border-bottom:1px solid #eee;" : "";
-  const valueStyle = options?.valueStyle ?? "";
-  return `<tr>
-    <td style="padding:8px 0;${borderTop}${borderBottom}font-size:14px;color:#666;vertical-align:top;">${escapeHtml(label)}</td>
-    <td style="padding:8px 0;${borderTop}${borderBottom}font-size:14px;text-align:right;${valueStyle}">${valueHtml}</td>
-  </tr>`;
-}
-
 function personBlock(name: string, email?: string | null) {
   const safeName = escapeHtml(name);
   const safeEmail = email?.trim() ? escapeHtml(email.trim()) : "";
@@ -159,32 +146,40 @@ export function buildOpsFulfillmentEmailHtml(
       : "Otevřít poukazy v administraci";
   const ctaHref = escapeHtml(`${appBaseUrl()}/admin/poukazy`);
 
-  const rows = [
-    detailRow(
-      "Zakoupil",
-      personBlock(input.buyerName, input.buyerEmail),
-      { first: true },
-    ),
+  const rows = emailDetailRows([
+    {
+      label: "Zakoupil",
+      valueHtml: personBlock(input.buyerName, input.buyerEmail),
+    },
     isGift
-      ? detailRow("Pro", personBlock(recipientName, recipientEmail))
-      : "",
-    detailRow(
-      "Způsob doručení",
-      escapeHtml(deliveryMethodLabel(input.deliveryMethod)),
-    ),
-    addressHtml ? detailRow("Adresa", addressHtml) : "",
-    detailRow("Telefon", escapeHtml(input.buyerPhone || "—")),
-    detailRow("Produkt", `<strong>${productLabel}</strong>`),
+      ? {
+          label: "Pro",
+          valueHtml: personBlock(recipientName, recipientEmail),
+        }
+      : null,
+    {
+      label: "Způsob doručení",
+      valueHtml: escapeHtml(deliveryMethodLabel(input.deliveryMethod)),
+    },
+    addressHtml ? { label: "Adresa", valueHtml: addressHtml } : null,
+    { label: "Telefon", valueHtml: escapeHtml(input.buyerPhone || "—") },
+    { label: "Produkt", valueHtml: `<strong>${productLabel}</strong>` },
     input.shippingFeeCzk > 0
-      ? detailRow("Doprava", escapeHtml(formatCzk(input.shippingFeeCzk)))
-      : "",
-    detailRow("Kód poukazu", codesHtml, {
+      ? {
+          label: "Doprava",
+          valueHtml: escapeHtml(formatCzk(input.shippingFeeCzk)),
+        }
+      : null,
+    {
+      label: "Kód poukazu",
+      valueHtml: codesHtml,
       valueStyle: "font-size:16px;",
-    }),
-    detailRow("Celkem", `<strong>${escapeHtml(formatCzk(total))}</strong>`),
-  ]
-    .filter(Boolean)
-    .join("");
+    },
+    {
+      label: "Celkem",
+      valueHtml: `<strong>${escapeHtml(formatCzk(total))}</strong>`,
+    },
+  ]);
 
   return `<!DOCTYPE html>
 <html lang="cs">

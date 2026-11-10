@@ -5,31 +5,48 @@ import {
   AdminRevenueChart,
   AdminSoldBarChart,
   buildAdminChartPoints,
+  type AdminChartPeriod,
 } from "@/components/admin/AdminCharts";
+import { rangeForPeriod } from "@/lib/admin-analytics";
 import {
   AdminSkeletonChart,
   AdminSkeletonStatCards,
   AdminSkeletonStatusList,
   AdminSkeletonVariantList,
 } from "@/components/admin/AdminSkeleton";
+import { AdminAvatar } from "@/components/admin/AdminAvatar";
+import { AdminSelect } from "@/components/admin/AdminSelect";
+import { IconGenerateReport } from "@/components/admin/icons";
+import { getEnabledShopBrands } from "@/data/shops";
 import { formatCzk } from "@/data/vouchers";
+import type { StaffActivityRow } from "@/lib/admin-staff-activity";
 import {
   reportShopLabel,
   shopLineLabel,
+  type ReportActivityFilter,
   type ReportShopFilter,
   type VoucherReport,
 } from "@/lib/voucher-reports";
 
-type PeriodKey = "7d" | "30d" | "3m" | "1y";
+type PeriodKey = "week" | "month" | "year" | "all" | "custom";
 
 const PERIODS: { key: PeriodKey; label: string }[] = [
-  { key: "7d", label: "7 dní" },
-  { key: "30d", label: "30 dní" },
-  { key: "3m", label: "3 měsíce" },
-  { key: "1y", label: "Rok" },
+  { key: "week", label: "Tento týden" },
+  { key: "month", label: "Tento měsíc" },
+  { key: "year", label: "Tento rok" },
+  { key: "all", label: "Za celou dobu" },
+  { key: "custom", label: "Vlastní" },
 ];
 
 type AnalyticsShopFilter = ReportShopFilter;
+
+type AnalyticsFilterState = {
+  period: PeriodKey;
+  from: string;
+  to: string;
+  shop: AnalyticsShopFilter;
+  userId: string;
+};
 
 type LiveAnalytics = {
   sold: string;
@@ -41,6 +58,7 @@ type LiveAnalytics = {
   chartDates: Date[];
   variants: { name: string; sales: number; revenue: string }[];
   statuses: { label: string; count: number }[];
+  staff: StaffActivityRow[];
 };
 
 const EMPTY_ANALYTICS: LiveAnalytics = {
@@ -53,31 +71,73 @@ const EMPTY_ANALYTICS: LiveAnalytics = {
   chartDates: [],
   variants: [],
   statuses: [],
+  staff: [],
 };
 
-const ANALYTICS_SHOPS: { key: AnalyticsShopFilter; label: string }[] = [
-  { key: "all", label: "Celkový přehled" },
-  { key: "lss", label: "Long Story Short" },
-  { key: "bistrocentral", label: "Bistro Central" },
-  { key: "culinaryacademy", label: "Culinary Academy" },
+type ReportUserOption = {
+  id: string;
+  name: string;
+  roleLabel: string;
+};
+
+const REPORT_ACTIVITIES: { key: ReportActivityFilter; label: string }[] = [
+  { key: "all", label: "Vystavení i uplatnění" },
+  { key: "issued", label: "Jen vystavení" },
+  { key: "redeemed", label: "Jen uplatnění" },
 ];
 
-type ReportPreset = "30d" | "6m" | "1y";
+const ANALYTICS_SHOPS: { key: AnalyticsShopFilter; label: string }[] = [
+  { key: "all", label: "Všechny pobočky" },
+  ...getEnabledShopBrands().map((brand) => ({
+    key: brand.id as AnalyticsShopFilter,
+    label: brand.brandName,
+  })),
+];
 
-function toInputDate(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function defaultAnalyticsFilters(): AnalyticsFilterState {
+  const range = rangeForPeriod("month");
+  return {
+    period: "month",
+    from: range.from,
+    to: range.to,
+    shop: "all",
+    userId: "",
+  };
 }
 
+function chartPeriodForFilters(filters: AnalyticsFilterState): AdminChartPeriod {
+  if (filters.period !== "custom") return filters.period;
+  const days =
+    Math.round(
+      (new Date(`${filters.to}T12:00:00`).getTime() -
+        new Date(`${filters.from}T12:00:00`).getTime()) /
+        86_400_000,
+    ) + 1;
+  return days > 60 ? "year" : "month";
+}
+
+function analyticsFiltersSummary(
+  filters: AnalyticsFilterState,
+  users: ReportUserOption[],
+) {
+  const periodLabel =
+    filters.period === "custom"
+      ? `${formatReportDateCs(filters.from)} – ${formatReportDateCs(filters.to)}`
+      : (PERIODS.find((item) => item.key === filters.period)?.label ??
+        filters.period);
+  const shopLabel =
+    ANALYTICS_SHOPS.find((item) => item.key === filters.shop)?.label ??
+    "Všechny pobočky";
+  const userLabel = filters.userId
+    ? (users.find((user) => user.id === filters.userId)?.name ?? "Uživatel")
+    : "Všichni uživatelé";
+  return `${periodLabel} · ${shopLabel} · ${userLabel}`;
+}
+
+type ReportPreset = "week" | "month" | "year" | "all";
+
 function rangeForPreset(preset: ReportPreset) {
-  const to = new Date();
-  const from = new Date(to);
-  if (preset === "30d") from.setDate(from.getDate() - 30);
-  else if (preset === "6m") from.setMonth(from.getMonth() - 6);
-  else from.setFullYear(from.getFullYear() - 1);
-  return { from: toInputDate(from), to: toInputDate(to) };
+  return rangeForPeriod(preset);
 }
 
 function formatReportDateCs(isoDate: string) {
@@ -96,6 +156,8 @@ function downloadReportCsv(report: VoucherReport) {
     "Částka (Kč)",
     "DPH",
     "Režim",
+    "Vystavil",
+    "Uplatnil",
     "Období od",
     "Období do",
   ];
@@ -111,6 +173,8 @@ function downloadReportCsv(report: VoucherReport) {
         String(row.amountCzk),
         row.vatLabel,
         row.taxRegime === "legacy" ? "Legacy" : "VOUCHY",
+        row.issuedByName ?? "",
+        row.redeemedByName ?? "",
         report.from,
         report.to,
       ]
@@ -118,6 +182,18 @@ function downloadReportCsv(report: VoucherReport) {
         .join(";"),
     ),
   ];
+
+  if ((report.staffRows?.length ?? 0) > 0) {
+    lines.push("");
+    lines.push(["Uživatel", "Role", "Vystaveno", "Uplatněno"].join(";"));
+    for (const row of report.staffRows ?? []) {
+      lines.push(
+        [row.name, row.roleLabel, String(row.issued), String(row.redeemed)]
+          .map((cell) => `"${cell.replace(/"/g, '""')}"`)
+          .join(";"),
+      );
+    }
+  }
 
   const blob = new Blob(["\uFEFF" + lines.join("\n")], {
     type: "text/csv;charset=utf-8;",
@@ -153,30 +229,36 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 const REPORT_PRESETS: { key: ReportPreset; label: string }[] = [
-  { key: "30d", label: "Posledních 30 dní" },
-  { key: "6m", label: "Poslední půl rok" },
-  { key: "1y", label: "Poslední rok" },
+  { key: "week", label: "Tento týden" },
+  { key: "month", label: "Tento měsíc" },
+  { key: "year", label: "Tento rok" },
+  { key: "all", label: "Za celou dobu" },
 ];
 
 const REPORT_SHOPS: { key: ReportShopFilter; label: string }[] = [
   { key: "all", label: "Celkový přehled" },
-  { key: "lss", label: "LSS" },
-  { key: "bistrocentral", label: "Bistro Central" },
-  { key: "culinaryacademy", label: "Culinary Academy" },
+  ...getEnabledShopBrands().map((brand) => ({
+    key: brand.id as ReportShopFilter,
+    label: brand.id === "lss" ? "LSS" : brand.brandName,
+  })),
 ];
 
 function ReportFilterModal({
   onClose,
   onGenerate,
+  users,
 }: {
   onClose: () => void;
   onGenerate: (report: VoucherReport) => void;
+  users: ReportUserOption[];
 }) {
-  const defaults = useMemo(() => rangeForPreset("30d"), []);
+  const defaults = useMemo(() => rangeForPreset("month"), []);
   const [shop, setShop] = useState<ReportShopFilter>("all");
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
-  const [activePreset, setActivePreset] = useState<ReportPreset | null>("30d");
+  const [userId, setUserId] = useState("");
+  const [activity, setActivity] = useState<ReportActivityFilter>("all");
+  const [activePreset, setActivePreset] = useState<ReportPreset | null>("month");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -199,8 +281,15 @@ function ReportFilterModal({
     setGenerating(true);
     setError(null);
     try {
+      const params = new URLSearchParams({
+        from,
+        to,
+        shop,
+        activity,
+      });
+      if (userId) params.set("user", userId);
       const response = await fetch(
-        `/api/admin/voucher-reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&shop=${encodeURIComponent(shop)}`,
+        `/api/admin/voucher-reports?${params.toString()}`,
         { cache: "no-store" },
       );
       const data = (await response.json().catch(() => null)) as {
@@ -235,7 +324,7 @@ function ReportFilterModal({
         <div className="admin-reports-modal-head">
           <div>
             <h2 id="admin-reports-title">Vygenerovat report</h2>
-            <p>DPH a prodeje z evidence prodaných poukazů.</p>
+            <p>DPH, prodeje a aktivita uživatelů (vystavení / uplatnění).</p>
           </div>
           <button
             type="button"
@@ -250,80 +339,98 @@ function ReportFilterModal({
         <div className="admin-reports-form">
           <div className="admin-field">
             <span>Obchod</span>
-            <div
-              className="admin-filters admin-filters-inline"
-              role="tablist"
-              aria-label="Filtr obchodu"
-            >
-              {REPORT_SHOPS.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={shop === item.key}
-                  className={
-                    shop === item.key
-                      ? "admin-filter-chip is-active"
-                      : "admin-filter-chip"
-                  }
-                  onClick={() => setShop(item.key)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            <AdminSelect
+              ariaLabel="Vyberte obchod"
+              value={shop}
+              options={REPORT_SHOPS.map((item) => ({
+                value: item.key,
+                label: item.label,
+              }))}
+              onChange={(value) => setShop(value as ReportShopFilter)}
+            />
           </div>
 
           <div className="admin-field">
-            <span>Rychlé období</span>
-            <div
-              className="admin-filters admin-filters-inline"
-              role="group"
-              aria-label="Předvolby období"
-            >
-              {REPORT_PRESETS.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={
-                    activePreset === item.key
-                      ? "admin-filter-chip is-active"
-                      : "admin-filter-chip"
-                  }
-                  onClick={() => applyPreset(item.key)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            <span>Aktivita</span>
+            <AdminSelect
+              ariaLabel="Vyberte aktivitu"
+              value={activity}
+              options={REPORT_ACTIVITIES.map((item) => ({
+                value: item.key,
+                label: item.label,
+              }))}
+              onChange={(value) =>
+                setActivity(value as ReportActivityFilter)
+              }
+            />
           </div>
 
-          <div className="admin-reports-dates">
-            <label className="admin-field">
-              <span>Od</span>
-              <input
-                type="date"
-                value={from}
-                max={to}
-                onChange={(event) => {
-                  setFrom(event.target.value);
-                  setActivePreset(null);
-                }}
-              />
-            </label>
-            <label className="admin-field">
-              <span>Do</span>
-              <input
-                type="date"
-                value={to}
-                min={from}
-                onChange={(event) => {
-                  setTo(event.target.value);
-                  setActivePreset(null);
-                }}
-              />
-            </label>
+          <div className="admin-field">
+            <span>Uživatel</span>
+            <AdminSelect
+              ariaLabel="Vyberte uživatele"
+              value={userId}
+              options={[
+                { value: "", label: "Všichni uživatelé" },
+                ...users.map((user) => ({
+                  value: user.id,
+                  label: `${user.name} · ${user.roleLabel}`,
+                })),
+              ]}
+              onChange={setUserId}
+            />
           </div>
+
+          <div className="admin-field">
+            <span>Období</span>
+            <AdminSelect
+              ariaLabel="Vyberte období"
+              value={activePreset ?? "custom"}
+              options={[
+                ...REPORT_PRESETS.map((item) => ({
+                  value: item.key,
+                  label: item.label,
+                })),
+                { value: "custom", label: "Vlastní" },
+              ]}
+              onChange={(value) => {
+                if (value === "custom") {
+                  setActivePreset(null);
+                  return;
+                }
+                applyPreset(value as ReportPreset);
+              }}
+            />
+          </div>
+
+          {activePreset === null ? (
+            <div className="admin-reports-dates">
+              <label className="admin-field">
+                <span>Od</span>
+                <input
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(event) => {
+                    setFrom(event.target.value);
+                    setActivePreset(null);
+                  }}
+                />
+              </label>
+              <label className="admin-field">
+                <span>Do</span>
+                <input
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(event) => {
+                    setTo(event.target.value);
+                    setActivePreset(null);
+                  }}
+                />
+              </label>
+            </div>
+          ) : null}
         </div>
 
         {error ? <p className="admin-field-hint">{error}</p> : null}
@@ -337,7 +444,14 @@ function ReportFilterModal({
               void handleGenerate();
             }}
           >
-            {generating ? "Generuji…" : "Generovat"}
+            {generating ? (
+              "Generuji…"
+            ) : (
+              <>
+                <IconGenerateReport className="admin-page-head-btn-icon" />
+                <span className="admin-page-head-btn-label">Vygenerovat</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -363,8 +477,11 @@ function ReportResultModal({
   }, [onClose]);
 
   const dphRows = report.aggregateRows.filter(
-    (row) => row.section !== "Souhrn",
+    (row) => row.section !== "Souhrn" && row.section !== "Podle uživatele",
   );
+  const activityLabel =
+    REPORT_ACTIVITIES.find((item) => item.key === report.activity)?.label ??
+    "Vystavení i uplatnění";
 
   return (
     <div
@@ -385,8 +502,10 @@ function ReportResultModal({
             <h2 id="admin-reports-result-title">Report poukazů</h2>
             <p>
               {formatReportDateCs(report.from)} –{" "}
-              {formatReportDateCs(report.to)} · {reportShopLabel(report.shop)} ·
-              DPH ze snapshotu při prodeji
+              {formatReportDateCs(report.to)} · {reportShopLabel(report.shop)} ·{" "}
+              {activityLabel}
+              {report.userLabel ? ` · ${report.userLabel}` : ""} · DPH ze
+              snapshotu při prodeji
             </p>
           </div>
           <button
@@ -445,6 +564,37 @@ function ReportResultModal({
           </div>
         </div>
 
+        {(report.staffRows?.length ?? 0) > 0 ? (
+          <div className="admin-reports-aggregate">
+            <div className="admin-reports-preview-head">
+              <h3>Podle uživatele</h3>
+              <p>Ruční vystavení a uplatnění ve zvoleném období</p>
+            </div>
+            <div className="admin-reports-table-wrap">
+              <table className="admin-reports-table">
+                <thead>
+                  <tr>
+                    <th>Uživatel</th>
+                    <th>Role</th>
+                    <th>Vystaveno</th>
+                    <th>Uplatněno</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(report.staffRows ?? []).map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.name}</td>
+                      <td>{row.roleLabel}</td>
+                      <td>{row.issued}</td>
+                      <td>{row.redeemed}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
         <div className="admin-reports-preview">
           <div className="admin-reports-preview-head">
             <h3>Náhled poukazů</h3>
@@ -460,6 +610,8 @@ function ReportResultModal({
                   <th>Varianta</th>
                   <th>DPH</th>
                   <th>Stav</th>
+                  <th>Vystavil</th>
+                  <th>Uplatnil</th>
                   <th>Částka</th>
                 </tr>
               </thead>
@@ -470,6 +622,8 @@ function ReportResultModal({
                     <td>{row.variantName}</td>
                     <td>{row.vatLabel}</td>
                     <td>{row.status}</td>
+                    <td>{row.issuedByName || "—"}</td>
+                    <td>{row.redeemedByName || "—"}</td>
                     <td>{formatCzk(row.amountCzk)}</td>
                   </tr>
                 ))}
@@ -509,10 +663,192 @@ function ReportResultModal({
 }
 
 
+function AnalyticsFiltersModal({
+  initial,
+  users,
+  onClose,
+  onSave,
+}: {
+  initial: AnalyticsFilterState;
+  users: ReportUserOption[];
+  onClose: () => void;
+  onSave: (next: AnalyticsFilterState) => void;
+}) {
+  const [draft, setDraft] = useState<AnalyticsFilterState>(initial);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  function applyPeriod(period: PeriodKey) {
+    if (period === "custom") {
+      setDraft((prev) => ({ ...prev, period }));
+      return;
+    }
+    const range = rangeForPeriod(period);
+    setDraft((prev) => ({
+      ...prev,
+      period,
+      from: range.from,
+      to: range.to,
+    }));
+  }
+
+  function handleSave() {
+    if (draft.period === "custom") {
+      if (!draft.from || !draft.to) {
+        setError("Vyberte období od–do.");
+        return;
+      }
+      if (draft.from > draft.to) {
+        setError("Datum Od nesmí být po datu Do.");
+        return;
+      }
+    }
+    setError(null);
+    onSave(draft);
+  }
+
+  return (
+    <div
+      className="admin-confirm-root"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="admin-confirm-dialog admin-reports-modal admin-reports-modal-filters admin-analytika-filters-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-analytika-filters-title"
+      >
+        <div className="admin-reports-modal-head">
+          <div>
+            <h2 id="admin-analytika-filters-title">Filtry analytiky</h2>
+            <p>Období, pobočka a uživatel pro přehled statistik.</p>
+          </div>
+          <button
+            type="button"
+            className="admin-outline-btn admin-reports-modal-close"
+            onClick={onClose}
+            aria-label="Zavřít"
+          >
+            <span>Zavřít</span>
+          </button>
+        </div>
+
+        <div className="admin-reports-form">
+          <div className="admin-field">
+            <span>Období</span>
+            <AdminSelect
+              ariaLabel="Vyberte období"
+              value={draft.period}
+              options={PERIODS.map((item) => ({
+                value: item.key,
+                label: item.label,
+              }))}
+              onChange={(value) => applyPeriod(value as PeriodKey)}
+            />
+          </div>
+
+          {draft.period === "custom" ? (
+            <div className="admin-reports-dates">
+              <label className="admin-field">
+                <span>Od</span>
+                <input
+                  type="date"
+                  value={draft.from}
+                  max={draft.to || undefined}
+                  onChange={(event) =>
+                    setDraft((prev) => ({ ...prev, from: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="admin-field">
+                <span>Do</span>
+                <input
+                  type="date"
+                  value={draft.to}
+                  min={draft.from || undefined}
+                  onChange={(event) =>
+                    setDraft((prev) => ({ ...prev, to: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="admin-field">
+            <span>Pobočka</span>
+            <AdminSelect
+              ariaLabel="Vyberte pobočku"
+              value={draft.shop}
+              options={ANALYTICS_SHOPS.map((item) => ({
+                value: item.key,
+                label: item.label,
+              }))}
+              onChange={(value) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  shop: value as AnalyticsShopFilter,
+                }))
+              }
+            />
+          </div>
+
+          <div className="admin-field">
+            <span>Uživatel</span>
+            <AdminSelect
+              ariaLabel="Vyberte uživatele"
+              value={draft.userId}
+              options={[
+                { value: "", label: "Všichni uživatelé" },
+                ...users.map((user) => ({
+                  value: user.id,
+                  label: `${user.name} · ${user.roleLabel}`,
+                })),
+              ]}
+              onChange={(value) =>
+                setDraft((prev) => ({ ...prev, userId: value }))
+              }
+            />
+          </div>
+        </div>
+
+        {error ? <p className="admin-field-hint">{error}</p> : null}
+
+        <div className="admin-reports-download admin-reports-download-end">
+          <button
+            type="button"
+            className="admin-primary-btn"
+            onClick={handleSave}
+          >
+            Uložit filtry
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminAnalytika() {
-  const [period, setPeriod] = useState<PeriodKey>("30d");
-  const [shop, setShop] = useState<AnalyticsShopFilter>("all");
+  const [filters, setFilters] = useState<AnalyticsFilterState>(
+    defaultAnalyticsFilters,
+  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [stats, setStats] = useState<LiveAnalytics>(EMPTY_ANALYTICS);
+  const [userOptions, setUserOptions] = useState<ReportUserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [reportStep, setReportStep] = useState<"closed" | "filters" | "result">(
     "closed",
@@ -524,8 +860,18 @@ export function AdminAnalytika() {
     setLoading(true);
     void (async () => {
       try {
+        const params = new URLSearchParams({
+          shop: filters.shop,
+        });
+        if (filters.period === "custom") {
+          params.set("from", filters.from);
+          params.set("to", filters.to);
+        } else {
+          params.set("period", filters.period);
+        }
+        if (filters.userId) params.set("user", filters.userId);
         const response = await fetch(
-          `/api/admin/analytics?period=${encodeURIComponent(period)}&shop=${encodeURIComponent(shop)}`,
+          `/api/admin/analytics?${params.toString()}`,
           { cache: "no-store" },
         );
         if (!response.ok) throw new Error("fail");
@@ -539,8 +885,10 @@ export function AdminAnalytika() {
           series: { date: string; revenueCzk: number; sold: number }[];
           variants: { name: string; sales: number; revenueCzk: number }[];
           statuses: { label: string; count: number }[];
+          staff?: StaffActivityRow[];
         };
         if (cancelled) return;
+        const staff = Array.isArray(data.staff) ? data.staff : [];
         setStats({
           sold: data.kpi.sold.toLocaleString("cs-CZ"),
           revenue: formatCzk(data.kpi.revenueCzk),
@@ -560,7 +908,17 @@ export function AdminAnalytika() {
             label: item.label,
             count: item.count,
           })),
+          staff,
         });
+        if (!filters.userId) {
+          setUserOptions(
+            staff.map((row) => ({
+              id: row.id,
+              name: row.name,
+              roleLabel: row.roleLabel,
+            })),
+          );
+        }
       } catch {
         if (!cancelled) setStats(EMPTY_ANALYTICS);
       } finally {
@@ -570,16 +928,25 @@ export function AdminAnalytika() {
     return () => {
       cancelled = true;
     };
-  }, [period, shop]);
+  }, [filters]);
 
+  const chartPeriod = useMemo(
+    () => chartPeriodForFilters(filters),
+    [filters],
+  );
   const revenuePoints = useMemo(
     () =>
-      buildAdminChartPoints(stats.chartRevenue, stats.chartDates, period),
-    [stats.chartRevenue, stats.chartDates, period],
+      buildAdminChartPoints(
+        stats.chartRevenue,
+        stats.chartDates,
+        chartPeriod,
+      ),
+    [stats.chartRevenue, stats.chartDates, chartPeriod],
   );
   const soldPoints = useMemo(
-    () => buildAdminChartPoints(stats.chartSold, stats.chartDates, period),
-    [stats.chartSold, stats.chartDates, period],
+    () =>
+      buildAdminChartPoints(stats.chartSold, stats.chartDates, chartPeriod),
+    [stats.chartSold, stats.chartDates, chartPeriod],
   );
 
   return (
@@ -590,56 +957,49 @@ export function AdminAnalytika() {
           <p>
             {loading
               ? "Načítám analytiku…"
-              : "Přehled výkonu a vystavení reportů za zvolené období."}
+              : analyticsFiltersSummary(filters, userOptions)}
           </p>
         </div>
-        <div className="admin-analytika-filters">
-          <div
-            className="admin-filters admin-filters-inline"
-            role="tablist"
-            aria-label="Období"
+        <div className="admin-page-head-actions">
+          <button
+            type="button"
+            className="admin-primary-btn admin-page-head-primary admin-analytika-filter-btn"
+            onClick={() => setFiltersOpen(true)}
+            aria-label="Otevřít filtry"
           >
-            {PERIODS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                role="tab"
-                aria-selected={period === item.key}
-                className={
-                  period === item.key
-                    ? "admin-filter-chip is-active"
-                    : "admin-filter-chip"
-                }
-                onClick={() => setPeriod(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <div
-            className="admin-filters admin-filters-inline"
-            role="tablist"
-            aria-label="Obchod"
-          >
-            {ANALYTICS_SHOPS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                role="tab"
-                aria-selected={shop === item.key}
-                className={
-                  shop === item.key
-                    ? "admin-filter-chip is-active"
-                    : "admin-filter-chip"
-                }
-                onClick={() => setShop(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+            <svg
+              className="admin-analytika-filter-icon"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden
+            >
+              <path
+                d="M8.85746 12.5061C6.36901 10.6456 4.59564 8.59915 3.62734 7.44867C3.3276 7.09253 3.22938 6.8319 3.17033 6.3728C2.96811 4.8008 2.86701 4.0148 3.32795 3.5074C3.7889 3 4.60404 3 6.23433 3H17.7657C19.396 3 20.2111 3 20.672 3.5074C21.133 4.0148 21.0319 4.8008 20.8297 6.37281C20.7706 6.83191 20.6724 7.09254 20.3726 7.44867C19.403 8.60062 17.6261 10.6507 15.1326 12.5135C14.907 12.6821 14.7583 12.9567 14.7307 13.2614C14.4837 15.992 14.2559 17.4876 14.1141 18.2442C13.8853 19.4657 12.1532 20.2006 11.226 20.8563C10.6741 21.2466 10.0043 20.782 9.93278 20.1778C9.79643 19.0261 9.53961 16.6864 9.25927 13.2614C9.23409 12.9539 9.08486 12.6761 8.85746 12.5061Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="admin-page-head-btn-label">Filtry</span>
+          </button>
         </div>
       </div>
+
+      {filtersOpen ? (
+        <AnalyticsFiltersModal
+          initial={filters}
+          users={userOptions}
+          onClose={() => setFiltersOpen(false)}
+          onSave={(next) => {
+            setFilters(next);
+            setFiltersOpen(false);
+          }}
+        />
+      ) : null}
 
       {loading ? (
         <AdminSkeletonStatCards count={4} className="admin-analytics-stats" />
@@ -701,6 +1061,64 @@ export function AdminAnalytika() {
         </article>
       </section>
 
+      <section className="admin-panel admin-staff-activity-panel">
+        <div className="admin-panel-head">
+          <div>
+            <h2>Vystavení a uplatnění podle uživatele</h2>
+            <p>
+              Ruční vystavení (vlastník, recepce, obsluha+) a uplatnění
+              (vlastník, recepce, obsluha, obsluha+) za zvolené období.
+            </p>
+          </div>
+        </div>
+        {loading ? (
+          <AdminSkeletonStatusList rows={4} />
+        ) : stats.staff.length === 0 ? (
+          <div className="admin-panel-empty">
+            <p className="admin-table-empty">
+              Žádní uživatelé s oprávněním vystavit nebo uplatnit poukaz.
+            </p>
+          </div>
+        ) : (
+          <div className="admin-reports-table-wrap">
+            <table className="admin-reports-table admin-staff-activity-table">
+              <thead>
+                <tr>
+                  <th>Uživatel</th>
+                  <th>Role</th>
+                  <th>Vystaveno</th>
+                  <th>Uplatněno</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.staff.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <div className="admin-staff-activity-user">
+                        <AdminAvatar
+                          src={row.avatarUrl}
+                          name={row.name}
+                          className="admin-member-avatar"
+                        />
+                        <div className="admin-staff-activity-user-copy">
+                          <strong>{row.name}</strong>
+                          <span className="admin-staff-activity-username">
+                            @{row.username}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{row.roleLabel}</td>
+                    <td>{row.issued}</td>
+                    <td>{row.redeemed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section className="admin-analytics-bottom">
         <article className="admin-panel">
           <div className="admin-panel-head">
@@ -750,7 +1168,9 @@ export function AdminAnalytika() {
             <div className="admin-panel-head">
               <div>
                 <h2>Reporty</h2>
-                <p>Prodeje a uplatnění včetně dělení dle DPH.</p>
+                <p>
+                  Prodeje, uplatnění, DPH a filtrování podle uživatelů.
+                </p>
               </div>
             </div>
             <button
@@ -758,7 +1178,8 @@ export function AdminAnalytika() {
               className="admin-primary-btn admin-reports-open-btn"
               onClick={() => setReportStep("filters")}
             >
-              Vygenerovat report
+              <IconGenerateReport className="admin-page-head-btn-icon" />
+              <span className="admin-page-head-btn-label">Vygenerovat report</span>
             </button>
           </article>
         </div>
@@ -766,6 +1187,7 @@ export function AdminAnalytika() {
 
       {reportStep === "filters" ? (
         <ReportFilterModal
+          users={userOptions}
           onClose={() => setReportStep("closed")}
           onGenerate={(next) => {
             setReport(next);

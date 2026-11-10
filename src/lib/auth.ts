@@ -53,17 +53,21 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
   developer: [
     "Interní developerský účet",
     "Stejná práva jako vlastník (včetně správy týmu)",
+    "Storno poukazů a historie uplatnění",
     "Nezobrazuje se v seznamu týmu",
   ],
   owner: [
     "Úpravy všeho v administraci",
     "Vystavení i uplatnění poukazů (včetně zrušení uplatnění)",
+    "Storno a obnova poukazů",
+    "Historie uplatnění",
     "Jediná role, která spravuje tým (přidání, role, odebrání)",
   ],
   admin: [
     "Zobrazení celé administrace (obchody, analytika, poukazy)",
     "Bez vystavení poukazu",
     "Bez uplatnění / zrušení uplatnění",
+    "Bez storna poukazů",
     "Bez vytváření nových položek a úprav nastavení",
     "Bez správy týmu",
   ],
@@ -71,6 +75,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
     "Vystavení poukazu",
     "Uplatnění poukazu",
     "Zrušení uplatnění",
+    "Historie uplatnění",
   ],
   staff_plus: [
     "Vystavení poukazu",
@@ -148,6 +153,16 @@ export function canRedeemVoucher(role: AdminRole) {
   );
 }
 
+/** Storno / obnova poukazu — vlastník + developer. */
+export function canCancelVoucher(role: AdminRole) {
+  return isPrivilegedAdmin(role);
+}
+
+/** Historie uplatnění — vlastník, recepce, developer. */
+export function canViewRedemptionHistory(role: AdminRole) {
+  return isPrivilegedAdmin(role) || role === "reception";
+}
+
 /** Výchozí obchod u ručního přidání poukazu. */
 export function defaultShopIdForRole(role: AdminRole): ShopId {
   if (role === "staff_plus") return "bistrocentral";
@@ -159,6 +174,7 @@ const ROLE_PATH_PREFIXES: Record<AdminRole, readonly string[]> = {
     "/admin/prehled",
     "/admin/poukazy",
     "/admin/uplatneni",
+    "/admin/historie-uplatneni",
     "/admin/obchody",
     "/admin/analytika",
     "/admin/tym",
@@ -168,6 +184,7 @@ const ROLE_PATH_PREFIXES: Record<AdminRole, readonly string[]> = {
     "/admin/prehled",
     "/admin/poukazy",
     "/admin/uplatneni",
+    "/admin/historie-uplatneni",
     "/admin/obchody",
     "/admin/analytika",
     "/admin/tym",
@@ -181,7 +198,12 @@ const ROLE_PATH_PREFIXES: Record<AdminRole, readonly string[]> = {
     "/admin/analytika",
     "/admin/ucet",
   ],
-  reception: ["/admin/poukazy", "/admin/uplatneni", "/admin/ucet"],
+  reception: [
+    "/admin/poukazy",
+    "/admin/uplatneni",
+    "/admin/historie-uplatneni",
+    "/admin/ucet",
+  ],
   staff_plus: ["/admin/poukazy", "/admin/uplatneni", "/admin/ucet"],
   staff: ["/admin/uplatneni", "/admin/ucet"],
 };

@@ -7,14 +7,38 @@ import {
   normalizeVoucherCode,
   sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
-import { getAdminVoucherByCode } from "@/data/admin-vouchers";
+import {
+  getAdminVoucherByCode,
+  type AdminSoldVoucher,
+} from "@/data/admin-vouchers";
 import { AdminSkeletonRedeemPanel } from "./AdminSkeleton";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 
 type ResultState =
   | { kind: "idle" }
   | { kind: "missing"; code: string }
-  | { kind: "invalid"; code: string; statusLabel: string };
+  | { kind: "invalid"; code: string; statusLabel: string }
+  | { kind: "loading" };
+
+async function fetchVoucherByCode(
+  normalized: string,
+): Promise<AdminSoldVoucher | null> {
+  const params = new URLSearchParams({
+    q: normalized,
+    page: "1",
+    pageSize: "10",
+    status: "all",
+  });
+  const response = await fetch(`/api/admin/sold-vouchers?${params}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  const data = (await response.json()) as { vouchers?: AdminSoldVoucher[] };
+  const list = Array.isArray(data.vouchers) ? data.vouchers : [];
+  return (
+    list.find((row) => normalizeVoucherCode(row.code) === normalized) ?? null
+  );
+}
 
 export function AdminUplatneni() {
   const searchParams = useSearchParams();
@@ -28,17 +52,21 @@ export function AdminUplatneni() {
 
     const next = sanitizeVoucherCodeInput(initialCode);
     setCodeInput(next);
-    openByCode(normalizeVoucherCode(next));
+    void openByCode(normalizeVoucherCode(next));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- wait for vouchers, then URL prefill
   }, [searchParams, vouchersLoading]);
 
-  function openByCode(normalized: string) {
+  async function openByCode(normalized: string) {
     if (!normalized) {
       setResult({ kind: "idle" });
       return;
     }
 
-    const match = getAdminVoucherByCode(normalized, vouchers);
+    setResult({ kind: "loading" });
+    let match = getAdminVoucherByCode(normalized, vouchers);
+    if (!match) {
+      match = await fetchVoucherByCode(normalized);
+    }
 
     if (!match) {
       setResult({ kind: "missing", code: normalized });
@@ -65,7 +93,7 @@ export function AdminUplatneni() {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    openByCode(normalizeVoucherCode(codeInput));
+    void openByCode(normalizeVoucherCode(codeInput));
   }
 
   return (
@@ -90,7 +118,7 @@ export function AdminUplatneni() {
                     type="text"
                     value={codeInput}
                     onChange={(event) => handleCodeChange(event.target.value)}
-                    placeholder="LSSK7M2P9QX"
+                    placeholder="LSSK7M2P9A"
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
@@ -100,38 +128,23 @@ export function AdminUplatneni() {
               </label>
               <button
                 type="submit"
-                className="admin-primary-btn admin-redeem-submit"
-                aria-label="Zobrazit detail"
-                title="Zobrazit detail"
+                className="admin-primary-btn"
+                disabled={result.kind === "loading"}
               >
-                <span
-                  className="admin-redeem-submit-icon"
-                  style={{
-                    WebkitMaskImage: "url(/icons/detail.svg)",
-                    maskImage: "url(/icons/detail.svg)",
-                  }}
-                  aria-hidden
-                />
-                <span className="admin-redeem-submit-label">Zobrazit detail</span>
+                {result.kind === "loading" ? "Hledám…" : "Otevřít poukaz"}
               </button>
             </form>
 
             {result.kind === "missing" ? (
-              <div className="admin-redeem-result is-missing">
-                <p>
-                  Poukaz <strong>{result.code}</strong> jsme nenašli. Zkontrolujte
-                  kód a zkuste to znovu.
-                </p>
-              </div>
+              <p className="admin-redeem-feedback is-error" role="status">
+                Poukaz <strong>{result.code}</strong> nebyl nalezen.
+              </p>
             ) : null}
-
             {result.kind === "invalid" ? (
-              <div className="admin-redeem-result is-missing">
-                <p>
-                  Poukaz <strong>{result.code}</strong> nelze uplatnit. Aktuální
-                  stav: <strong>{result.statusLabel.toLowerCase()}</strong>.
-                </p>
-              </div>
+              <p className="admin-redeem-feedback is-error" role="status">
+                Poukaz <strong>{result.code}</strong> nejde uplatnit (
+                {result.statusLabel.toLowerCase()}).
+              </p>
             ) : null}
           </>
         )}

@@ -14,7 +14,7 @@ import {
   type SendVoucherEmailInput,
   type VoucherEmailAttachment,
 } from "@/lib/email/send-voucher-email";
-import { getShopBrand } from "@/data/shops";
+import { getEnabledShopIds, getShopBrand } from "@/data/shops";
 
 export type EmailPreviewSample = {
   id: string;
@@ -54,7 +54,7 @@ function voucherBase(
 
 export function getEmailPreviewSamples(): EmailPreviewSample[] {
   const samples: EmailPreviewSample[] = [];
-  const shops: ShopId[] = ["lss", "bistrocentral", "culinaryacademy"];
+  const shops: ShopId[] = getEnabledShopIds();
 
   for (const shopId of shops) {
     const brand = getShopBrand(shopId);
@@ -71,17 +71,6 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
       html: buildVoucherEmailHtml(withPdf),
     });
   }
-
-  const emailNoPdf = voucherBase("lss", { attachments: [] });
-  samples.push({
-    id: "customer-email-no-pdf",
-    group: "customer",
-    title: "LSS - e-mail bez PDF",
-    description: "Když ještě není šablona / pozice - mail bez přílohy.",
-    subject: voucherEmailSubject(emailNoPdf),
-    shopId: "lss",
-    html: buildVoucherEmailHtml(emailNoPdf),
-  });
 
   const postCustomer = voucherBase("lss", {
     deliveryMethod: "post",
@@ -123,10 +112,33 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
     id: "customer-voucher-invoice",
     group: "customer",
     title: "Zákazník - poukaz + faktura",
-    description: "Budoucí stav: jeden mail, dvě PDF přílohy (až napojíme faktury).",
+    description:
+      "Jeden mail, dvě PDF přílohy: dárkový poukaz + daňový doklad.",
     subject: voucherEmailSubject(withInvoice),
     shopId: "lss",
     html: buildVoucherEmailHtml(withInvoice),
+  });
+
+  const multiQty = voucherBase("lss", {
+    codes: ["LSSAAA11111", "LSSBBB22222", "LSSCCC33333"],
+    code: "LSSAAA11111",
+    productName: "Chef's Table",
+    attachments: [
+      fakePdf("poukaz-LSSAAA11111.pdf"),
+      fakePdf("poukaz-LSSBBB22222.pdf"),
+      fakePdf("poukaz-LSSCCC33333.pdf"),
+      fakePdf("faktura-LSS-20260928-001.pdf"),
+    ],
+  });
+  samples.push({
+    id: "customer-multi-qty",
+    group: "customer",
+    title: "Zákazník - množství (1 mail)",
+    description:
+      "Jeden e-mail se všemi PDF poukazy (+ faktura). Ne jeden mail na kus.",
+    subject: voucherEmailSubject(multiQty),
+    shopId: "lss",
+    html: buildVoucherEmailHtml(multiQty),
   });
 
   const redemptionAmount = {
@@ -173,12 +185,32 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
     html: buildRedemptionEmailHtml(redemptionPart),
   });
 
+  const redemptionFull = {
+    shopId: "lss" as const,
+    to: "maminka@example.cz",
+    recipientName: "Jana Nováková",
+    productName: "The Arc | „Výklenek“",
+    code: "HPLDZ9YX",
+    validUntil: "28. 9. 2027",
+    kind: "full" as const,
+    fullyRedeemed: true,
+  };
+  samples.push({
+    id: "customer-redemption-full",
+    group: "customer",
+    title: "Obdarovaný - plné uplatnění",
+    description: "Poukaz je kompletně vyčerpaný.",
+    subject: redemptionEmailSubject(redemptionFull),
+    shopId: "lss",
+    html: buildRedemptionEmailHtml(redemptionFull),
+  });
+
   const opsPost: SendOpsFulfillmentEmailInput = {
     shopId: "lss",
     deliveryMethod: "post",
     productName: "Částka 2 000 Kč",
     quantity: 1,
-    codes: ["LSSK7M2P9QX"],
+    codes: ["LSSK7M2P9A"],
     buyerName: "Michal Novák",
     buyerEmail: "mi.novak8@gmail.com",
     buyerPhone: "723054281",
@@ -200,7 +232,7 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
     group: "ops",
     title: "Provoz - odeslání poštou",
     description:
-      "Interní notifikace na tomas@rezit.cz po nákupu s doručením poštou (včetně adresy).",
+      "Interní notifikace na OPS_NOTIFY_EMAIL (provoz: reception@longstoryshort.cz).",
     subject: opsFulfillmentEmailSubject(opsPost),
     shopId: "lss",
     html: buildOpsFulfillmentEmailHtml(opsPost),
@@ -227,7 +259,7 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
     group: "ops",
     title: "Provoz - vyzvednutí na pobočce",
     description:
-      "Interní notifikace na tomas@rezit.cz po nákupu s vyzvednutím na pobočce.",
+      "Interní notifikace na OPS_NOTIFY_EMAIL (provoz: reception@longstoryshort.cz).",
     subject: opsFulfillmentEmailSubject(opsPickup),
     shopId: "bistrocentral",
     html: buildOpsFulfillmentEmailHtml(opsPickup),

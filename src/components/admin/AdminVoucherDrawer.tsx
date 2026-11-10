@@ -17,9 +17,10 @@ import {
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import { formatCzk } from "@/data/vouchers";
 import { getShopBrand } from "@/data/shops";
-import { canRedeemVoucher } from "@/lib/auth";
+import { canCancelVoucher, canRedeemVoucher } from "@/lib/auth";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { useAdminUser } from "./AdminUserProvider";
+import { IconCancel } from "./icons";
 
 type RedeemResponse = {
   voucher?: AdminSoldVoucher;
@@ -40,6 +41,7 @@ type AdminVoucherDrawerContextValue = {
   prependVoucher: (voucher: AdminSoldVoucher) => void;
   reloadVouchers: () => Promise<void>;
   upsertVoucher: (voucher: AdminSoldVoucher) => void;
+  removeVoucher: (code: string) => void;
 };
 
 const AdminVoucherDrawerContext =
@@ -50,9 +52,17 @@ const DRAWER_ANIMATION_MS = 220;
 function AdminVoucherCtaIcon({
   kind,
 }: {
-  kind: "redeem" | "handover" | "shipped" | "partial" | "undo";
+  kind:
+    | "redeem"
+    | "handover"
+    | "shipped"
+    | "partial"
+    | "undo"
+    | "cancel"
+    | "restore"
+    | "delete";
 }) {
-  if (kind === "undo") {
+  if (kind === "cancel") {
     return (
       <svg
         className="admin-voucher-drawer-cta-icon"
@@ -66,8 +76,90 @@ function AdminVoucherCtaIcon({
         strokeLinejoin="round"
         aria-hidden
       >
-        <polyline points="1 4 1 10 7 10" />
-        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+        <circle cx="12" cy="12" r="10" />
+        <line x1="15" y1="9" x2="9" y2="15" />
+        <line x1="9" y1="9" x2="15" y2="15" />
+      </svg>
+    );
+  }
+
+  if (kind === "restore") {
+    return (
+      <svg
+        className="admin-voucher-drawer-cta-icon"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+      </svg>
+    );
+  }
+
+  if (kind === "delete") {
+    return (
+      <svg
+        className="admin-voucher-drawer-cta-icon"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden
+      >
+        <path
+          d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 18.0008 20.2879C17.6833 20.7431 17.2747 21.1273 16.8007 21.416C15.8421 22 14.559 22 11.9927 22C9.42312 22 8.1383 22 7.17905 21.4149C6.7048 21.1257 6.296 20.7408 5.97868 20.2848C5.33688 19.3626 5.25945 18.0801 5.10461 15.5152L4.5 5.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M3 5.5H21M16.0557 5.5L15.3731 4.09173C14.9196 3.15626 14.6928 2.68852 14.3017 2.39681C14.215 2.3321 14.1231 2.27454 14.027 2.2247C13.5939 2 13.0741 2 12.0345 2C10.9688 2 10.436 2 9.99568 2.23412C9.8981 2.28601 9.80498 2.3459 9.71729 2.41317C9.32164 2.7167 9.10063 3.20155 8.65861 4.17126L8.05292 5.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M9.5 16.5L9.5 10.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M14.5 16.5L14.5 10.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (kind === "undo") {
+    return (
+      <svg
+        className="admin-voucher-drawer-cta-icon"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden
+      >
+        <path
+          d="M3 12C3 16.9706 7.02944 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C8.79275 3 5.97733 4.67765 4.38341 7.20327M3.29339 3.00076L3.46556 5.05452C3.58958 6.53384 3.65159 7.27349 4.13359 7.68914C4.61559 8.10479 5.32673 8.03185 6.74899 7.88595L8.79339 7.67625"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
@@ -184,14 +276,17 @@ function AdminVoucherDrawerPanel({
   onClose,
   onActivate,
   onUpsert,
+  onRemove,
 }: {
   voucher: AdminSoldVoucher;
   onClose: () => void;
   onActivate: (code: string) => void;
   onUpsert: (voucher: AdminSoldVoucher) => void;
+  onRemove: (code: string) => void;
 }) {
   const { user } = useAdminUser();
   const allowRedeem = canRedeemVoucher(user.role);
+  const allowCancel = canCancelVoucher(user.role);
   const [isClosing, setIsClosing] = useState(false);
   const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -355,6 +450,84 @@ function AdminVoucherDrawerPanel({
     [onUpsert, validUntilDraft, voucher.code],
   );
 
+  const patchStatus = useCallback(
+    async (status: AdminSoldVoucher["status"], confirmMessage?: string) => {
+      if (confirmMessage && !window.confirm(confirmMessage)) return;
+      setActionBusy(true);
+      setActionError(null);
+      try {
+        const response = await fetch(
+          `/api/admin/sold-vouchers/${encodeURIComponent(voucher.code)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status }),
+          },
+        );
+        const data = (await response.json().catch(() => ({}))) as {
+          voucher?: AdminSoldVoucher;
+          error?: string;
+        };
+        if (!response.ok || !data.voucher) {
+          setActionError(data.error || "Stav se nepodařilo změnit.");
+          return;
+        }
+        onUpsert(data.voucher);
+      } catch {
+        setActionError("Stav se nepodařilo změnit.");
+      } finally {
+        setActionBusy(false);
+      }
+    },
+    [onUpsert, voucher.code],
+  );
+
+  const canShowCancel =
+    allowCancel &&
+    (voucher.status === "active" ||
+      voucher.status === "awaiting_shipment" ||
+      voucher.status === "awaiting_pickup" ||
+      voucher.status === "expired");
+  const canShowRestore = allowCancel && voucher.status === "cancelled";
+  const canShowHardDelete = allowCancel && voucher.status === "cancelled";
+
+  const hardDelete = useCallback(async () => {
+    if (
+      !window.confirm(
+        `Definitivně smazat poukaz ${voucher.code}? Tuto akci nelze vrátit.`,
+      )
+    ) {
+      return;
+    }
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/sold-vouchers/${encodeURIComponent(voucher.code)}`,
+        { method: "DELETE" },
+      );
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!response.ok || !data.ok) {
+        setActionError(data.error || "Poukaz se nepodařilo smazat.");
+        return;
+      }
+      onRemove(voucher.code);
+      window.dispatchEvent(
+        new CustomEvent("admin-sold-voucher-deleted", {
+          detail: { code: voucher.code },
+        }),
+      );
+      requestClose();
+    } catch {
+      setActionError("Poukaz se nepodařilo smazat.");
+    } finally {
+      setActionBusy(false);
+    }
+  }, [onRemove, requestClose, voucher.code]);
+
   const footerCta =
     voucher.status === "awaiting_pickup"
       ? {
@@ -510,7 +683,8 @@ function AdminVoucherDrawerPanel({
                         setValidUntilDraft(voucher.validUntilIso ?? "");
                       }}
                     >
-                      Zrušit
+                      <IconCancel className="admin-page-head-btn-icon" />
+                      <span className="admin-page-head-btn-label">Zrušit</span>
                     </button>
                   </form>
                 ) : (
@@ -551,6 +725,12 @@ function AdminVoucherDrawerPanel({
               <dt>Způsob doručení</dt>
               <dd>{voucher.deliveryMethod}</dd>
             </div>
+            {voucher.paymentMethodLabel ? (
+              <div>
+                <dt>Způsob platby</dt>
+                <dd>{voucher.paymentMethodLabel}</dd>
+              </div>
+            ) : null}
             <div>
               <dt>PDF poukazu</dt>
               <dd>
@@ -594,6 +774,53 @@ function AdminVoucherDrawerPanel({
         </div>
 
         <div className="admin-voucher-drawer-footer">
+          {canShowCancel ? (
+            <button
+              type="button"
+              className="admin-voucher-drawer-cta is-secondary is-danger"
+              disabled={actionBusy}
+              onClick={() =>
+                void patchStatus(
+                  "cancelled",
+                  `Stornovat poukaz ${voucher.code}? Půjde znovu obnovit.`,
+                )
+              }
+            >
+              <AdminVoucherCtaIcon kind="cancel" />
+              <span className="admin-voucher-drawer-cta-label">
+                {actionBusy ? "Ukládám…" : "Stornovat poukaz"}
+              </span>
+            </button>
+          ) : null}
+
+          {canShowRestore ? (
+            <button
+              type="button"
+              className="admin-voucher-drawer-cta is-secondary"
+              disabled={actionBusy}
+              onClick={() => void patchStatus("active")}
+            >
+              <AdminVoucherCtaIcon kind="restore" />
+              <span className="admin-voucher-drawer-cta-label">
+                {actionBusy ? "Ukládám…" : "Obnovit poukaz"}
+              </span>
+            </button>
+          ) : null}
+
+          {canShowHardDelete ? (
+            <button
+              type="button"
+              className="admin-voucher-drawer-cta is-secondary is-danger"
+              disabled={actionBusy}
+              onClick={() => void hardDelete()}
+            >
+              <AdminVoucherCtaIcon kind="delete" />
+              <span className="admin-voucher-drawer-cta-label">
+                {actionBusy ? "Mažu…" : "Definitivně smazat"}
+              </span>
+            </button>
+          ) : null}
+
           {canUndo ? (
             <button
               type="button"
@@ -658,7 +885,8 @@ function AdminVoucherDrawerPanel({
                         disabled={actionBusy}
                         onClick={() => setPartialOpen(false)}
                       >
-                        Zrušit
+                        <IconCancel className="admin-page-head-btn-icon" />
+                        <span className="admin-voucher-drawer-cta-label">Zrušit</span>
                       </button>
                       <button
                         type="submit"
@@ -726,9 +954,11 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
   const reloadVouchers = useCallback(async () => {
     setVouchersLoading(true);
     try {
-      const response = await fetch("/api/admin/sold-vouchers", {
-        cache: "no-store",
-      });
+      // Pro přehled / palette stačí nejnovějších 50 (řazeno od nákupu).
+      const response = await fetch(
+        "/api/admin/sold-vouchers?page=1&pageSize=50&status=all",
+        { cache: "no-store" },
+      );
       if (!response.ok) {
         setVouchers([]);
         return;
@@ -751,6 +981,16 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
       const without = current.filter((row) => row.code !== voucher.code);
       return [voucher, ...without];
     });
+  }, []);
+
+  const removeVoucher = useCallback((code: string) => {
+    const normalized = normalizeVoucherCode(code);
+    setVouchers((current) =>
+      current.filter((row) => row.code !== normalized && row.code !== code),
+    );
+    setActiveVoucherCode((current) =>
+      current === code || current === normalized ? null : current,
+    );
   }, []);
 
   const prependVoucher = upsertVoucher;
@@ -820,7 +1060,10 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
       value={{
         vouchers,
         vouchersLoading,
-        openVoucher: (voucher) => setActiveVoucherCode(voucher.code),
+        openVoucher: (voucher) => {
+          upsertVoucher(voucher);
+          setActiveVoucherCode(voucher.code);
+        },
         closeVoucher: () => setActiveVoucherCode(null),
         redeemVoucher,
         activateVoucher,
@@ -828,6 +1071,7 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
         prependVoucher,
         reloadVouchers,
         upsertVoucher,
+        removeVoucher,
       }}
     >
       {children}
@@ -837,6 +1081,7 @@ export function AdminVoucherDrawerProvider({ children }: { children: ReactNode }
           onClose={() => setActiveVoucherCode(null)}
           onActivate={(code) => activateVoucher(code)}
           onUpsert={upsertVoucher}
+          onRemove={removeVoucher}
         />
       ) : null}
     </AdminVoucherDrawerContext.Provider>

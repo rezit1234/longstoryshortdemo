@@ -31,7 +31,8 @@
    *     padding-bottom: calc(X - var(--font-ink-nudge))
    */
   --font-ink-nudge: 0.08em;
-  --font-control-ink-nudge: 0.12em;
+  /* Demi v pilulkách sedí výš — 0.12em nestačilo, text vizuálně visel nahoře */
+  --font-control-ink-nudge: 0.2em;
   /* alias — starší jméno (lift = špatný směr); držet sync s nudge */
   --font-control-ink-lift: var(--font-control-ink-nudge);
 

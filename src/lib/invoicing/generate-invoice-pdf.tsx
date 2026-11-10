@@ -13,15 +13,25 @@ type GenerateInvoicePdfInput = Omit<
   | "issuerName"
   | "issuerAddress"
   | "issuerIco"
+  | "issuerDic"
   | "issuerNote"
   | "issuerBankAccount"
+  | "issuerIban"
+  | "issuerSwift"
+  | "issuerPhone"
+  | "issuerEmail"
 > & {
   shopId?: ShopId | string;
   issuerName?: string;
   issuerAddress?: string;
   issuerIco?: string;
+  issuerDic?: string;
   issuerNote?: string;
   issuerBankAccount?: string;
+  issuerIban?: string;
+  issuerSwift?: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
 };
 
 /**
@@ -39,8 +49,13 @@ export async function generateInvoicePdfBuffer(
     issuerName: data.issuerName ?? issuer.name,
     issuerAddress: data.issuerAddress ?? issuer.address,
     issuerIco: data.issuerIco ?? issuer.ico,
+    issuerDic: data.issuerDic ?? issuer.dic,
     issuerNote: data.issuerNote ?? issuer.note,
     issuerBankAccount: data.issuerBankAccount ?? issuer.bankAccount,
+    issuerIban: data.issuerIban ?? issuer.iban,
+    issuerSwift: data.issuerSwift ?? issuer.swift,
+    issuerPhone: data.issuerPhone ?? issuer.phone,
+    issuerEmail: data.issuerEmail ?? issuer.email,
     logoDataUrl,
   };
 

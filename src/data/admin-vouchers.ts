@@ -1,4 +1,5 @@
 import { normalizeVoucherCode, type ShopId } from "@/data/admin-voucher-settings";
+import type { ManualPaymentMethod } from "@/lib/voucher-payment-method";
 
 export type AdminVoucherStatus =
   | "active"
@@ -55,6 +56,15 @@ export type AdminSoldVoucher = {
   deliveryEmail?: string | null;
   recipientName?: string;
   canUndo?: boolean;
+  /** Ruční vystavení: kasa / dar / faktura / jine. */
+  paymentMethod?: ManualPaymentMethod | null;
+  paymentMethodNote?: string | null;
+  /** Hotový label pro UI (včetně „Jiné – …“). */
+  paymentMethodLabel?: string | null;
+  /** Legacy Excel: text z „VYUŽITO…“ (kdy/kde). */
+  redeemedNote?: string | null;
+  /** Zobrazení v tabulce: poznámka z Excelu nebo jméno admina. */
+  redeemedLabel?: string | null;
 };
 
 export const ADMIN_VOUCHER_STATUS_LABELS: Record<AdminVoucherStatus, string> = {

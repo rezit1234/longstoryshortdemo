@@ -4,6 +4,7 @@ import {
 } from "@/data/admin-vouchers";
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import { getSessionProfile } from "@/lib/admin-session";
+import { canCancelVoucher } from "@/lib/auth";
 import {
   mapSoldVoucherRow,
   toValidUntilIso,
@@ -23,8 +24,15 @@ const ALLOWED: AdminVoucherStatus[] = [
   "cancelled",
 ];
 
+const CANCELABLE_STATUSES = new Set<AdminVoucherStatus>([
+  "active",
+  "awaiting_shipment",
+  "awaiting_pickup",
+  "expired",
+]);
+
 const SELECT_FIELDS =
-  "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift";
+  "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note, redeemed_note, redeemed_at";
 
 function todayDateOnly() {
   const now = new Date();
@@ -84,14 +92,70 @@ export async function PATCH(
 
   try {
     const admin = createAdminClient();
+    const { data: current, error: currentError } = await admin
+      .from("sold_vouchers")
+      .select("status, valid_until")
+      .eq("code_normalized", code)
+      .maybeSingle();
+
+    if (currentError) {
+      console.error("sold-vouchers patch read", currentError);
+      return NextResponse.json(
+        { error: currentError.message },
+        { status: 500 },
+      );
+    }
+    if (!current) {
+      return NextResponse.json({ error: "Poukaz nenalezen." }, { status: 404 });
+    }
+
+    const currentStatus = String(current.status) as AdminVoucherStatus;
+    const today = todayDateOnly();
+
+    if (hasStatus && status) {
+      const cancelling = status === "cancelled" && currentStatus !== "cancelled";
+      const restoring = currentStatus === "cancelled" && status !== "cancelled";
+      if ((cancelling || restoring) && !canCancelVoucher(session.profile.role)) {
+        return NextResponse.json(
+          { error: "Storno poukazu může jen vlastník." },
+          { status: 403 },
+        );
+      }
+
+      if (cancelling && !CANCELABLE_STATUSES.has(currentStatus)) {
+        return NextResponse.json(
+          { error: "Tento poukaz nelze stornovat." },
+          { status: 400 },
+        );
+      }
+
+      if (restoring) {
+        if (status !== "active" && status !== "expired") {
+          return NextResponse.json(
+            { error: "Obnovit lze jen na aktivní nebo expirovaný stav." },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
     if (hasStatus && status) {
-      patch.status = status;
+      let nextStatus = status;
+      if (currentStatus === "cancelled" && status === "active") {
+        const validUntilIso =
+          typeof current.valid_until === "string"
+            ? current.valid_until.slice(0, 10)
+            : "";
+        nextStatus =
+          validUntilIso && validUntilIso < today ? "expired" : "active";
+      }
+      patch.status = nextStatus;
       patch.redeemed_at =
-        status === "redeemed" ? new Date().toISOString() : null;
+        nextStatus === "redeemed" ? new Date().toISOString() : null;
     }
 
     if (hasValidUntil && body.validUntil) {
@@ -100,28 +164,6 @@ export async function PATCH(
 
       // Keep active/expired in sync when only the date changes.
       if (!hasStatus) {
-        const { data: current, error: currentError } = await admin
-          .from("sold_vouchers")
-          .select("status")
-          .eq("code_normalized", code)
-          .maybeSingle();
-
-        if (currentError) {
-          console.error("sold-vouchers patch read", currentError);
-          return NextResponse.json(
-            { error: currentError.message },
-            { status: 500 },
-          );
-        }
-        if (!current) {
-          return NextResponse.json(
-            { error: "Poukaz nenalezen." },
-            { status: 404 },
-          );
-        }
-
-        const currentStatus = String(current.status);
-        const today = todayDateOnly();
         if (currentStatus === "expired" && validUntil >= today) {
           patch.status = "active";
           patch.redeemed_at = null;
@@ -154,6 +196,73 @@ export async function PATCH(
     console.error("sold-vouchers patch fatal", error);
     return NextResponse.json(
       { error: "Nepodařilo se aktualizovat poukaz." },
+      { status: 500 },
+    );
+  }
+}
+
+/** Definitivní smazání — jen stornované poukazy, jen owner/developer. */
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ code: string }> },
+) {
+  const session = await getSessionProfile();
+  if (!session) {
+    return NextResponse.json({ error: "Nejste přihlášeni." }, { status: 401 });
+  }
+  if (!canCancelVoucher(session.profile.role)) {
+    return NextResponse.json(
+      { error: "Smazat poukaz může jen vlastník." },
+      { status: 403 },
+    );
+  }
+
+  const { code: rawCode } = await context.params;
+  const code = normalizeVoucherCode(decodeURIComponent(rawCode));
+  if (!code) {
+    return NextResponse.json({ error: "Neplatný kód." }, { status: 400 });
+  }
+
+  try {
+    const admin = createAdminClient();
+    const { data: current, error: currentError } = await admin
+      .from("sold_vouchers")
+      .select("status")
+      .eq("code_normalized", code)
+      .maybeSingle();
+
+    if (currentError) {
+      console.error("sold-vouchers delete read", currentError);
+      return NextResponse.json(
+        { error: currentError.message },
+        { status: 500 },
+      );
+    }
+    if (!current) {
+      return NextResponse.json({ error: "Poukaz nenalezen." }, { status: 404 });
+    }
+    if (String(current.status) !== "cancelled") {
+      return NextResponse.json(
+        { error: "Smazat lze jen stornovaný poukaz." },
+        { status: 400 },
+      );
+    }
+
+    const { error } = await admin
+      .from("sold_vouchers")
+      .delete()
+      .eq("code_normalized", code);
+
+    if (error) {
+      console.error("sold-vouchers delete", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, code });
+  } catch (error) {
+    console.error("sold-vouchers delete fatal", error);
+    return NextResponse.json(
+      { error: "Nepodařilo se smazat poukaz." },
       { status: 500 },
     );
   }

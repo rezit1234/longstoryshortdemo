@@ -21,6 +21,7 @@ import {
 } from "./AdminSkeleton";
 import { AdminSelect } from "./AdminSelect";
 import { useAdminUser } from "./AdminUserProvider";
+import { IconPlus } from "./icons";
 
 const VALIDITY_OPTIONS = [
   { value: "6", label: "6 měsíců" },
@@ -699,22 +700,8 @@ export function AdminObchod({
             onClick={openAddExperience}
           >
             <span className="admin-experience-row-add-label">
-              <svg
-                className="admin-page-head-btn-icon"
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M7 2v10M2 7h10"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                />
-              </svg>
-              Přidat variantu
+              <IconPlus className="admin-page-head-btn-icon" />
+              <span className="admin-page-head-btn-label">Přidat variantu</span>
             </span>
           </button>
         </div>
@@ -1011,6 +998,7 @@ export function AdminObchod({
 
       {activeExperience ? (
         <AdminExperienceSettingsDrawer
+          shopId={shopId}
           experience={activeExperience}
           isNew={pendingExperience !== null}
           onClose={closeExperienceDrawer}
@@ -1025,6 +1013,7 @@ export function AdminObchod({
 
       {activeAmountSlot !== null ? (
         <AdminAmountSettingsDrawer
+          shopId={shopId}
           slotKey={activeAmountSlot}
           slotLabel={
             activeAmountSlot === "custom"

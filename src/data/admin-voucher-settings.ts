@@ -8,14 +8,17 @@ import {
 } from "./vouchers";
 
 /** Délka náhodné části za prefixem. */
-export const VOUCHER_CODE_BODY_LENGTH = 8;
-/** Max délka celého kódu (nejdelší prefix LSS + 8). */
+export const VOUCHER_CODE_BODY_LENGTH = 7;
+/** Max délka celého kódu (nejdelší prefix LSS + 7). */
 export const VOUCHER_CODE_LENGTH = 3 + VOUCHER_CODE_BODY_LENGTH;
-export const VOUCHER_CODE_INPUT_MAX_LENGTH = VOUCHER_CODE_LENGTH;
+/** Lookup / uplatnění — i legacy kódy z Vouchy bez LSS/BC/CA. */
+export const VOUCHER_CODE_LEGACY_MAX_LENGTH = 32;
+/** Max délka vstupu v UI (uplatnění i legacy). Nové vystavení limituje VOUCHER_CODE_LENGTH. */
+export const VOUCHER_CODE_INPUT_MAX_LENGTH = VOUCHER_CODE_LEGACY_MAX_LENGTH;
 export const MAX_AMOUNT_SLOTS = 4;
 export const MAX_GALLERY_IMAGES = 3;
 export const MAX_CHECKOUT_PREVIEW_IMAGES = 2;
-export const MOCK_VOUCHER_CODE = "LSSK7M2P9QX";
+export const MOCK_VOUCHER_CODE = "LSSK7M2P9A";
 export const MOCK_QR_URL = "https://www.longstoryshort.cz";
 
 export type ShopId = "lss" | "bistrocentral" | "culinaryacademy";
@@ -50,7 +53,7 @@ function generateCodeBody(length = VOUCHER_CODE_BODY_LENGTH) {
   return body;
 }
 
-/** Náhodný kód: prefix obchodu + 8 znaků, bez oddělovače (např. LSSK7M2P9QX). */
+/** Náhodný kód: prefix obchodu + 7 znaků, bez oddělovače (např. LSSK7M2P9A). */
 export function generateVoucherCode(shopId: ShopId = "lss") {
   return `${shopCodePrefix(shopId)}${generateCodeBody()}`;
 }
@@ -62,20 +65,26 @@ function matchShopPrefix(cleaned: string): VoucherCodePrefix | null {
   return null;
 }
 
-/** Canonical kód: PREFIX + 8 znaků, bez pomlčky. */
+/**
+ * Canonical kód pro lookup.
+ * Nový formát LSS/BC/CA + max 7 znaků; legacy (Vouchy) bez agresivního ořezu.
+ */
 export function normalizeVoucherCode(raw: string) {
   const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!cleaned) return "";
 
   const prefix = matchShopPrefix(cleaned);
   if (prefix) {
-    const body = cleaned
-      .slice(prefix.length)
-      .slice(0, VOUCHER_CODE_BODY_LENGTH);
-    return `${prefix}${body}`;
+    const rest = cleaned.slice(prefix.length);
+    // Nový formát / rozepsané zadávání: prefix + nejvýš 8.
+    // Delší zbytek = legacy kód, který náhodou začíná LSS/BC/CA.
+    if (rest.length <= VOUCHER_CODE_BODY_LENGTH) {
+      return `${prefix}${rest}`;
+    }
+    return cleaned.slice(0, VOUCHER_CODE_LEGACY_MAX_LENGTH);
   }
 
-  return cleaned.slice(0, VOUCHER_CODE_LENGTH);
+  return cleaned.slice(0, VOUCHER_CODE_LEGACY_MAX_LENGTH);
 }
 
 /** Doplní / přepíše prefix podle obchodu při vytváření. */
@@ -103,11 +112,14 @@ export function isValidNewVoucherCode(normalized: string) {
 }
 
 /** Filtr vstupu v UI (uppercase, jen A–Z / 0–9). */
-export function sanitizeVoucherCodeInput(raw: string) {
+export function sanitizeVoucherCodeInput(
+  raw: string,
+  maxLength: number = VOUCHER_CODE_INPUT_MAX_LENGTH,
+) {
   return raw
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
-    .slice(0, VOUCHER_CODE_INPUT_MAX_LENGTH);
+    .slice(0, maxLength);
 }
 
 const EATERY_CHECKOUT_PREVIEW: ExperienceGalleryImage = {

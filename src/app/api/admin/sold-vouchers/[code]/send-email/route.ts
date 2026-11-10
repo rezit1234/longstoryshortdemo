@@ -5,6 +5,7 @@ import {
   resolveVoucherEmailRecipient,
   sendVoucherEmail,
 } from "@/lib/email/send-voucher-email";
+import { regenerateSoldVoucherPdfIfSupported } from "@/lib/regenerate-sold-voucher-pdf";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
@@ -73,7 +74,7 @@ export async function POST(
     const { data, error } = await admin
       .from("sold_vouchers")
       .select(
-        "code, shop_id, product_name, valid_until, buyer_name, buyer_email, recipient_name, delivery_method, delivery_email, message, pdf_url",
+        "code, shop_id, product_name, item_kind, unit_price_czk, valid_until, purchased_at, buyer_name, buyer_email, recipient_name, delivery_method, delivery_email, message, pdf_url, is_gift",
       )
       .eq("code_normalized", code)
       .maybeSingle();
@@ -98,7 +99,13 @@ export async function POST(
     }
 
     let attachment: { filename: string; content: Buffer } | undefined;
-    if (data.pdf_url) {
+    const regenerated = await regenerateSoldVoucherPdfIfSupported(data);
+    if (regenerated) {
+      attachment = {
+        filename: `poukaz-${data.code}.pdf`,
+        content: regenerated.bytes,
+      };
+    } else if (data.pdf_url) {
       const bytes = await downloadPdfBytes(admin, String(data.pdf_url));
       if (bytes) {
         attachment = {
@@ -148,7 +155,12 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ ok: true, to, id: result.id });
+    return NextResponse.json({
+      ok: true,
+      to,
+      id: result.id,
+      pdfRegenerated: Boolean(regenerated),
+    });
   } catch (error) {
     console.error("sold-vouchers send-email", error);
     return NextResponse.json(

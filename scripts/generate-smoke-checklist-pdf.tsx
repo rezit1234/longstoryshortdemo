@@ -38,7 +38,8 @@ const SECTIONS: Section[] = [
       {
         id: "a1",
         label: "Každý obchod: nákup na částku i zážitek (e-mail)",
-        hint: "LSS, Bistro Central, Culinary Academy — alespoň 1× každý typ",
+        hint:
+          "Aktivní obchody (ENABLED_SHOPS): LSS + Bistro Central. Culinary zatím vypnutá.",
       },
       {
         id: "a2",
@@ -49,12 +50,20 @@ const SECTIONS: Section[] = [
       {
         id: "a3",
         label: "Množství > 1 a dárek jiné osobě",
-        hint: "Správný počet kódů a PDF; e-mail jde na příjemce",
+        hint:
+          "Správný počet kódů a PDF; jeden e-mail se všemi přílohami (ne 1 mail na kus)",
       },
       {
         id: "a4",
         label: "Faktura ano / ne / povinná od 10 000 Kč",
-        hint: "S fakturou: PDF v příloze mailu. Bez faktury: jen poukaz.",
+        hint:
+          "S fakturou: poukaz + faktura v příloze. Jiný fakturační e-mail = druhý mail. Bez faktury: jen poukaz.",
+      },
+      {
+        id: "a5",
+        label: "A4 PDF: unikátní kód + správný obsah",
+        hint:
+          "LSS/BC: hardcoded A4. Kód, částka/služba, jména, platnost, QR. Culinary zatím vypnutá.",
       },
     ],
   },
@@ -78,8 +87,9 @@ const SECTIONS: Section[] = [
     items: [
       {
         id: "c1",
-        label: "Úprava částek, variant a PDF šablon",
-        hint: "Změna se projeví ve widgetu. Pozice kódu/QR sedí. Autosave funguje.",
+        label: "Úprava částek, variant a Culinary PDF šablon",
+        hint:
+          "Widget bere nové částky/zážítky. Culinary: šablona + pozice kódu/QR. LSS/BC A4 jen náhled.",
       },
       {
         id: "c2",
@@ -107,15 +117,22 @@ const SECTIONS: Section[] = [
       { id: "e1", label: "VOP + GDPR odkazy ve widgetu" },
       {
         id: "e2",
-        label: "Comgate: test do schválení, pak live + ostrá platba",
-        hint: "Do schválení COMGATE_TEST=true, potom false a ověřit ostrou platbu",
+        label: "OPS notifikace na provozní e-mail",
+        hint:
+          "Na Vercelu nastavit OPS_NOTIFY_EMAIL=reception@longstoryshort.cz (případně per-shop OPS_NOTIFY_EMAIL_*). Lokálně klidně testovací.",
       },
       {
         id: "e3",
-        label: "Reálné fakturační údaje + vizuál PDF faktury",
+        label: "Comgate live na Vercelu + jedna ostrá platba",
+        hint:
+          "Produkce: COMGATE_TEST=false (na Vercelu už). Lokálně může zůstat true.",
       },
       {
         id: "e4",
+        label: "Reálné fakturační údaje + vizuál PDF faktury",
+      },
+      {
+        id: "e5",
         label: "Mobil: widget i admin bez rozbití layoutu",
       },
     ],

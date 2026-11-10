@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { AdminSelect } from "./AdminSelect";
+import { IconAddMember, IconCancel } from "./icons";
 
 const DRAWER_ANIMATION_MS = 220;
 
@@ -212,7 +213,8 @@ export function AdminAddMemberDrawer({
 
         <div className="admin-voucher-drawer-footer admin-add-voucher-footer">
           <button type="button" className="admin-outline-btn" onClick={requestClose}>
-            Zrušit
+            <IconCancel className="admin-page-head-btn-icon" />
+            <span className="admin-page-head-btn-label">Zrušit</span>
           </button>
           <button
             type="button"
@@ -222,7 +224,14 @@ export function AdminAddMemberDrawer({
               void handleSubmit();
             }}
           >
-            {submitting ? "Přidávám…" : "Přidat člena"}
+            {submitting ? (
+              "Přidávám…"
+            ) : (
+              <>
+                <IconAddMember className="admin-page-head-btn-icon" />
+                <span className="admin-voucher-drawer-cta-label">Přidat člena</span>
+              </>
+            )}
           </button>
         </div>
       </aside>

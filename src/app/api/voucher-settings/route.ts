@@ -11,6 +11,7 @@ import {
   normalizeVoucherSettings,
   type VoucherSettingsPayload,
 } from "@/lib/voucher-settings";
+import { isShopEnabled } from "@/data/shops";
 
 type SettingsRow = {
   id?: number;
@@ -268,6 +269,12 @@ export async function PUT(request: Request) {
   }
 
   const shopId = parseShopId(body.shopId ?? null);
+  if (!isShopEnabled(shopId)) {
+    return NextResponse.json(
+      { error: "Tento obchod je dočasně vypnutý." },
+      { status: 400 },
+    );
+  }
   const settings = normalizeVoucherSettings(body.settings, shopId);
 
   let admin;

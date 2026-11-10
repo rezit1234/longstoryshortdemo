@@ -1,8 +1,14 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
+import {
+  buildStaffActivityRows,
+  type StaffActivityRow,
+} from "@/lib/admin-staff-activity";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { chunkIds, fetchAllRows } from "@/lib/supabase/fetch-all";
 
 export type AnalyticsShopFilter = "all" | ShopId;
-export type AnalyticsPeriodKey = "7d" | "30d" | "3m" | "1y";
+/** Kalendářní období: tento týden (Po–dnes), měsíc, rok, nebo celá historie. */
+export type AnalyticsPeriodKey = "week" | "month" | "year" | "all";
 
 export type AnalyticsSeriesPoint = {
   /** YYYY-MM-DD (den) nebo YYYY-MM-01 (měsíc). */
@@ -28,6 +34,7 @@ export type AnalyticsPayload = {
   from: string;
   to: string;
   period?: AnalyticsPeriodKey;
+  userId: string | null;
   kpi: {
     sold: number;
     revenueCzk: number;
@@ -40,6 +47,7 @@ export type AnalyticsPayload = {
   series: AnalyticsSeriesPoint[];
   variants: AnalyticsVariantRow[];
   statuses: AnalyticsStatusRow[];
+  staff: StaffActivityRow[];
 };
 
 type SoldRow = {
@@ -52,6 +60,7 @@ type SoldRow = {
   status: string;
   purchased_at: string;
   redeemed_at: string | null;
+  issued_by?: string | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -93,13 +102,30 @@ function parseShop(value: string | null): AnalyticsShopFilter {
   return "all";
 }
 
+/** Pondělí jako začátek týdne (cs). */
+function startOfIsoWeek(date: Date) {
+  const from = startOfDay(date);
+  const day = from.getDay(); // 0 = ne, 1 = po, …
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  from.setDate(from.getDate() - daysFromMonday);
+  return from;
+}
+
 export function rangeForPeriod(period: AnalyticsPeriodKey, end = new Date()) {
   const to = startOfDay(end);
-  const from = startOfDay(end);
-  if (period === "7d") from.setDate(from.getDate() - 6);
-  else if (period === "30d") from.setDate(from.getDate() - 29);
-  else if (period === "3m") from.setDate(from.getDate() - 89);
-  else from.setFullYear(from.getFullYear() - 1);
+  let from = startOfDay(end);
+
+  if (period === "week") {
+    from = startOfIsoWeek(end);
+  } else if (period === "month") {
+    from = startOfDay(new Date(end.getFullYear(), end.getMonth(), 1));
+  } else if (period === "year") {
+    from = startOfDay(new Date(end.getFullYear(), 0, 1));
+  } else {
+    // all — celá dostupná historie (Vouchy od ~2019)
+    from = startOfDay(new Date(2019, 0, 1));
+  }
+
   return { from: toDateOnly(from), to: toDateOnly(to) };
 }
 
@@ -181,74 +207,169 @@ function summarizeSales(rows: SoldRow[], from: string, to: string) {
   };
 }
 
+async function countRedemptionsInRange(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  from: string;
+  to: string;
+  shop: AnalyticsShopFilter;
+  userId: string | null;
+}) {
+  const rows = await fetchAllRows<{
+    id: string;
+    sold_voucher_id: string;
+    created_by: string | null;
+  }>((from, to) => {
+    let query = params.admin
+      .from("voucher_redemptions")
+      .select("id, sold_voucher_id, created_by")
+      .is("undone_at", null)
+      .gte("created_at", `${params.from}T00:00:00.000Z`)
+      .lte("created_at", `${params.to}T23:59:59.999Z`)
+      .order("created_at", { ascending: true })
+      .range(from, to);
+    if (params.userId) {
+      query = query.eq("created_by", params.userId);
+    }
+    return query;
+  });
+
+  if (params.shop === "all" || rows.length === 0) return rows.length;
+
+  const voucherIds = [
+    ...new Set(
+      rows
+        .map((row) =>
+          typeof row.sold_voucher_id === "string" ? row.sold_voucher_id : "",
+        )
+        .filter(Boolean),
+    ),
+  ];
+  if (voucherIds.length === 0) return 0;
+
+  const allowed = new Set<string>();
+  for (const ids of chunkIds(voucherIds)) {
+    const { data: vouchers, error: vouchersError } = await params.admin
+      .from("sold_vouchers")
+      .select("id")
+      .in("id", ids)
+      .eq("shop_id", params.shop);
+    if (vouchersError) throw vouchersError;
+    for (const row of vouchers ?? []) allowed.add(String(row.id));
+  }
+
+  return rows.filter((row) => allowed.has(String(row.sold_voucher_id))).length;
+}
+
 export async function buildAnalyticsPayload(params: {
   shop?: string | null;
   from?: string | null;
   to?: string | null;
   period?: string | null;
+  userId?: string | null;
 }): Promise<AnalyticsPayload> {
   const shop = parseShop(params.shop ?? null);
+  const userId = params.userId?.trim() || null;
   const period =
-    params.period === "7d" ||
-    params.period === "30d" ||
-    params.period === "3m" ||
-    params.period === "1y"
+    params.period === "week" ||
+    params.period === "month" ||
+    params.period === "year" ||
+    params.period === "all"
       ? params.period
       : undefined;
 
   const range = period
     ? rangeForPeriod(period)
     : {
-        from: params.from || rangeForPeriod("30d").from,
-        to: params.to || rangeForPeriod("30d").to,
+        from: params.from || rangeForPeriod("month").from,
+        to: params.to || rangeForPeriod("month").to,
       };
 
   const admin = createAdminClient();
-  let query = admin
-    .from("sold_vouchers")
-    .select(
-      "shop_id, product_name, unit_price_czk, status, purchased_at, redeemed_at",
-    )
-    .order("purchased_at", { ascending: true })
-    .limit(5000);
 
-  if (shop !== "all") {
-    query = query.eq("shop_id", shop);
+  try {
+    const data = await fetchAllRows<SoldRow>((from, to) => {
+      let query = admin
+        .from("sold_vouchers")
+        .select(
+          "shop_id, product_name, unit_price_czk, status, purchased_at, redeemed_at, issued_by",
+        )
+        .order("purchased_at", { ascending: true })
+        .range(from, to);
+      if (shop !== "all") {
+        query = query.eq("shop_id", shop);
+      }
+      return query;
+    });
+
+    return buildAnalyticsPayloadFromRows({
+      rows: data,
+      shop,
+      range,
+      period,
+      userId,
+      admin,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Starší DB bez issued_by — zkusit bez sloupce.
+    if (!/issued_by/i.test(message)) throw error;
+
+    const data = await fetchAllRows<SoldRow>((from, to) => {
+      let query = admin
+        .from("sold_vouchers")
+        .select(
+          "shop_id, product_name, unit_price_czk, status, purchased_at, redeemed_at",
+        )
+        .order("purchased_at", { ascending: true })
+        .range(from, to);
+      if (shop !== "all") {
+        query = query.eq("shop_id", shop);
+      }
+      return query;
+    });
+
+    return buildAnalyticsPayloadFromRows({
+      rows: data,
+      shop,
+      range,
+      period,
+      userId,
+      admin,
+    });
   }
+}
 
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as SoldRow[];
+async function buildAnalyticsPayloadFromRows(params: {
+  rows: SoldRow[];
+  shop: AnalyticsShopFilter;
+  range: { from: string; to: string };
+  period?: AnalyticsPeriodKey;
+  userId: string | null;
+  admin: ReturnType<typeof createAdminClient>;
+}): Promise<AnalyticsPayload> {
+  const { rows, shop, range, period, userId, admin } = params;
+  // Hlavní KPI zůstávají celkový obchod (online + ruční). Filtr uživatele
+  // ovlivní jen tabulku vystavení / uplatnění podle zaměstnanců.
   const current = summarizeSales(rows, range.from, range.to);
   const prev = previousRange(range.from, range.to);
   const previous = summarizeSales(rows, prev.from, prev.to);
 
   // Počet uplatnění = záznamy historie (částečná i plná), ne jen finální status.
   try {
-    const { data: redemptions } = await admin
-      .from("voucher_redemptions")
-      .select("id, created_at, undone_at")
-      .is("undone_at", null)
-      .gte("created_at", `${range.from}T00:00:00.000Z`)
-      .lte("created_at", `${range.to}T23:59:59.999Z`)
-      .limit(5000);
-    if (Array.isArray(redemptions)) {
-      current.redeemed = redemptions.length;
-    }
-
-    const { data: prevRedemptions } = await admin
-      .from("voucher_redemptions")
-      .select("id")
-      .is("undone_at", null)
-      .gte("created_at", `${prev.from}T00:00:00.000Z`)
-      .lte("created_at", `${prev.to}T23:59:59.999Z`)
-      .limit(5000);
-    if (Array.isArray(prevRedemptions)) {
-      previous.redeemed = prevRedemptions.length;
-    }
+    current.redeemed = await countRedemptionsInRange({
+      admin,
+      from: range.from,
+      to: range.to,
+      shop,
+      userId: null,
+    });
+    previous.redeemed = await countRedemptionsInRange({
+      admin,
+      from: prev.from,
+      to: prev.to,
+      shop,
+      userId: null,
+    });
   } catch {
     // Migrace 015 ještě nemusí být nasazená — necháme redeemed_at fallback.
   }
@@ -310,11 +431,24 @@ export async function buildAnalyticsPayload(params: {
     count: statusCounts.get(key) ?? 0,
   }));
 
+  let staff: StaffActivityRow[] = [];
+  try {
+    staff = await buildStaffActivityRows({
+      from: range.from,
+      to: range.to,
+      shop,
+      userId,
+    });
+  } catch (error) {
+    console.error("admin analytics staff", error);
+  }
+
   return {
     shop,
     from: range.from,
     to: range.to,
     period,
+    userId,
     kpi: {
       ...current,
       soldTrendPct: trendPct(current.sold, previous.sold),
@@ -326,6 +460,7 @@ export async function buildAnalyticsPayload(params: {
       .sort((a, b) => b.sales - a.sales || b.revenueCzk - a.revenueCzk)
       .slice(0, 8),
     statuses,
+    staff,
   };
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { getRecentAdminVouchers } from "@/data/admin-vouchers";
+import { getEnabledShopBrands } from "@/data/shops";
 import { formatCzk } from "@/data/vouchers";
 import {
   AdminRevenueChart,
@@ -15,16 +16,18 @@ import {
   AdminSkeletonStatCards,
   AdminSkeletonTableRows,
 } from "./AdminSkeleton";
+import { AdminSelect } from "./AdminSelect";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 import { useAdminUser } from "./AdminUserProvider";
 
 type OverviewShopFilter = "all" | ShopId;
 
 const OVERVIEW_SHOPS: { key: OverviewShopFilter; label: string }[] = [
-  { key: "all", label: "Celkový přehled" },
-  { key: "lss", label: "Long Story Short" },
-  { key: "bistrocentral", label: "Bistro Central" },
-  { key: "culinaryacademy", label: "Culinary Academy" },
+  { key: "all", label: "Všechny pobočky" },
+  ...getEnabledShopBrands().map((brand) => ({
+    key: brand.id as OverviewShopFilter,
+    label: brand.brandName,
+  })),
 ];
 
 const MANAGE_HREF: Record<ShopId, string> = {
@@ -72,11 +75,94 @@ function getGreetingFirstName(fullName: string) {
   return trimmed.split(/\s+/)[0] ?? null;
 }
 
+function OverviewShopFiltersModal({
+  initialShop,
+  onClose,
+  onSave,
+}: {
+  initialShop: OverviewShopFilter;
+  onClose: () => void;
+  onSave: (shop: OverviewShopFilter) => void;
+}) {
+  const [draftShop, setDraftShop] = useState<OverviewShopFilter>(initialShop);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="admin-confirm-root"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="admin-confirm-dialog admin-reports-modal admin-reports-modal-filters admin-overview-filters-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-overview-filters-title"
+      >
+        <div className="admin-reports-modal-head">
+          <div>
+            <h2 id="admin-overview-filters-title">Filtry přehledu</h2>
+            <p>Vyberte pobočku pro statistiky za posledních 30 dní.</p>
+          </div>
+          <button
+            type="button"
+            className="admin-outline-btn admin-reports-modal-close"
+            onClick={onClose}
+            aria-label="Zavřít"
+          >
+            <span>Zavřít</span>
+          </button>
+        </div>
+
+        <div className="admin-reports-form">
+          <div className="admin-field">
+            <span>Pobočka</span>
+            <AdminSelect
+              ariaLabel="Vyberte pobočku"
+              value={draftShop}
+              options={OVERVIEW_SHOPS.map((item) => ({
+                value: item.key,
+                label: item.label,
+              }))}
+              onChange={(value) => setDraftShop(value as OverviewShopFilter)}
+            />
+          </div>
+        </div>
+
+        <div className="admin-reports-download admin-reports-download-end">
+          <button
+            type="button"
+            className="admin-primary-btn"
+            onClick={() => onSave(draftShop)}
+          >
+            Uložit filtry
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminOverview() {
   const { user } = useAdminUser();
   const { openVoucher, activeVoucherCode, vouchers, vouchersLoading } =
     useAdminVoucherDrawer();
   const [shop, setShop] = useState<OverviewShopFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -86,7 +172,7 @@ export function AdminOverview() {
     void (async () => {
       try {
         const response = await fetch(
-          `/api/admin/analytics?period=30d&shop=${encodeURIComponent(shop)}`,
+          `/api/admin/analytics?period=month&shop=${encodeURIComponent(shop)}`,
           { cache: "no-store" },
         );
         if (!response.ok) throw new Error("fail");
@@ -147,13 +233,16 @@ export function AdminOverview() {
     return buildAdminChartPoints(
       series.map((point) => point.revenueCzk),
       series.map((point) => new Date(`${point.date}T12:00:00`)),
-      "30d",
+      "month",
     );
   }, [analytics]);
 
   const greetingName = getGreetingFirstName(user.name);
   const manageHref =
     shop === "all" ? "/admin/obchody" : MANAGE_HREF[shop];
+  const shopLabel =
+    OVERVIEW_SHOPS.find((item) => item.key === shop)?.label ??
+    "Všechny pobočky";
 
   return (
     <div className="admin-overview">
@@ -163,32 +252,48 @@ export function AdminOverview() {
           <p>
             {loading
               ? "Načítám přehled za posledních 30 dní…"
-              : "Přehled dárkových poukazů za posledních 30 dní."}
+              : `Přehled dárkových poukazů za posledních 30 dní · ${shopLabel}`}
           </p>
         </div>
-        <div
-          className="admin-filters admin-filters-inline admin-overview-shop-filters"
-          role="tablist"
-          aria-label="Obchod"
-        >
-          {OVERVIEW_SHOPS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              aria-selected={shop === item.key}
-              className={
-                shop === item.key
-                  ? "admin-filter-chip is-active"
-                  : "admin-filter-chip"
-              }
-              onClick={() => setShop(item.key)}
+        <div className="admin-page-head-actions">
+          <button
+            type="button"
+            className="admin-primary-btn admin-page-head-primary admin-analytika-filter-btn"
+            onClick={() => setFiltersOpen(true)}
+            aria-label="Otevřít filtry"
+          >
+            <svg
+              className="admin-analytika-filter-icon"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden
             >
-              {item.label}
-            </button>
-          ))}
+              <path
+                d="M8.85746 12.5061C6.36901 10.6456 4.59564 8.59915 3.62734 7.44867C3.3276 7.09253 3.22938 6.8319 3.17033 6.3728C2.96811 4.8008 2.86701 4.0148 3.32795 3.5074C3.7889 3 4.60404 3 6.23433 3H17.7657C19.396 3 20.2111 3 20.672 3.5074C21.133 4.0148 21.0319 4.8008 20.8297 6.37281C20.7706 6.83191 20.6724 7.09254 20.3726 7.44867C19.403 8.60062 17.6261 10.6507 15.1326 12.5135C14.907 12.6821 14.7583 12.9567 14.7307 13.2614C14.4837 15.992 14.2559 17.4876 14.1141 18.2442C13.8853 19.4657 12.1532 20.2006 11.226 20.8563C10.6741 21.2466 10.0043 20.782 9.93278 20.1778C9.79643 19.0261 9.53961 16.6864 9.25927 13.2614C9.23409 12.9539 9.08486 12.6761 8.85746 12.5061Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="admin-page-head-btn-label">Filtry</span>
+          </button>
         </div>
       </div>
+
+      {filtersOpen ? (
+        <OverviewShopFiltersModal
+          initialShop={shop}
+          onClose={() => setFiltersOpen(false)}
+          onSave={(next) => {
+            setShop(next);
+            setFiltersOpen(false);
+          }}
+        />
+      ) : null}
 
       {loading ? (
         <AdminSkeletonStatCards count={3} />

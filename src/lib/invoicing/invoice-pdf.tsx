@@ -23,8 +23,13 @@ export type InvoicePdfData = {
   issuerName: string;
   issuerAddress: string;
   issuerIco: string;
+  issuerDic: string;
   issuerNote: string;
   issuerBankAccount: string;
+  issuerIban: string;
+  issuerSwift: string;
+  issuerPhone: string;
+  issuerEmail: string;
   customerName: string;
   customerIco: string;
   customerAddress: string;
@@ -227,21 +232,37 @@ function formatMoney(amount: number): string {
   return `${formatted} Kč`;
 }
 
-function splitAddress(address: string): { line1: string; line2: string } {
-  if (!address.trim()) return { line1: "", line2: "" };
+function splitAddress(address: string): {
+  line1: string;
+  line2: string;
+  line3: string;
+} {
+  if (!address.trim()) return { line1: "", line2: "", line3: "" };
+
+  const byNewline = address
+    .split(/\r?\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (byNewline.length >= 2) {
+    return {
+      line1: byNewline[0] ?? "",
+      line2: byNewline[1] ?? "",
+      line3: byNewline.slice(2).join(", "),
+    };
+  }
 
   const parts = address
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length >= 2) {
-    const line1 = parts[0];
-    const rest = parts.slice(1).join(", ");
-    const line2 = rest.replace(/^(\d{3})(\d{2})\s*/, "$1 $2 ");
-    return { line1, line2 };
+    const line1 = parts[0] ?? "";
+    const line2 = (parts[1] ?? "").replace(/^(\d{3})(\d{2})\s*/, "$1 $2 ");
+    const line3 = parts.slice(2).join(", ");
+    return { line1, line2, line3 };
   }
 
-  return { line1: address, line2: "" };
+  return { line1: address, line2: "", line3: "" };
 }
 
 function PartyDetails({
@@ -256,6 +277,7 @@ function PartyDetails({
   rows: Array<{ label: string; value: string }>;
 }) {
   const addressLines = splitAddress(address);
+  const visibleRows = rows.filter((row) => row.value.trim());
 
   return (
     <View style={styles.column}>
@@ -268,8 +290,11 @@ function PartyDetails({
       {addressLines.line2 ? (
         <Text style={styles.addressLine}>{addressLines.line2}</Text>
       ) : null}
+      {addressLines.line3 ? (
+        <Text style={styles.addressLine}>{addressLines.line3}</Text>
+      ) : null}
       <View style={styles.kvBlock}>
-        {rows.map((row) =>
+        {visibleRows.map((row) =>
           row.label ? (
             <View key={`${row.label}-${row.value}`} style={styles.kvRow}>
               <Text style={styles.kvLabel}>{row.label}</Text>
@@ -314,8 +339,13 @@ export function InvoicePdfDocument({ data }: { data: InvoicePdfData }) {
             address={data.issuerAddress}
             rows={[
               { label: "IČO", value: data.issuerIco },
+              { label: "DIČ", value: data.issuerDic },
               { label: "", value: data.issuerNote },
+              { label: "Telefon", value: data.issuerPhone },
+              { label: "E-mail", value: data.issuerEmail },
               { label: "Bankovní účet", value: data.issuerBankAccount },
+              { label: "IBAN", value: data.issuerIban },
+              { label: "SWIFT", value: data.issuerSwift },
               { label: "Variabilní symbol", value: variableSymbol },
               {
                 label: "Způsob platby",

@@ -18,7 +18,7 @@ import {
 } from "@/lib/voucher-redemption";
 
 const VOUCHER_SELECT =
-  "id, code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, redeemed_at, buyer_name, buyer_email, buyer_phone, recipient_name, delivery_method, delivery_email, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift";
+  "id, code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, redeemed_at, buyer_name, buyer_email, buyer_phone, recipient_name, delivery_method, delivery_email, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note";
 
 type DbVoucher = SoldVoucherRow & {
   id: string;

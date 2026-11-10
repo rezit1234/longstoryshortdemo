@@ -1,28 +1,27 @@
 import Link from "next/link";
+import { getEnabledShopBrands } from "@/data/shops";
 
-const SHOPS = [
-  {
-    id: "lss",
-    name: "Long Story Short",
+const SHOP_COPY: Record<
+  string,
+  { description: string; descriptionShort: string; widgetPath: string }
+> = {
+  lss: {
     description: "Nastavení dárkových poukazů a variant obchodu LSS.",
     descriptionShort: "Nastavení poukazů a variant",
     widgetPath: "/lss",
   },
-  {
-    id: "bistrocentral",
-    name: "Bistro Central",
+  bistrocentral: {
     description: "Nastavení dárkových poukazů a variant obchodu Bistro Central.",
     descriptionShort: "Nastavení poukazů a variant",
     widgetPath: "/bistrocentral",
   },
-  {
-    id: "culinaryacademy",
-    name: "Culinary Academy",
-    description: "Nastavení dárkových poukazů a variant obchodu Culinary Academy.",
+  culinaryacademy: {
+    description:
+      "Nastavení dárkových poukazů a variant obchodu Culinary Academy.",
     descriptionShort: "Nastavení poukazů a variant",
     widgetPath: "/culinaryacademy",
   },
-] as const;
+};
 
 function MaskIcon({ src }: { src: string }) {
   return (
@@ -38,6 +37,16 @@ function MaskIcon({ src }: { src: string }) {
 }
 
 export function AdminObchody() {
+  const shops = getEnabledShopBrands().map((brand) => ({
+    id: brand.id,
+    name: brand.brandName,
+    ...(SHOP_COPY[brand.id] ?? {
+      description: `Nastavení dárkových poukazů obchodu ${brand.brandName}.`,
+      descriptionShort: "Nastavení poukazů a variant",
+      widgetPath: `/${brand.id}`,
+    }),
+  }));
+
   return (
     <div className="admin-obchody">
       <div className="admin-page-head">
@@ -48,7 +57,7 @@ export function AdminObchody() {
       </div>
 
       <div className="admin-experience-list">
-        {SHOPS.map((shop) => (
+        {shops.map((shop) => (
           <div key={shop.id} className="admin-experience-row">
             <Link
               href={`/admin/obchody/${shop.id}`}

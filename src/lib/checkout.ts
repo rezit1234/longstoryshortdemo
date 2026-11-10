@@ -1,4 +1,5 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
+import { isShopEnabled } from "@/data/shops";
 
 export type CheckoutDeliveryMethod = "email" | "post" | "pickup";
 export type CheckoutItemKind = "amount" | "experience";
@@ -97,6 +98,9 @@ export function isValidEmail(value: string) {
 
 export function validateCheckoutPayload(body: CreatePaymentRequestBody): string | null {
   if (!isShopId(body.shopId)) return "Neplatný obchod.";
+  if (!isShopEnabled(body.shopId)) {
+    return "Tento obchod je dočasně vypnutý.";
+  }
   if (!body.item || (body.item.kind !== "amount" && body.item.kind !== "experience")) {
     return "Neplatná položka.";
   }
