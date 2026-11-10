@@ -204,6 +204,23 @@ button {
   color: var(--fg);
 }
 
+@media (max-width: 519px) {
+  .shop-payment-legal {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    row-gap: 0.45rem;
+    column-gap: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .shop-payment-legal a {
+    white-space: normal;
+  }
+}
+
 .shop-hero {
   margin: 0;
 }
