@@ -50,7 +50,7 @@ function escapeHtml(value: string) {
 function appBaseUrl() {
   const raw =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    "https://longstoryshortdemo.vercel.app";
+    "https://longstoryshortwidget.vercel.app";
   return raw.replace(/\/$/, "");
 }
 
