@@ -193,11 +193,7 @@ function emailShell(params: {
               <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;text-align:left;font-weight:700;">${params.title}</h1>
               <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">Dobrý den, ${params.greetingName},</p>
               ${params.bodyHtml}
-              <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">${params.footnote}</p>
-              <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#777;">
-                ${params.brandName}<br/>
-                ${params.website.replace(/^https?:\/\//, "")}
-              </p>
+              <p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#444;">${params.footnote} ${params.brandName}, ${params.website.replace(/^https?:\/\//, "")}</p>
             </td>
           </tr>
         </table>
