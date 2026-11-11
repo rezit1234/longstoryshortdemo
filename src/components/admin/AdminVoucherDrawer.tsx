@@ -984,7 +984,6 @@ function AdminVoucherDrawerPanel({
               </>
             }
             confirmLabel="Stornovat poukaz"
-            danger
             busy={actionBusy}
             error={actionError}
             onConfirm={() => void patchStatus("cancelled")}
@@ -1001,7 +1000,6 @@ function AdminVoucherDrawerPanel({
               </>
             }
             confirmLabel="Definitivně smazat"
-            danger
             busy={actionBusy}
             error={actionError}
             onConfirm={() => void hardDelete()}

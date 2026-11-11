@@ -8,8 +8,6 @@ type AdminActionModalProps = {
   title: string;
   description?: ReactNode;
   confirmLabel: string;
-  /** Výrazné (červené) potvrzení pro nevratné akce. */
-  danger?: boolean;
   busy?: boolean;
   confirmDisabled?: boolean;
   error?: string | null;
@@ -27,7 +25,6 @@ export function AdminActionModal({
   title,
   description,
   confirmLabel,
-  danger = false,
   busy = false,
   confirmDisabled = false,
   error,
@@ -92,7 +89,7 @@ export function AdminActionModal({
           </button>
           <button
             type="submit"
-            className={`admin-modal-btn${danger ? " is-danger" : ""}`}
+            className="admin-modal-btn"
             disabled={busy || confirmDisabled}
           >
             {busy ? "Ukládám…" : confirmLabel}

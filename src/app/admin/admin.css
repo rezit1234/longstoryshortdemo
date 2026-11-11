@@ -6271,7 +6271,7 @@ tr.is-undone-redemption td {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(15, 15, 20, 0.45);
+  background: rgba(10, 10, 10, 0.45);
 }
 
 .admin-modal {
@@ -6279,10 +6279,10 @@ tr.is-undone-redemption td {
   max-width: 440px;
   display: grid;
   gap: 14px;
-  padding: 22px 22px 18px;
-  border-radius: 14px;
+  padding: 24px 24px 20px;
+  border-radius: 24px;
   background: #ffffff;
-  color: #111;
+  color: #0a0a0a;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
 }
 
@@ -6315,21 +6315,23 @@ tr.is-undone-redemption td {
 .admin-modal-body textarea {
   width: 100%;
   font: inherit;
-  padding: 8px 10px;
-  border: 1px solid #cfcfd6;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border: 1px solid #d4d4d4;
+  border-radius: 999px;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .admin-modal-body textarea {
   min-height: 3.4rem;
+  border-radius: 20px;
   resize: vertical;
 }
 
 .admin-modal-error {
   margin: 0;
   font-size: 0.88rem;
-  color: #b42318;
+  color: #b91c1c;
 }
 
 .admin-modal-actions {
@@ -6340,28 +6342,35 @@ tr.is-undone-redemption td {
 }
 
 .admin-modal-btn {
-  padding: 9px 16px;
-  border-radius: 9px;
-  border: 1px solid #111;
-  background: #111;
-  color: #fff;
+  height: 2.75rem;
+  padding: 0 1.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: #0a0a0a;
+  color: #ffffff;
   font: inherit;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.admin-modal-btn:hover {
+  opacity: 0.88;
 }
 
 .admin-modal-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .admin-modal-btn.is-secondary {
-  background: #fff;
-  color: #111;
-  border-color: #cfcfd6;
+  background: #ffffff;
+  color: #0a0a0a;
+  border: 1px solid #d4d4d4;
 }
 
-.admin-modal-btn.is-danger {
-  background: #b42318;
-  border-color: #b42318;
+.admin-modal-btn.is-secondary:hover {
+  opacity: 1;
+  background: #f5f5f5;
 }
