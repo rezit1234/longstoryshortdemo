@@ -1,6 +1,11 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import {
+  canUndoLockedRedemption,
+  type AdminRole,
+} from "@/lib/auth";
+import { isRedemptionUndoLocked } from "@/lib/redemption-undo-lock";
+import {
   ADMIN_VOUCHER_STATUS_LABELS,
   type AdminSoldVoucher,
 } from "@/data/admin-vouchers";
@@ -184,6 +189,7 @@ export async function redeemSoldVoucher(params: {
   amountCzk?: number;
   partId?: string;
   createdBy?: string | null;
+  actorRole?: AdminRole | null;
 }): Promise<RedeemResult> {
   const code = normalizeVoucherCode(params.code);
   if (!code) throw new Error("Neplatný kód.");
@@ -193,7 +199,7 @@ export async function redeemSoldVoucher(params: {
   if (!row) throw new Error("Poukaz nenalezen.");
 
   if (params.action === "undo") {
-    return undoLastRedemption(admin, row, params.createdBy);
+    return undoLastRedemption(admin, row, params.actorRole);
   }
 
   if (row.status !== "active") {
@@ -415,11 +421,11 @@ function legacyUndoPatch(row: DbVoucher) {
 async function undoLastRedemption(
   admin: ReturnType<typeof createAdminClient>,
   row: DbVoucher,
-  _createdBy?: string | null,
+  actorRole?: AdminRole | null,
 ): Promise<RedeemResult> {
   const { data: last, error: lastError } = await admin
     .from("voucher_redemptions")
-    .select("id, state_before")
+    .select("id, state_before, created_at")
     .eq("sold_voucher_id", row.id)
     .is("undone_at", null)
     .order("created_at", { ascending: false })
@@ -427,6 +433,16 @@ async function undoLastRedemption(
     .maybeSingle();
 
   if (lastError) throw new Error(lastError.message);
+
+  // Po hodině od uplatnění je zamčeno — vrátit může jen vlastník.
+  const locked = last?.id
+    ? isRedemptionUndoLocked(String(last.created_at))
+    : hasRedemptionProgress(row);
+  if (locked && !canUndoLockedRedemption(actorRole)) {
+    throw new Error(
+      "Nelze vrátit uplatnění starší než hodinu – vrátit ho může jen vlastník.",
+    );
+  }
 
   const now = new Date().toISOString();
   let patch: Record<string, unknown>;
@@ -492,17 +508,23 @@ export async function enrichVouchersCanUndo(
 
   const { data } = await admin
     .from("voucher_redemptions")
-    .select("sold_voucher_id")
+    .select("sold_voucher_id, created_at")
     .in("sold_voucher_id", ids)
-    .is("undone_at", null);
+    .is("undone_at", null)
+    .order("created_at", { ascending: false });
 
-  const withHistory = new Set(
-    (data ?? []).map((row) => String((row as { sold_voucher_id: string }).sold_voucher_id)),
-  );
+  // Nejnovější nevrácené uplatnění na poukaz (první výskyt při řazení sestupně).
+  const latestRedeemedAt = new Map<string, string>();
+  for (const row of data ?? []) {
+    const r = row as { sold_voucher_id: string; created_at: string };
+    const key = String(r.sold_voucher_id);
+    if (!latestRedeemedAt.has(key)) latestRedeemedAt.set(key, String(r.created_at));
+  }
 
   return vouchers.map((voucher) => {
     const id = idsByCode.get(voucher.code);
-    const fromHistory = Boolean(id && withHistory.has(id));
+    const redeemedAt = id ? latestRedeemedAt.get(id) : undefined;
+    const fromHistory = Boolean(redeemedAt);
     const fromState =
       voucher.status === "redeemed" ||
       (voucher.itemKind === "amount" &&
@@ -513,6 +535,10 @@ export async function enrichVouchersCanUndo(
     return {
       ...voucher,
       canUndo: fromHistory || fromState,
+      // Bez časové značky (starší záznam) se bere jako zamčené.
+      undoLocked: fromHistory
+        ? isRedemptionUndoLocked(redeemedAt)
+        : Boolean(fromState),
     };
   });
 }

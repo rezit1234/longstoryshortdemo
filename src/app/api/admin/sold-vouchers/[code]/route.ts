@@ -4,7 +4,7 @@ import {
 } from "@/data/admin-vouchers";
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import { getSessionProfile } from "@/lib/admin-session";
-import { canCancelVoucher } from "@/lib/auth";
+import { canCancelVoucher, canEditVoucherValidity } from "@/lib/auth";
 import {
   mapSoldVoucherRow,
   toValidUntilIso,
@@ -81,6 +81,13 @@ export async function PATCH(
 
   if (hasStatus && (!status || !ALLOWED.includes(status))) {
     return NextResponse.json({ error: "Neplatný stav." }, { status: 400 });
+  }
+
+  if (hasValidUntil && !canEditVoucherValidity(session.profile.role)) {
+    return NextResponse.json(
+      { error: "Platnost poukazu může upravit jen recepce nebo vlastník." },
+      { status: 403 },
+    );
   }
 
   if (hasValidUntil && !isValidUntilInput(body.validUntil)) {

@@ -17,7 +17,12 @@ import {
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import { formatCzk } from "@/data/vouchers";
 import { getShopBrand } from "@/data/shops";
-import { canCancelVoucher, canRedeemVoucher } from "@/lib/auth";
+import {
+  canCancelVoucher,
+  canEditVoucherValidity,
+  canRedeemVoucher,
+  canUndoLockedRedemption,
+} from "@/lib/auth";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { useAdminUser } from "./AdminUserProvider";
 import { IconCancel } from "./icons";
@@ -313,6 +318,8 @@ function AdminVoucherDrawerPanel({
     allowRedeem && voucher.status === "active" && openParts.length > 0;
   const canPartial = canPartialAmount || canPartialPart;
   const remainingCzk = voucher.remainingCzk ?? voucher.unitPriceCzk ?? 0;
+  const undoLockedForUser =
+    Boolean(voucher.undoLocked) && !canUndoLockedRedemption(user.role);
   const canUndo =
     allowRedeem &&
     (Boolean(voucher.canUndo) ||
@@ -354,7 +361,7 @@ function AdminVoucherDrawerPanel({
   }, [voucher.code, voucher.validUntilIso, openParts]);
 
   const canEditValidUntil =
-    allowRedeem &&
+    canEditVoucherValidity(user.role) &&
     voucher.status !== "redeemed" &&
     voucher.status !== "cancelled";
 
@@ -825,7 +832,12 @@ function AdminVoucherDrawerPanel({
             <button
               type="button"
               className="admin-voucher-drawer-cta is-secondary"
-              disabled={actionBusy}
+              disabled={actionBusy || undoLockedForUser}
+              title={
+                undoLockedForUser
+                  ? "Uplatnění je zamčené (starší než hodina). Vrátit může jen vlastník."
+                  : undefined
+              }
               onClick={() => void postRedeem({ action: "undo" })}
             >
               <AdminVoucherCtaIcon kind="undo" />

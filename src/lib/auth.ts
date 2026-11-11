@@ -158,6 +158,16 @@ export function canCancelVoucher(role: AdminRole) {
   return isPrivilegedAdmin(role);
 }
 
+/** Změna platnosti poukazu — vlastník, developer, recepce. */
+export function canEditVoucherValidity(role: AdminRole) {
+  return isPrivilegedAdmin(role) || role === "reception";
+}
+
+/** Vrácení uplatnění po zamčení (starší než hodina) — jen vlastník + developer. */
+export function canUndoLockedRedemption(role: AdminRole | null | undefined) {
+  return role ? isPrivilegedAdmin(role) : false;
+}
+
 /** Historie uplatnění — vlastník, recepce, developer. */
 export function canViewRedemptionHistory(role: AdminRole) {
   return isPrivilegedAdmin(role) || role === "reception";

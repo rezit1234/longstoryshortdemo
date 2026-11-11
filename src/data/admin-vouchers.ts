@@ -56,6 +56,8 @@ export type AdminSoldVoucher = {
   deliveryEmail?: string | null;
   recipientName?: string;
   canUndo?: boolean;
+  /** Uplatnění je starší než hodina — vrátit ho může jen vlastník. */
+  undoLocked?: boolean;
   /** Ruční vystavení: kasa / dar / faktura / jine. */
   paymentMethod?: ManualPaymentMethod | null;
   paymentMethodNote?: string | null;

@@ -56,6 +56,7 @@ export async function POST(
       amountCzk: body.amountCzk,
       partId: body.partId,
       createdBy: session.userId,
+      actorRole: session.profile.role,
     });
 
     return NextResponse.json({
