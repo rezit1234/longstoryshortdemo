@@ -138,10 +138,7 @@ export function AdminUplatneni() {
       <div className="admin-page-head">
         <div>
           <h1>Uplatnění poukazu</h1>
-          <p>
-            Zadejte kód poukazu (s prefixem nebo jen číslo za ním) a otevřete
-            detail.
-          </p>
+          <p>Zadejte kód poukazu a otevřete jeho detail.</p>
         </div>
       </div>
 
@@ -165,10 +162,6 @@ export function AdminUplatneni() {
                     aria-label="Kód poukazu"
                   />
                 </div>
-                <em className="admin-redeem-hint">
-                  Stačí 4 znaky (LSS) nebo 5 znaků (BC). Prefix LSS/BC můžete
-                  doplnit, ale nemusíte.
-                </em>
               </label>
               <button
                 type="submit"

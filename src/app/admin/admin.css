@@ -1659,14 +1659,6 @@
   color: var(--admin-muted);
 }
 
-.admin-redeem-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  font-style: normal;
-  color: var(--admin-muted);
-  line-height: 1.4;
-}
-
 .admin-redeem-feedback {
   margin: 0.9rem 0 0;
   font-size: 0.92rem;
