@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import nodemailer from "nodemailer";
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
@@ -102,17 +104,42 @@ function smtpCredentials(): { user: string; pass: string } | null {
  * přepisuje vzdálené URL obrázků na vlastní doménu (sendibt…), což někde
  * končí jako rozbitý obrázek. Inline příloha přes SMTP tohle obejde.
  */
-async function loadInlineLogo(logoUrl: string) {
+async function loadInlineLogo(shopId: ShopId, logoUrl: string) {
+  const brand = getShopBrand(shopId);
+  const logoSrc = brand.emailLogoSrc || brand.logoSrc;
+  const relative = logoSrc.replace(/^\//, "");
+
+  // 1) Soubor přímo z public/ (bez HTTP požadavku na vlastní doménu).
+  if (!/^https?:\/\//i.test(logoSrc)) {
+    try {
+      const content = await readFile(path.join(process.cwd(), "public", relative));
+      return { content, contentType: contentTypeFor(relative) };
+    } catch {
+      // pokračujeme HTTP variantou
+    }
+  }
+
+  // 2) Stažení z veřejné URL.
   try {
     const response = await fetch(logoUrl, { cache: "no-store" });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error("e-mail logo: HTTP", response.status, logoUrl);
+      return null;
+    }
     const contentType = response.headers.get("content-type") || "image/png";
     if (!contentType.startsWith("image/")) return null;
     const content = Buffer.from(await response.arrayBuffer());
     return { content, contentType };
-  } catch {
+  } catch (error) {
+    console.error("e-mail logo: stažení selhalo", logoUrl, error);
     return null;
   }
+}
+
+function contentTypeFor(file: string) {
+  if (/\.jpe?g$/i.test(file)) return "image/jpeg";
+  if (/\.webp$/i.test(file)) return "image/webp";
+  return "image/png";
 }
 
 async function sendViaSmtp(
@@ -131,8 +158,12 @@ async function sendViaSmtp(
 
   if (input.shopId) {
     const logoUrl = shopEmailLogoUrl(input.shopId);
-    const logo = await loadInlineLogo(logoUrl);
-    if (logo && html.includes(`src="${logoUrl}"`)) {
+    const logo = await loadInlineLogo(input.shopId, logoUrl);
+    const logoInHtml = html.includes(`src="${logoUrl}"`);
+    if (!logoInHtml) {
+      console.error("e-mail logo: URL loga nenalezena v HTML", logoUrl);
+    }
+    if (logo && logoInHtml) {
       html = html.split(`src="${logoUrl}"`).join(`src="cid:${INLINE_LOGO_CID}"`);
       inlineAttachments.push({
         filename: `${input.shopId}-logo.png`,
