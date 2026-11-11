@@ -1,5 +1,6 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { isShopEnabled } from "@/data/shops";
+import { normalizeAppBaseUrl } from "@/lib/app-base-url";
 
 export type CheckoutDeliveryMethod = "email" | "post" | "pickup";
 export type CheckoutItemKind = "amount" | "experience";
@@ -186,7 +187,7 @@ export function validateCheckoutPayload(body: CreatePaymentRequestBody): string 
 }
 
 export function getAppBaseUrl(requestUrl: string) {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
+  const configured = normalizeAppBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
+  if (configured) return configured;
   return new URL(requestUrl).origin;
 }

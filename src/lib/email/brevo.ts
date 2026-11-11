@@ -3,6 +3,7 @@ import path from "node:path";
 import nodemailer from "nodemailer";
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
+import { normalizeAppBaseUrl } from "@/lib/app-base-url";
 
 type BrevoAttachment = {
   name: string;
@@ -77,10 +78,10 @@ export function resolveEmailSender(shopId?: ShopId): ParsedSender | null {
 }
 
 function appBaseUrl() {
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    "https://longstoryshortwidget.vercel.app";
-  return raw.replace(/\/$/, "");
+  return (
+    normalizeAppBaseUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    "https://longstoryshortwidget.vercel.app"
+  );
 }
 
 /** Absolutní URL loga e-mailu daného obchodu (stejná logika jako v šablonách). */

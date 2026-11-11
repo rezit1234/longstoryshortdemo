@@ -2,6 +2,7 @@ import type { ShopId } from "@/data/admin-voucher-settings";
 import { getShopBrand } from "@/data/shops";
 import { sendBrevoEmail } from "@/lib/email/brevo";
 import { emailDetailRows } from "@/lib/email/email-detail-rows";
+import { normalizeAppBaseUrl } from "@/lib/app-base-url";
 
 export type VoucherEmailAttachment = {
   filename: string;
@@ -48,10 +49,10 @@ function escapeHtml(value: string) {
 }
 
 function appBaseUrl() {
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    "https://longstoryshortwidget.vercel.app";
-  return raw.replace(/\/$/, "");
+  return (
+    normalizeAppBaseUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    "https://longstoryshortwidget.vercel.app"
+  );
 }
 
 function shopLogoUrl(logoSrc: string) {
