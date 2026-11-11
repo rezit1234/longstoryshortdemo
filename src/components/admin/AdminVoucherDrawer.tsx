@@ -299,6 +299,7 @@ function AdminVoucherDrawerPanel({
     null | "full" | "partial" | "cancel" | "delete" | "validUntil" | "note" | "tracking"
   >(null);
   const [partialAmount, setPartialAmount] = useState("");
+  const [partialSeats, setPartialSeats] = useState("1");
   const [redeemNote, setRedeemNote] = useState("");
   const [selectedPartId, setSelectedPartId] = useState("");
   const [validUntilDraft, setValidUntilDraft] = useState(
@@ -323,7 +324,14 @@ function AdminVoucherDrawerPanel({
     (voucher.remainingCzk ?? 0) > 0;
   const canPartialPart =
     allowRedeem && voucher.status === "active" && openParts.length > 0;
-  const canPartial = canPartialAmount || canPartialPart;
+  const remainingSeats = voucher.remainingSeats ?? voucher.seats ?? 0;
+  const canPartialSeats =
+    allowRedeem &&
+    voucher.status === "active" &&
+    voucher.seats != null &&
+    voucher.seats > 0 &&
+    remainingSeats > 0;
+  const canPartial = canPartialAmount || canPartialPart || canPartialSeats;
   const remainingCzk = voucher.remainingCzk ?? voucher.unitPriceCzk ?? 0;
   const undoLockedForUser =
     Boolean(voucher.undoLocked) && !canUndoLockedRedemption(user.role);
@@ -502,6 +510,7 @@ function AdminVoucherDrawerPanel({
       setActionError(null);
       setRedeemNote("");
       setSelectedPartId(openParts[0]?.id ?? "");
+      setPartialSeats("1");
       if (kind === "validUntil") {
         setValidUntilDraft(voucher.validUntilIso ?? "");
       } else if (kind === "note") {
@@ -519,10 +528,21 @@ function AdminVoucherDrawerPanel({
     ],
   );
 
+  const partialSeatsCount = Math.round(Number(partialSeats));
+  const partialSeatsValid =
+    Number.isInteger(partialSeatsCount) &&
+    partialSeatsCount >= 1 &&
+    partialSeatsCount <= remainingSeats;
+
   const handlePartialSubmit = useCallback(() => {
     if (canPartialAmount) {
       const amount = Math.round(Number(partialAmount.replace(",", ".")));
       void postRedeem({ action: "amount", amountCzk: amount });
+      return;
+    }
+    if (canPartialSeats) {
+      if (!partialSeatsValid) return;
+      void postRedeem({ action: "seats", seatsCount: partialSeatsCount });
       return;
     }
     if (canPartialPart && selectedPartId) {
@@ -531,7 +551,10 @@ function AdminVoucherDrawerPanel({
   }, [
     canPartialAmount,
     canPartialPart,
+    canPartialSeats,
     partialAmount,
+    partialSeatsCount,
+    partialSeatsValid,
     postRedeem,
     selectedPartId,
   ]);
@@ -1040,6 +1063,7 @@ function AdminVoucherDrawerPanel({
             confirmLabel="Potvrdit odečet"
             confirmDisabled={
               (canPartialAmount && !partialAmount) ||
+              (canPartialSeats && !partialSeatsValid) ||
               (canPartialPart && !selectedPartId)
             }
             busy={actionBusy}
@@ -1058,6 +1082,21 @@ function AdminVoucherDrawerPanel({
                   step={1}
                   value={partialAmount}
                   onChange={(event) => setPartialAmount(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+            {canPartialSeats ? (
+              <label>
+                <span>Počet osob k uplatnění (max. {remainingSeats})</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={remainingSeats}
+                  step={1}
+                  value={partialSeats}
+                  onChange={(event) => setPartialSeats(event.target.value)}
                   required
                 />
               </label>

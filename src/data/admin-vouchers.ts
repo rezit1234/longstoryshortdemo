@@ -51,6 +51,10 @@ export type AdminSoldVoucher = {
   itemKind?: AdminVoucherItemKind;
   unitPriceCzk?: number;
   remainingCzk?: number | null;
+  /** Celkový počet osob (Chef's Table). */
+  seats?: number | null;
+  /** Zbývající počet osob k uplatnění. */
+  remainingSeats?: number | null;
   redeemableParts?: AdminRedeemablePart[] | null;
   isGift?: boolean;
   deliveryEmail?: string | null;

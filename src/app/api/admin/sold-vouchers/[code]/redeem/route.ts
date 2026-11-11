@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const ACTIONS: RedeemAction[] = ["full", "amount", "part", "undo"];
+const ACTIONS: RedeemAction[] = ["full", "amount", "part", "seats", "undo"];
 
 export async function POST(
   request: Request,
@@ -38,6 +38,7 @@ export async function POST(
     action?: string;
     amountCzk?: number;
     partId?: string;
+    seatsCount?: number;
     note?: string;
   };
   try {
@@ -68,6 +69,7 @@ export async function POST(
       action,
       amountCzk: body.amountCzk,
       partId: body.partId,
+      seatsCount: body.seatsCount,
       createdBy: session.userId,
       actorRole: session.profile.role,
     });

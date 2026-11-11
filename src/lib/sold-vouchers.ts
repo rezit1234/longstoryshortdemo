@@ -42,6 +42,8 @@ export type SoldVoucherRow = {
   redeemed_at?: string | null;
   note?: string | null;
   tracking_number?: string | null;
+  seats?: number | null;
+  remaining_seats?: number | null;
 };
 
 function formatDateCs(isoOrDate: string) {
@@ -115,6 +117,18 @@ function formatValueLabel(row: SoldVoucherRow) {
   return formatCzk(unit);
 }
 
+function asPositiveInt(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return n;
+}
+
+function asNonNegInt(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
 export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
   const status = asStatus(row.status);
   const packaging =
@@ -154,6 +168,12 @@ export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
           ? Number(row.unit_price_czk) || 0
           : Number(row.remaining_czk)
         : null,
+    seats: asPositiveInt(row.seats),
+    remainingSeats: (() => {
+      const seats = asPositiveInt(row.seats);
+      if (seats == null) return null;
+      return asNonNegInt(row.remaining_seats) ?? seats;
+    })(),
     redeemableParts: parts,
     isGift: Boolean(row.is_gift),
     deliveryEmail:

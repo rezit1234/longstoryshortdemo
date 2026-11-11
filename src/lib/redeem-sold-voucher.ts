@@ -25,7 +25,7 @@ import {
 } from "@/lib/voucher-redemption";
 
 const VOUCHER_SELECT =
-  "id, code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, redeemed_at, buyer_name, buyer_email, buyer_phone, recipient_name, delivery_method, delivery_email, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note";
+  "id, code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, redeemed_at, buyer_name, buyer_email, buyer_phone, recipient_name, delivery_method, delivery_email, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note, seats, remaining_seats, note, tracking_number";
 
 type DbVoucher = SoldVoucherRow & {
   id: string;
@@ -36,9 +36,11 @@ type DbVoucher = SoldVoucherRow & {
   redeemed_at: string | null;
   recipient_name: string;
   delivery_email: string | null;
+  seats?: number | null;
+  remaining_seats?: number | null;
 };
 
-export type RedeemAction = "full" | "amount" | "part" | "undo";
+export type RedeemAction = "full" | "amount" | "part" | "seats" | "undo";
 
 export type RedeemResult = {
   voucher: AdminSoldVoucher;
@@ -64,7 +66,17 @@ function stateBefore(row: DbVoucher): VoucherRedemptionStateBefore {
     remaining_czk: row.remaining_czk,
     redeemable_parts: parseRedeemableParts(row.redeemable_parts),
     redeemed_at: row.redeemed_at,
+    seats: row.seats ?? null,
+    remaining_seats: row.remaining_seats ?? null,
   };
+}
+
+function remainingSeatsOf(row: DbVoucher) {
+  const seats = Number(row.seats);
+  if (!Number.isInteger(seats) || seats < 1) return null;
+  const remaining = Number(row.remaining_seats);
+  if (Number.isInteger(remaining) && remaining >= 0) return remaining;
+  return seats;
 }
 
 function mapVoucher(
@@ -151,11 +163,13 @@ async function maybeSendEmail(params: {
 async function insertRedemption(params: {
   admin: ReturnType<typeof createAdminClient>;
   soldVoucherId: string;
-  kind: "full" | "amount" | "part";
+  kind: "full" | "amount" | "part" | "seats";
   amountCzk?: number | null;
   partId?: string | null;
   partLabel?: string | null;
   remainingCzkAfter?: number | null;
+  seatsCount?: number | null;
+  remainingSeatsAfter?: number | null;
   before: VoucherRedemptionStateBefore;
   createdBy?: string | null;
   note?: string | null;
@@ -167,6 +181,8 @@ async function insertRedemption(params: {
     part_id: params.partId ?? null,
     part_label: params.partLabel ?? null,
     remaining_czk_after: params.remainingCzkAfter ?? null,
+    seats_count: params.seatsCount ?? null,
+    remaining_seats_after: params.remainingSeatsAfter ?? null,
     state_before: params.before,
     created_by: params.createdBy ?? null,
     note: params.note ?? null,
@@ -192,6 +208,7 @@ export async function redeemSoldVoucher(params: {
   action: RedeemAction;
   amountCzk?: number;
   partId?: string;
+  seatsCount?: number;
   createdBy?: string | null;
   actorRole?: AdminRole | null;
   note?: string | null;
@@ -231,6 +248,9 @@ export async function redeemSoldVoucher(params: {
     };
     if (row.item_kind === "amount") {
       patch.remaining_czk = 0;
+    }
+    if (remainingSeatsOf(row) != null) {
+      patch.remaining_seats = 0;
     }
     if (parts) {
       patch.redeemable_parts = parts.map((part) => ({
@@ -341,6 +361,64 @@ export async function redeemSoldVoucher(params: {
     };
   }
 
+  if (params.action === "seats") {
+    const remaining = remainingSeatsOf(row);
+    if (remaining == null) {
+      throw new Error("Tento poukaz se neuplatňuje po osobách.");
+    }
+    if (remaining <= 0) {
+      throw new Error("Na poukazu už nezůstaly žádné osoby.");
+    }
+    const seatsCount = Math.round(Number(params.seatsCount));
+    if (!Number.isInteger(seatsCount) || seatsCount < 1) {
+      throw new Error("Zadejte kladný počet osob.");
+    }
+    if (seatsCount > remaining) {
+      throw new Error(`Nelze uplatnit víc než zbývá (${remaining}).`);
+    }
+    const nextRemaining = remaining - seatsCount;
+    const fully = nextRemaining === 0;
+    const patch: Record<string, unknown> = {
+      remaining_seats: nextRemaining,
+      updated_at: now,
+      status: fully ? "redeemed" : "active",
+      redeemed_at: fully ? now : null,
+    };
+
+    const { data, error } = await admin
+      .from("sold_vouchers")
+      .update(patch)
+      .eq("id", row.id)
+      .select(VOUCHER_SELECT)
+      .single();
+    if (error || !data) throw new Error(error?.message || "Uložení selhalo.");
+
+    const updated = data as DbVoucher;
+    await insertRedemption({
+      admin,
+      soldVoucherId: row.id,
+      kind: "seats",
+      seatsCount,
+      remainingSeatsAfter: nextRemaining,
+      before,
+      createdBy: params.createdBy,
+      note: normalizedNote,
+    });
+
+    const mail = await maybeSendEmail({
+      row: updated,
+      kind: "full",
+      remainingPartLabels: [],
+    });
+
+    return {
+      voucher: mapVoucher(updated, true),
+      emailSent: mail.sent,
+      emailTo: mail.to,
+      emailSkippedReason: mail.skippedReason,
+    };
+  }
+
   if (params.action === "part") {
     if (!parts) {
       throw new Error("Tento poukaz nemá uplatnitelné části.");
@@ -411,6 +489,16 @@ function hasRedemptionProgress(row: DbVoucher) {
   ) {
     return true;
   }
+  const seats = Number(row.seats);
+  const remainingSeats = Number(row.remaining_seats);
+  if (
+    Number.isInteger(seats) &&
+    seats > 0 &&
+    Number.isInteger(remainingSeats) &&
+    remainingSeats < seats
+  ) {
+    return true;
+  }
   const parts = parseRedeemableParts(row.redeemable_parts);
   return Boolean(parts?.some((part) => part.redeemed));
 }
@@ -424,6 +512,9 @@ function legacyUndoPatch(row: DbVoucher) {
   };
   if (row.item_kind === "amount") {
     patch.remaining_czk = row.unit_price_czk;
+  }
+  if (Number.isInteger(Number(row.seats)) && Number(row.seats) > 0) {
+    patch.remaining_seats = row.seats;
   }
   if (parts) {
     patch.redeemable_parts = parts.map((part) => ({
@@ -476,6 +567,10 @@ async function undoLastRedemption(
         before.redeemable_parts === undefined
           ? row.redeemable_parts
           : before.redeemable_parts,
+      remaining_seats:
+        before.remaining_seats === undefined
+          ? row.remaining_seats
+          : before.remaining_seats,
       redeemed_at:
         before.redeemed_at === undefined ? null : before.redeemed_at,
       updated_at: now,

@@ -31,6 +31,12 @@ import {
   settingsToAmountVouchers,
   settingsToExperienceVouchers,
 } from "@/lib/voucher-settings";
+import {
+  experienceSupportsSeatQuantity,
+  formatPersonsCs,
+  SEAT_QUANTITY_MAX,
+  SEAT_QUANTITY_MIN,
+} from "@/lib/voucher-redemption";
 
 type DeliveryFees = {
   pickupFee: number;
@@ -1415,6 +1421,10 @@ function CheckoutPanel({
   }, [deliveryMethods.email, deliveryMethods.post, deliveryMethods.pickup]);
 
   const unitPrice = item.kind === "amount" ? item.amount : item.price;
+  const seatProduct =
+    item.kind === "experience" && experienceSupportsSeatQuantity(item.id);
+  const quantityMin = seatProduct ? SEAT_QUANTITY_MIN : QUANTITY_MIN;
+  const quantityMax = seatProduct ? SEAT_QUANTITY_MAX : QUANTITY_MAX;
   const isSlovakia = form.country === "SK";
   const postShippingFee = isSlovakia
     ? deliveryFees.postShippingFeeSk
@@ -1436,6 +1446,25 @@ function CheckoutPanel({
     item.kind === "experience"
       ? item.subtitle
       : `Dárkový poukaz ${brandName}`;
+
+  useEffect(() => {
+    if (!seatProduct) return;
+    setForm((current) => {
+      if (
+        current.quantity >= quantityMin &&
+        current.quantity <= quantityMax
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        quantity: Math.min(
+          quantityMax,
+          Math.max(quantityMin, current.quantity),
+        ),
+      };
+    });
+  }, [seatProduct, quantityMin, quantityMax]);
 
   useEffect(() => {
     if (!invoiceRequired) return;
@@ -1648,7 +1677,11 @@ function CheckoutPanel({
           </span>
           <div className="checkout-summary-title-row">
             <strong className="checkout-summary-title">{title}</strong>
-            {form.quantity > 1 ? (
+            {seatProduct && form.quantity > 1 ? (
+              <span className="checkout-summary-qty">
+                pro {formatPersonsCs(form.quantity)}
+              </span>
+            ) : !seatProduct && form.quantity > 1 ? (
               <span className="checkout-summary-qty">×{form.quantity}</span>
             ) : null}
           </div>
@@ -1670,11 +1703,11 @@ function CheckoutPanel({
 
       <div className="checkout-fields">
         <div className="checkout-field">
-          <span>Množství</span>
+          <span>{seatProduct ? "Počet osob" : "Množství"}</span>
           <QuantityStepper
             value={form.quantity}
-            min={QUANTITY_MIN}
-            max={QUANTITY_MAX}
+            min={quantityMin}
+            max={quantityMax}
             onChange={(value) => updateForm("quantity", value)}
           />
         </div>
@@ -1682,7 +1715,9 @@ function CheckoutPanel({
 
       <div className="checkout-section">
         <p className="checkout-section-label">
-          {form.quantity > 1 ? "Pro koho poukazy jsou?" : "Pro koho poukaz je?"}
+          {!seatProduct && form.quantity > 1
+            ? "Pro koho poukazy jsou?"
+            : "Pro koho poukaz je?"}
         </p>
         <div
           className={
@@ -1692,7 +1727,9 @@ function CheckoutPanel({
           }
           role="tablist"
           aria-label={
-            form.quantity > 1 ? "Pro koho poukazy jsou?" : "Pro koho poukaz je?"
+            !seatProduct && form.quantity > 1
+              ? "Pro koho poukazy jsou?"
+              : "Pro koho poukaz je?"
           }
         >
           <span className="checkout-choice-tabs-indicator" aria-hidden />
@@ -1778,7 +1815,7 @@ function CheckoutPanel({
 
       <div className="checkout-section">
         <p className="checkout-section-label">
-          {form.quantity > 1
+          {!seatProduct && form.quantity > 1
             ? "Jak chcete poukazy doručit?"
             : "Jak chcete poukaz doručit?"}
         </p>
@@ -1824,7 +1861,7 @@ function CheckoutPanel({
           <div className="checkout-email-fields">
             <label className="checkout-field">
               <span>
-                {form.quantity > 1
+                {!seatProduct && form.quantity > 1
                   ? "Na jaký e-mail máme poukazy zaslat?"
                   : "Na jaký e-mail máme poukaz zaslat?"}
               </span>

@@ -26,7 +26,11 @@ import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
 } from "@/lib/voucher-pdf-overlay";
-import { redeemablePartsForExperienceId } from "@/lib/voucher-redemption";
+import {
+  experienceSupportsSeatQuantity,
+  formatPersonsCs,
+  redeemablePartsForExperienceId,
+} from "@/lib/voucher-redemption";
 
 type OrderRow = {
   id: string;
@@ -49,6 +53,12 @@ function asString(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
+function seatsFromOrderItem(item: Record<string, unknown>) {
+  const seats = Number(item.seats);
+  if (!Number.isInteger(seats) || seats < 1) return null;
+  return seats;
+}
+
 function productNameFromOrder(order: OrderRow) {
   if (order.item_kind === "amount") {
     const amount =
@@ -57,8 +67,12 @@ function productNameFromOrder(order: OrderRow) {
         : order.unit_price_czk;
     return `Poukaz ${amount.toLocaleString("cs-CZ")} Kč`;
   }
-  const title = asString(order.item.title).trim();
-  return title || "Zážitek";
+  const title = asString(order.item.title).trim() || "Zážitek";
+  const seats = seatsFromOrderItem(order.item);
+  if (seats && seats > 1) {
+    return `${title} pro ${formatPersonsCs(seats)}`;
+  }
+  return title;
 }
 
 function initialStatus(deliveryMethod: string) {
@@ -345,6 +359,11 @@ export async function fulfillPaidOrder(orderId: string) {
     typed.item_kind === "experience"
       ? redeemablePartsForExperienceId(experienceId)
       : null;
+  const seats =
+    typed.item_kind === "experience" &&
+    experienceSupportsSeatQuantity(experienceId)
+      ? seatsFromOrderItem(typed.item)
+      : null;
 
   const pdfUrls = new Map<string, string>();
   const pdfBytes = new Map<string, Uint8Array>();
@@ -431,6 +450,8 @@ export async function fulfillPaidOrder(orderId: string) {
       typed.item_kind === "amount" ? typed.unit_price_czk : null,
     redeemable_parts: redeemableParts,
     is_gift: isGift,
+    seats,
+    remaining_seats: seats,
   };
   });
 

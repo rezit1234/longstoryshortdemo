@@ -4,14 +4,32 @@ export type RedeemablePart = {
   redeemed: boolean;
 };
 
-export type VoucherRedemptionKind = "full" | "amount" | "part";
+export type VoucherRedemptionKind = "full" | "amount" | "part" | "seats";
 
 export type VoucherRedemptionStateBefore = {
   status: string;
   remaining_czk: number | null;
   redeemable_parts: RedeemablePart[] | null;
   redeemed_at: string | null;
+  seats?: number | null;
+  remaining_seats?: number | null;
 };
+
+/** Čistý Chef's Table (bez pokoje) — počet osob na jednom poukazu. */
+export function experienceSupportsSeatQuantity(experienceId: string) {
+  const id = experienceId.trim().toLowerCase();
+  return id === "chefs-table" || id === "chefs-table-wine";
+}
+
+export const SEAT_QUANTITY_MIN = 1;
+export const SEAT_QUANTITY_MAX = 8;
+
+export function formatPersonsCs(count: number, accusative = false) {
+  const n = Math.max(0, Math.round(count));
+  if (n === 1) return accusative ? "1 osobu" : "1 osoba";
+  if (n >= 2 && n <= 4) return `${n} osoby`;
+  return `${n} osob`;
+}
 
 const ROOM_MARKERS = ["the-arc", "the-nook", "the-big-one", "the-flat"] as const;
 

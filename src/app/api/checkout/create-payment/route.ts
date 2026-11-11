@@ -21,6 +21,7 @@ import {
   type CheckoutFormPayload,
   type CheckoutCartItem,
 } from "@/lib/checkout";
+import { experienceSupportsSeatQuantity } from "@/lib/voucher-redemption";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
@@ -204,7 +205,7 @@ function invoicePayload(form: CheckoutFormPayload) {
   };
 }
 
-function itemPayload(item: CheckoutCartItem) {
+function itemPayload(item: CheckoutCartItem, seats: number | null) {
   if (item.kind === "amount") {
     return { kind: "amount", amount: item.amount };
   }
@@ -214,6 +215,7 @@ function itemPayload(item: CheckoutCartItem) {
     title: item.title,
     subtitle: item.subtitle ?? "",
     price: item.price,
+    ...(seats ? { seats } : {}),
   };
 }
 
@@ -239,9 +241,17 @@ export async function POST(request: Request) {
   }
 
   const unitPrice = unitPriceFromItem(body.item);
-  const quantity = body.form.quantity;
+  const requestedQuantity = body.form.quantity;
+  const seats =
+    body.item.kind === "experience" &&
+    experienceSupportsSeatQuantity(body.item.id)
+      ? requestedQuantity
+      : null;
+  // Chef's Table: 1 poukaz × N osob. Ostatní: N poukazů.
+  const quantity = seats ? 1 : requestedQuantity;
+  const orderUnitPrice = seats ? unitPrice * seats : unitPrice;
   const shippingFee = shippingFeeFor(body.form, deliveryConfig);
-  const itemsTotal = unitPrice * quantity;
+  const itemsTotal = seats ? unitPrice * seats : unitPrice * quantity;
   const total = itemsTotal + shippingFee;
   const orderNumber = generateOrderNumber(body.shopId);
   const baseUrl = getAppBaseUrl(request.url);
@@ -265,9 +275,9 @@ export async function POST(request: Request) {
       shop_id: body.shopId,
       status: "pending",
       item_kind: body.item.kind,
-      item: itemPayload(body.item),
+      item: itemPayload(body.item, seats),
       quantity,
-      unit_price_czk: unitPrice,
+      unit_price_czk: orderUnitPrice,
       shipping_fee_czk: shippingFee,
       items_total_czk: itemsTotal,
       total_czk: total,

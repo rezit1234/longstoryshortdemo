@@ -1,6 +1,11 @@
 import type { ShopId } from "@/data/admin-voucher-settings";
 import { isShopEnabled } from "@/data/shops";
 import { normalizeAppBaseUrl } from "@/lib/app-base-url";
+import {
+  experienceSupportsSeatQuantity,
+  SEAT_QUANTITY_MAX,
+  SEAT_QUANTITY_MIN,
+} from "@/lib/voucher-redemption";
 
 export type CheckoutDeliveryMethod = "email" | "post" | "pickup";
 export type CheckoutItemKind = "amount" | "experience";
@@ -111,8 +116,13 @@ export function validateCheckoutPayload(body: CreatePaymentRequestBody): string 
   if (!form) return "Chybí formulář.";
 
   const quantity = Number(form.quantity);
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 15) {
-    return "Neplatné množství.";
+  const seatProduct =
+    body.item.kind === "experience" &&
+    experienceSupportsSeatQuantity(body.item.id);
+  const maxQty = seatProduct ? SEAT_QUANTITY_MAX : 15;
+  const minQty = seatProduct ? SEAT_QUANTITY_MIN : 1;
+  if (!Number.isInteger(quantity) || quantity < minQty || quantity > maxQty) {
+    return seatProduct ? "Neplatný počet osob." : "Neplatné množství.";
   }
 
   const unit = unitPriceFromItem(body.item);
