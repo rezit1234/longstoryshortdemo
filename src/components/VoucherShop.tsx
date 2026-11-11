@@ -1611,9 +1611,16 @@ function CheckoutPanel({
         throw new Error(data.error || "Platbu se nepodařilo založit.");
       }
 
-      // V iframe přesměrujeme celé okno, aby platební brána běžela na celou stránku.
+      // V iframe přesměrujeme celé okno (cross-origin přímý zápis do window.top je blokovaný,
+      // proto přes odkaz s target="_top", který prohlížeč povolí po kliknutí uživatele).
       if (window.top && window.top !== window.self) {
-        window.top.location.assign(data.redirectUrl);
+        const link = document.createElement("a");
+        link.href = data.redirectUrl;
+        link.target = "_top";
+        link.rel = "noopener";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
       } else {
         window.location.assign(data.redirectUrl);
       }
