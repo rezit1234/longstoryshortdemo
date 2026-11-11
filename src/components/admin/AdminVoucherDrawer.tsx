@@ -23,6 +23,7 @@ import {
   canRedeemVoucher,
   canUndoLockedRedemption,
 } from "@/lib/auth";
+import { AdminActionModal } from "./AdminActionModal";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { useAdminUser } from "./AdminUserProvider";
 import { IconCancel } from "./icons";
@@ -296,7 +297,9 @@ function AdminVoucherDrawerPanel({
   const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [partialOpen, setPartialOpen] = useState(false);
+  const [actionModal, setActionModal] = useState<
+    null | "full" | "partial" | "cancel" | "delete"
+  >(null);
   const [partialAmount, setPartialAmount] = useState("");
   const [redeemNote, setRedeemNote] = useState("");
   const [selectedPartId, setSelectedPartId] = useState("");
@@ -352,7 +355,7 @@ function AdminVoucherDrawerPanel({
   }, [isClosing, onClose]);
 
   useEffect(() => {
-    setPartialOpen(false);
+    setActionModal(null);
     setPartialAmount("");
     setSelectedPartId(openParts[0]?.id ?? "");
     setActionError(null);
@@ -396,11 +399,13 @@ function AdminVoucherDrawerPanel({
         onUpsert(data.voucher);
         const mailNote = emailResultMessage(data);
         if (mailNote) setEmailFeedback(mailNote);
-        setPartialOpen(false);
+        setActionModal(null);
         setPartialAmount("");
         if (body.action !== "undo") setRedeemNote("");
+        return true;
       } catch {
         setActionError("Akci se nepodařilo dokončit.");
+        return false;
       } finally {
         setActionBusy(false);
       }
@@ -408,26 +413,37 @@ function AdminVoucherDrawerPanel({
     [onUpsert, redeemNote, voucher.code],
   );
 
-  const handlePartialSubmit = useCallback(
-    (event: FormEvent) => {
-      event.preventDefault();
-      if (canPartialAmount) {
-        const amount = Math.round(Number(partialAmount.replace(",", ".")));
-        void postRedeem({ action: "amount", amountCzk: amount });
-        return;
-      }
-      if (canPartialPart && selectedPartId) {
-        void postRedeem({ action: "part", partId: selectedPartId });
-      }
+  const closeActionModal = useCallback(() => {
+    setActionModal(null);
+    setActionError(null);
+  }, []);
+
+  const openActionModal = useCallback(
+    (kind: "full" | "partial" | "cancel" | "delete") => {
+      setActionError(null);
+      setRedeemNote("");
+      setSelectedPartId(openParts[0]?.id ?? "");
+      setActionModal(kind);
     },
-    [
-      canPartialAmount,
-      canPartialPart,
-      partialAmount,
-      postRedeem,
-      selectedPartId,
-    ],
+    [openParts],
   );
+
+  const handlePartialSubmit = useCallback(() => {
+    if (canPartialAmount) {
+      const amount = Math.round(Number(partialAmount.replace(",", ".")));
+      void postRedeem({ action: "amount", amountCzk: amount });
+      return;
+    }
+    if (canPartialPart && selectedPartId) {
+      void postRedeem({ action: "part", partId: selectedPartId });
+    }
+  }, [
+    canPartialAmount,
+    canPartialPart,
+    partialAmount,
+    postRedeem,
+    selectedPartId,
+  ]);
 
   const handleValidUntilSubmit = useCallback(
     async (event: FormEvent) => {
@@ -464,8 +480,7 @@ function AdminVoucherDrawerPanel({
   );
 
   const patchStatus = useCallback(
-    async (status: AdminSoldVoucher["status"], confirmMessage?: string) => {
-      if (confirmMessage && !window.confirm(confirmMessage)) return;
+    async (status: AdminSoldVoucher["status"]) => {
       setActionBusy(true);
       setActionError(null);
       try {
@@ -483,11 +498,14 @@ function AdminVoucherDrawerPanel({
         };
         if (!response.ok || !data.voucher) {
           setActionError(data.error || "Stav se nepodařilo změnit.");
-          return;
+          return false;
         }
         onUpsert(data.voucher);
+        setActionModal(null);
+        return true;
       } catch {
         setActionError("Stav se nepodařilo změnit.");
+        return false;
       } finally {
         setActionBusy(false);
       }
@@ -505,13 +523,6 @@ function AdminVoucherDrawerPanel({
   const canShowHardDelete = allowCancel && voucher.status === "cancelled";
 
   const hardDelete = useCallback(async () => {
-    if (
-      !window.confirm(
-        `Definitivně smazat poukaz ${voucher.code}? Tuto akci nelze vrátit.`,
-      )
-    ) {
-      return;
-    }
     setActionBusy(true);
     setActionError(null);
     try {
@@ -792,12 +803,7 @@ function AdminVoucherDrawerPanel({
               type="button"
               className="admin-voucher-drawer-cta is-secondary is-danger"
               disabled={actionBusy}
-              onClick={() =>
-                void patchStatus(
-                  "cancelled",
-                  `Stornovat poukaz ${voucher.code}? Půjde znovu obnovit.`,
-                )
-              }
+              onClick={() => openActionModal("cancel")}
             >
               <AdminVoucherCtaIcon kind="cancel" />
               <span className="admin-voucher-drawer-cta-label">
@@ -825,7 +831,7 @@ function AdminVoucherDrawerPanel({
               type="button"
               className="admin-voucher-drawer-cta is-secondary is-danger"
               disabled={actionBusy}
-              onClick={() => void hardDelete()}
+              onClick={() => openActionModal("delete")}
             >
               <AdminVoucherCtaIcon kind="delete" />
               <span className="admin-voucher-drawer-cta-label">
@@ -855,105 +861,152 @@ function AdminVoucherDrawerPanel({
 
           {allowRedeem && voucher.status === "active" ? (
             <>
-              <label className="admin-voucher-redeem-note">
-                <span>Poznámka k uplatnění (volitelné)</span>
-                <textarea
-                  value={redeemNote}
-                  maxLength={500}
-                  placeholder="např. přenos ze střediska, číslo účtenky…"
-                  onChange={(event) => setRedeemNote(event.target.value)}
-                  disabled={actionBusy}
-                />
-              </label>
               {canPartial ? (
-                partialOpen ? (
-                  <form
-                    className="admin-voucher-partial-form"
-                    onSubmit={handlePartialSubmit}
-                  >
-                    {canPartialAmount ? (
-                      <label className="admin-voucher-partial-field">
-                        <span>Částka k uplatnění (max. {formatCzk(remainingCzk)})</span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          max={remainingCzk}
-                          step={1}
-                          value={partialAmount}
-                          onChange={(event) =>
-                            setPartialAmount(event.target.value)
-                          }
-                          required
-                        />
-                      </label>
-                    ) : null}
-                    {canPartialPart ? (
-                      <label className="admin-voucher-partial-field">
-                        <span>Část k uplatnění</span>
-                        <select
-                          value={selectedPartId}
-                          onChange={(event) =>
-                            setSelectedPartId(event.target.value)
-                          }
-                          required
-                        >
-                          {openParts.map((part) => (
-                            <option key={part.id} value={part.id}>
-                              {part.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    <div className="admin-voucher-partial-actions">
-                      <button
-                        type="button"
-                        className="admin-voucher-drawer-cta is-secondary"
-                        disabled={actionBusy}
-                        onClick={() => setPartialOpen(false)}
-                      >
-                        <IconCancel className="admin-page-head-btn-icon" />
-                        <span className="admin-voucher-drawer-cta-label">Zrušit</span>
-                      </button>
-                      <button
-                        type="submit"
-                        className="admin-voucher-drawer-cta"
-                        disabled={actionBusy}
-                      >
-                        {actionBusy ? "Ukládám…" : "Potvrdit odečet"}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <button
-                    type="button"
-                    className="admin-voucher-drawer-cta is-secondary"
-                    disabled={actionBusy}
-                    onClick={() => setPartialOpen(true)}
-                  >
-                    <AdminVoucherCtaIcon kind="partial" />
-                    <span className="admin-voucher-drawer-cta-label">
-                      Částečně uplatnit
-                    </span>
-                  </button>
-                )
-              ) : null}
-              {!partialOpen ? (
                 <button
                   type="button"
-                  className="admin-voucher-drawer-cta"
+                  className="admin-voucher-drawer-cta is-secondary"
                   disabled={actionBusy}
-                  onClick={() => void postRedeem({ action: "full" })}
+                  onClick={() => openActionModal("partial")}
                 >
-                  <AdminVoucherCtaIcon kind="redeem" />
+                  <AdminVoucherCtaIcon kind="partial" />
                   <span className="admin-voucher-drawer-cta-label">
-                    {actionBusy ? "Ukládám…" : "Uplatnit celý poukaz"}
+                    Částečně uplatnit
                   </span>
                 </button>
               ) : null}
+              <button
+                type="button"
+                className="admin-voucher-drawer-cta"
+                disabled={actionBusy}
+                onClick={() => openActionModal("full")}
+              >
+                <AdminVoucherCtaIcon kind="redeem" />
+                <span className="admin-voucher-drawer-cta-label">
+                  Uplatnit celý poukaz
+                </span>
+              </button>
             </>
           ) : null}
+
+          <AdminActionModal
+            open={actionModal === "full"}
+            title="Uplatnit celý poukaz?"
+            description={
+              <>
+                Poukaz <strong>{voucher.code}</strong> bude označen jako plně
+                uplatněný.
+              </>
+            }
+            confirmLabel="Potvrdit uplatnění"
+            busy={actionBusy}
+            error={actionError}
+            onConfirm={() => void postRedeem({ action: "full" })}
+            onClose={closeActionModal}
+          >
+            <label>
+              <span>Poznámka (volitelné)</span>
+              <textarea
+                value={redeemNote}
+                maxLength={500}
+                placeholder="např. přenos ze střediska, číslo účtenky…"
+                onChange={(event) => setRedeemNote(event.target.value)}
+              />
+            </label>
+          </AdminActionModal>
+
+          <AdminActionModal
+            open={actionModal === "partial"}
+            title="Částečné uplatnění"
+            description={
+              <>
+                Poukaz <strong>{voucher.code}</strong>. Zadejte částku nebo
+                část, která se má odečíst.
+              </>
+            }
+            confirmLabel="Potvrdit odečet"
+            confirmDisabled={
+              (canPartialAmount && !partialAmount) ||
+              (canPartialPart && !selectedPartId)
+            }
+            busy={actionBusy}
+            error={actionError}
+            onConfirm={handlePartialSubmit}
+            onClose={closeActionModal}
+          >
+            {canPartialAmount ? (
+              <label>
+                <span>Částka k uplatnění (max. {formatCzk(remainingCzk)})</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={remainingCzk}
+                  step={1}
+                  value={partialAmount}
+                  onChange={(event) => setPartialAmount(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+            {canPartialPart ? (
+              <label>
+                <span>Část k uplatnění</span>
+                <select
+                  value={selectedPartId}
+                  onChange={(event) => setSelectedPartId(event.target.value)}
+                  required
+                >
+                  {openParts.map((part) => (
+                    <option key={part.id} value={part.id}>
+                      {part.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label>
+              <span>Poznámka (volitelné)</span>
+              <textarea
+                value={redeemNote}
+                maxLength={500}
+                placeholder="např. přenos ze střediska, číslo účtenky…"
+                onChange={(event) => setRedeemNote(event.target.value)}
+              />
+            </label>
+          </AdminActionModal>
+
+          <AdminActionModal
+            open={actionModal === "cancel"}
+            title="Stornovat poukaz?"
+            description={
+              <>
+                Poukaz <strong>{voucher.code}</strong> půjde znovu obnovit.
+              </>
+            }
+            confirmLabel="Stornovat poukaz"
+            danger
+            busy={actionBusy}
+            error={actionError}
+            onConfirm={() => void patchStatus("cancelled")}
+            onClose={closeActionModal}
+          />
+
+          <AdminActionModal
+            open={actionModal === "delete"}
+            title="Definitivně smazat poukaz?"
+            description={
+              <>
+                Poukaz <strong>{voucher.code}</strong> bude trvale odstraněn.
+                Tuto akci nelze vrátit.
+              </>
+            }
+            confirmLabel="Definitivně smazat"
+            danger
+            busy={actionBusy}
+            error={actionError}
+            onConfirm={() => void hardDelete()}
+            onClose={closeActionModal}
+          />
 
           {footerCta ? (
             <button

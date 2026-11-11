@@ -6261,3 +6261,107 @@ tr.is-undone-redemption td {
     padding-bottom: max(1.1rem, env(safe-area-inset-bottom));
   }
 }
+
+/* ---- Jednotný středový modal akcí poukazu (AdminActionModal) ---- */
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 15, 20, 0.45);
+}
+
+.admin-modal {
+  width: 100%;
+  max-width: 440px;
+  display: grid;
+  gap: 14px;
+  padding: 22px 22px 18px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #111;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
+}
+
+.admin-modal-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.admin-modal-description {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #444;
+}
+
+.admin-modal-body {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-modal-body label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: #333;
+}
+
+.admin-modal-body input,
+.admin-modal-body select,
+.admin-modal-body textarea {
+  width: 100%;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid #cfcfd6;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.admin-modal-body textarea {
+  min-height: 3.4rem;
+  resize: vertical;
+}
+
+.admin-modal-error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #b42318;
+}
+
+.admin-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-modal-btn {
+  padding: 9px 16px;
+  border-radius: 9px;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.admin-modal-btn.is-secondary {
+  background: #fff;
+  color: #111;
+  border-color: #cfcfd6;
+}
+
+.admin-modal-btn.is-danger {
+  background: #b42318;
+  border-color: #b42318;
+}
