@@ -130,6 +130,32 @@ export function isValidNewVoucherCode(normalized: string) {
   });
 }
 
+/**
+ * Kandidáti pro lookup při uplatnění.
+ * - s prefixem → jeden kód
+ * - jen body (4 / 5 znaků) → doplní odpovídající prefixy (LSS / BC+CA)
+ * - jinak → raw (legacy)
+ */
+export function resolveVoucherLookupCodes(raw: string): string[] {
+  const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!cleaned) return [];
+
+  const prefix = matchShopPrefix(cleaned);
+  if (prefix) {
+    const normalized = normalizeVoucherCode(cleaned);
+    return normalized ? [normalized] : [];
+  }
+
+  const candidates: string[] = [];
+  for (const shopPrefix of VOUCHER_CODE_PREFIXES) {
+    if (cleaned.length !== voucherCodeBodyLength(shopPrefix)) continue;
+    candidates.push(`${shopPrefix}${cleaned}`);
+  }
+
+  if (candidates.length > 0) return candidates;
+  return [cleaned];
+}
+
 /** Filtr vstupu v UI (uppercase, jen A–Z / 0–9). */
 export function sanitizeVoucherCodeInput(
   raw: string,

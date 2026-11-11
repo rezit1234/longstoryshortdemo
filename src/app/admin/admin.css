@@ -1659,6 +1659,42 @@
   color: var(--admin-muted);
 }
 
+.admin-redeem-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  font-style: normal;
+  color: var(--admin-muted);
+  line-height: 1.4;
+}
+
+.admin-redeem-feedback {
+  margin: 0.9rem 0 0;
+  font-size: 0.92rem;
+  color: var(--admin-fg);
+}
+
+.admin-redeem-feedback.is-error {
+  color: #b42318;
+}
+
+.admin-redeem-ambiguous {
+  margin-top: 0.9rem;
+}
+
+.admin-redeem-ambiguous-list {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-redeem-ambiguous-list .admin-outline-btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+
 .admin-field .admin-redeem-code-control {
   height: 2.85rem;
   border-radius: 12px;

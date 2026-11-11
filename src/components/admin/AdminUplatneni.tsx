@@ -5,12 +5,14 @@ import { useSearchParams } from "next/navigation";
 import {
   VOUCHER_CODE_INPUT_MAX_LENGTH,
   normalizeVoucherCode,
+  resolveVoucherLookupCodes,
   sanitizeVoucherCodeInput,
 } from "@/data/admin-voucher-settings";
 import {
   getAdminVoucherByCode,
   type AdminSoldVoucher,
 } from "@/data/admin-vouchers";
+import { getShopBrand } from "@/data/shops";
 import { AdminSkeletonRedeemPanel } from "./AdminSkeleton";
 import { useAdminVoucherDrawer } from "./AdminVoucherDrawer";
 
@@ -18,6 +20,7 @@ type ResultState =
   | { kind: "idle" }
   | { kind: "missing"; code: string }
   | { kind: "invalid"; code: string; statusLabel: string }
+  | { kind: "ambiguous"; matches: AdminSoldVoucher[] }
   | { kind: "loading" };
 
 async function fetchVoucherByCode(
@@ -50,36 +53,72 @@ export function AdminUplatneni() {
 
     const next = sanitizeVoucherCodeInput(initialCode);
     setCodeInput(next);
-    void openByCode(normalizeVoucherCode(next));
+    void openByQuery(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- wait for vouchers, then URL prefill
   }, [searchParams, vouchersLoading]);
 
-  async function openByCode(normalized: string) {
-    if (!normalized) {
+  async function openByQuery(raw: string) {
+    const candidates = resolveVoucherLookupCodes(raw);
+    if (candidates.length === 0) {
       setResult({ kind: "idle" });
       return;
     }
 
     setResult({ kind: "loading" });
-    let match = getAdminVoucherByCode(normalized, vouchers);
-    if (!match) {
-      match = await fetchVoucherByCode(normalized);
+    const matches: AdminSoldVoucher[] = [];
+
+    for (const candidate of candidates) {
+      let match = getAdminVoucherByCode(candidate, vouchers);
+      if (!match) {
+        match = await fetchVoucherByCode(candidate);
+      }
+      if (
+        match &&
+        !matches.some(
+          (row) =>
+            normalizeVoucherCode(row.code) === normalizeVoucherCode(match.code),
+        )
+      ) {
+        matches.push(match);
+      }
     }
 
-    if (!match) {
-      setResult({ kind: "missing", code: normalized });
+    if (matches.length === 0) {
+      setResult({
+        kind: "missing",
+        code: candidates.length === 1 ? candidates[0]! : raw.trim().toUpperCase(),
+      });
       return;
     }
 
+    if (matches.length > 1) {
+      setResult({ kind: "ambiguous", matches });
+      return;
+    }
+
+    const match = matches[0]!;
     if (match.status !== "active") {
       setResult({
         kind: "invalid",
-        code: normalized,
+        code: match.code,
         statusLabel: match.statusLabel,
       });
       return;
     }
 
+    setResult({ kind: "idle" });
+    openVoucher(match);
+  }
+
+  function selectMatch(match: AdminSoldVoucher) {
+    if (match.status !== "active") {
+      setResult({
+        kind: "invalid",
+        code: match.code,
+        statusLabel: match.statusLabel,
+      });
+      return;
+    }
     setResult({ kind: "idle" });
     openVoucher(match);
   }
@@ -91,7 +130,7 @@ export function AdminUplatneni() {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    void openByCode(normalizeVoucherCode(codeInput));
+    void openByQuery(codeInput);
   }
 
   return (
@@ -99,7 +138,10 @@ export function AdminUplatneni() {
       <div className="admin-page-head">
         <div>
           <h1>Uplatnění poukazu</h1>
-          <p>Zadejte kód poukazu a otevřete jeho detail.</p>
+          <p>
+            Zadejte kód poukazu (s prefixem nebo jen číslo za ním) a otevřete
+            detail.
+          </p>
         </div>
       </div>
 
@@ -116,13 +158,17 @@ export function AdminUplatneni() {
                     type="text"
                     value={codeInput}
                     onChange={(event) => handleCodeChange(event.target.value)}
-                    placeholder="LSSK7M2"
+                    placeholder="K7M2 nebo LSSK7M2"
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}
                     aria-label="Kód poukazu"
                   />
                 </div>
+                <em className="admin-redeem-hint">
+                  Stačí 4 znaky (LSS) nebo 5 znaků (BC). Prefix LSS/BC můžete
+                  doplnit, ale nemusíte.
+                </em>
               </label>
               <button
                 type="submit"
@@ -143,6 +189,26 @@ export function AdminUplatneni() {
                 Poukaz <strong>{result.code}</strong> nejde uplatnit (
                 {result.statusLabel.toLowerCase()}).
               </p>
+            ) : null}
+            {result.kind === "ambiguous" ? (
+              <div className="admin-redeem-ambiguous" role="status">
+                <p className="admin-redeem-feedback">
+                  Nalezeno víc poukazů se stejným kódem. Vyberte obchod:
+                </p>
+                <ul className="admin-redeem-ambiguous-list">
+                  {result.matches.map((match) => (
+                    <li key={match.code}>
+                      <button
+                        type="button"
+                        className="admin-outline-btn"
+                        onClick={() => selectMatch(match)}
+                      >
+                        {getShopBrand(match.shopId).brandName} · {match.code}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
           </>
         )}
