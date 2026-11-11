@@ -605,8 +605,8 @@ export function AdminObchod({
       <section className="admin-panel admin-shop-panel">
         <h2>Obecné</h2>
         <p className="admin-section-lead">
-          Platnost platí pro všechny varianty poukazů. Kódy začínají prefixem
-          obchodu (LSS, BC nebo CA) a 8 náhodnými znaky, bez pomlčky.
+          Platnost platí pro všechny varianty poukazů. Kódy mají celkem 7 znaků
+          včetně prefixu (LSSXXXX / BCXXXXX), bez pomlčky.
         </p>
 
         <div className="admin-field-row">

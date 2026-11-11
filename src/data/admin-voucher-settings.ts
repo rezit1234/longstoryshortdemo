@@ -7,10 +7,15 @@ import {
   type ExperienceInfoLink,
 } from "./vouchers";
 
-/** Délka náhodné části za prefixem. */
-export const VOUCHER_CODE_BODY_LENGTH = 7;
-/** Max délka celého kódu (nejdelší prefix LSS + 7). */
-export const VOUCHER_CODE_LENGTH = 3 + VOUCHER_CODE_BODY_LENGTH;
+/**
+ * Celková max. délka nového kódu včetně prefixu.
+ * LSS + 4 = LSSXXXX, BC/CA + 5 = BCXXXXX / CAXXXXX.
+ */
+export const VOUCHER_CODE_TOTAL_LENGTH = 7;
+/** @deprecated Použij voucherCodeBodyLength(shopId) — délka body závisí na prefixu. */
+export const VOUCHER_CODE_BODY_LENGTH = 5;
+/** Max délka celého nového kódu (včetně prefixu). */
+export const VOUCHER_CODE_LENGTH = VOUCHER_CODE_TOTAL_LENGTH;
 /** Lookup / uplatnění — i legacy kódy z Vouchy bez LSS/BC/CA. */
 export const VOUCHER_CODE_LEGACY_MAX_LENGTH = 32;
 /** Max délka vstupu v UI (uplatnění i legacy). Nové vystavení limituje VOUCHER_CODE_LENGTH. */
@@ -18,7 +23,7 @@ export const VOUCHER_CODE_INPUT_MAX_LENGTH = VOUCHER_CODE_LEGACY_MAX_LENGTH;
 export const MAX_AMOUNT_SLOTS = 4;
 export const MAX_GALLERY_IMAGES = 3;
 export const MAX_CHECKOUT_PREVIEW_IMAGES = 2;
-export const MOCK_VOUCHER_CODE = "LSSK7M2P9A";
+export const MOCK_VOUCHER_CODE = "LSSK7M2";
 export const MOCK_QR_URL = "https://www.longstoryshort.cz";
 
 export type ShopId = "lss" | "bistrocentral" | "culinaryacademy";
@@ -30,7 +35,7 @@ export const SHOP_CODE_PREFIXES: Record<ShopId, string> = {
   culinaryacademy: "CA",
 };
 
-/** Delší prefixy první (LSS před prázdným). */
+/** Delší prefixy první (LSS před BC/CA). */
 export const VOUCHER_CODE_PREFIXES = ["LSS", "BC", "CA"] as const;
 export type VoucherCodePrefix = (typeof VOUCHER_CODE_PREFIXES)[number];
 
@@ -45,7 +50,16 @@ export function shopCodePrefix(shopId: ShopId) {
   return SHOP_CODE_PREFIXES[shopId] ?? SHOP_CODE_PREFIXES.lss;
 }
 
-function generateCodeBody(length = VOUCHER_CODE_BODY_LENGTH) {
+/** Počet náhodných znaků za prefixem, aby celkem vyšlo VOUCHER_CODE_TOTAL_LENGTH. */
+export function voucherCodeBodyLength(shopIdOrPrefix: ShopId | string) {
+  const prefix =
+    shopIdOrPrefix in SHOP_CODE_PREFIXES
+      ? shopCodePrefix(shopIdOrPrefix as ShopId)
+      : String(shopIdOrPrefix);
+  return Math.max(1, VOUCHER_CODE_TOTAL_LENGTH - prefix.length);
+}
+
+function generateCodeBody(length: number) {
   let body = "";
   for (let index = 0; index < length; index += 1) {
     body += randomCodeChar();
@@ -53,9 +67,10 @@ function generateCodeBody(length = VOUCHER_CODE_BODY_LENGTH) {
   return body;
 }
 
-/** Náhodný kód: prefix obchodu + 7 znaků, bez oddělovače (např. LSSK7M2P9A). */
+/** Náhodný kód: prefix + body, celkem max 7 znaků (např. LSSK7M2 / BCR6FE6). */
 export function generateVoucherCode(shopId: ShopId = "lss") {
-  return `${shopCodePrefix(shopId)}${generateCodeBody()}`;
+  const prefix = shopCodePrefix(shopId);
+  return `${prefix}${generateCodeBody(voucherCodeBodyLength(shopId))}`;
 }
 
 function matchShopPrefix(cleaned: string): VoucherCodePrefix | null {
@@ -67,7 +82,7 @@ function matchShopPrefix(cleaned: string): VoucherCodePrefix | null {
 
 /**
  * Canonical kód pro lookup.
- * Nový formát LSS/BC/CA + max 7 znaků; legacy (Vouchy) bez agresivního ořezu.
+ * Nový formát: celkem max 7 znaků včetně prefixu; legacy (Vouchy) bez agresivního ořezu.
  */
 export function normalizeVoucherCode(raw: string) {
   const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -76,9 +91,10 @@ export function normalizeVoucherCode(raw: string) {
   const prefix = matchShopPrefix(cleaned);
   if (prefix) {
     const rest = cleaned.slice(prefix.length);
-    // Nový formát / rozepsané zadávání: prefix + nejvýš 8.
+    const maxBody = voucherCodeBodyLength(prefix);
+    // Nový formát / rozepsané zadávání: prefix + body do limitu.
     // Delší zbytek = legacy kód, který náhodou začíná LSS/BC/CA.
-    if (rest.length <= VOUCHER_CODE_BODY_LENGTH) {
+    if (rest.length <= maxBody) {
       return `${prefix}${rest}`;
     }
     return cleaned.slice(0, VOUCHER_CODE_LEGACY_MAX_LENGTH);
@@ -96,19 +112,22 @@ export function applyShopCodePrefix(raw: string, shopId: ShopId) {
   const existingPrefix = matchShopPrefix(cleaned);
   const body = (
     existingPrefix ? cleaned.slice(existingPrefix.length) : cleaned
-  ).slice(0, VOUCHER_CODE_BODY_LENGTH);
+  ).slice(0, voucherCodeBodyLength(shopId));
 
   if (!body) return "";
   return `${prefix}${body}`;
 }
 
 export function isValidNewVoucherCode(normalized: string) {
-  return VOUCHER_CODE_PREFIXES.some(
-    (prefix) =>
-      normalized.length === prefix.length + VOUCHER_CODE_BODY_LENGTH &&
+  return VOUCHER_CODE_PREFIXES.some((prefix) => {
+    const bodyLen = voucherCodeBodyLength(prefix);
+    return (
+      normalized.length === prefix.length + bodyLen &&
+      normalized.length === VOUCHER_CODE_TOTAL_LENGTH &&
       normalized.startsWith(prefix) &&
-      /^[A-Z0-9]+$/.test(normalized.slice(prefix.length)),
-  );
+      /^[A-Z0-9]+$/.test(normalized.slice(prefix.length))
+    );
+  });
 }
 
 /** Filtr vstupu v UI (uppercase, jen A–Z / 0–9). */

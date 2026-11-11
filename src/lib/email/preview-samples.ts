@@ -120,13 +120,13 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
   });
 
   const multiQty = voucherBase("lss", {
-    codes: ["LSSAAA11111", "LSSBBB22222", "LSSCCC33333"],
-    code: "LSSAAA11111",
+    codes: ["LSSAAA1", "LSSBBB2", "LSSCCC3"],
+    code: "LSSAAA1",
     productName: "Chef's Table",
     attachments: [
-      fakePdf("poukaz-LSSAAA11111.pdf"),
-      fakePdf("poukaz-LSSBBB22222.pdf"),
-      fakePdf("poukaz-LSSCCC33333.pdf"),
+      fakePdf("poukaz-LSSAAA1.pdf"),
+      fakePdf("poukaz-LSSBBB2.pdf"),
+      fakePdf("poukaz-LSSCCC3.pdf"),
       fakePdf("faktura-LSS-20260928-001.pdf"),
     ],
   });
@@ -259,7 +259,7 @@ export function getEmailPreviewSamples(): EmailPreviewSample[] {
     deliveryMethod: "post",
     productName: "Částka 2 000 Kč",
     quantity: 1,
-    codes: ["LSSK7M2P9A"],
+    codes: ["LSSK7M2"],
     buyerName: "Michal Novák",
     buyerEmail: "mi.novak8@gmail.com",
     buyerPhone: "723054281",

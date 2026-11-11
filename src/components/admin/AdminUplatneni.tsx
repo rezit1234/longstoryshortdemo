@@ -116,7 +116,7 @@ export function AdminUplatneni() {
                     type="text"
                     value={codeInput}
                     onChange={(event) => handleCodeChange(event.target.value)}
-                    placeholder="LSSK7M2P9A"
+                    placeholder="LSSK7M2"
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={VOUCHER_CODE_INPUT_MAX_LENGTH}

@@ -301,7 +301,7 @@ export async function createManualSoldVoucher(
   const codeNormalized = applyShopCodePrefix(code, shopId);
   if (!isValidNewVoucherCode(codeNormalized)) {
     throw new Error(
-      "Kód musí mít prefix obchodu a 7 znaků (např. LSSK7M2P9A).",
+      "Kód musí mít celkem 7 znaků včetně prefixu (např. LSSK7M2 nebo BCR6FE6).",
     );
   }
 

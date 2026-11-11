@@ -278,7 +278,9 @@ export function AdminAddVoucherDrawer({
     }
     const normalized = applyShopCodePrefix(code, shopId);
     if (!isValidNewVoucherCode(normalized)) {
-      setError("Kód musí mít prefix obchodu a 7 znaků (např. LSSK7M2P9A).");
+      setError(
+        "Kód musí mít celkem 7 znaků včetně prefixu (např. LSSK7M2 nebo BCR6FE6).",
+      );
       return;
     }
     if (wantInvoice) {
@@ -570,7 +572,7 @@ export function AdminAddVoucherDrawer({
                     ),
                   )
                 }
-                placeholder="LSSK7M2P9A"
+                placeholder="LSSK7M2"
                 autoComplete="off"
                 spellCheck={false}
                 maxLength={VOUCHER_CODE_LENGTH}
@@ -578,8 +580,8 @@ export function AdminAddVoucherDrawer({
               />
             </div>
             <em>
-              Prefix podle obchodu je součástí kódu. Uloží se jako{" "}
-              {applyShopCodePrefix(code, shopId) || "LSSK7M2P9A"}.
+              Celkem 7 znaků včetně prefixu (LSS + 4 / BC + 5). Uloží se jako{" "}
+              {applyShopCodePrefix(code, shopId) || "LSSK7M2"}.
             </em>
           </div>
 
