@@ -181,6 +181,12 @@ export async function POST(request: Request) {
     kind,
     experienceId:
       typeof body.experienceId === "string" ? body.experienceId : undefined,
+    seats:
+      typeof body.seats === "number"
+        ? body.seats
+        : typeof body.seats === "string"
+          ? Number(body.seats)
+          : undefined,
     amountCzk:
       typeof body.amountCzk === "number"
         ? body.amountCzk

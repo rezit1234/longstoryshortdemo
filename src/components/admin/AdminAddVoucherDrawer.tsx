@@ -17,6 +17,12 @@ import { getEnabledShopBrands } from "@/data/shops";
 import { formatCzk } from "@/data/vouchers";
 import { defaultShopIdForRole } from "@/lib/auth";
 import {
+  experienceSupportsSeatQuantity,
+  formatPersonsCs,
+  SEAT_QUANTITY_MAX,
+  SEAT_QUANTITY_MIN,
+} from "@/lib/voucher-redemption";
+import {
   MANUAL_PAYMENT_METHOD_LABELS,
   MANUAL_PAYMENT_METHODS,
   type ManualPaymentMethod,
@@ -106,6 +112,8 @@ export function AdminAddVoucherDrawer({
 
   const [kind, setKind] = useState<VoucherKind>("experience");
   const [experienceId, setExperienceId] = useState(experienceOptions[0]?.value ?? "");
+  const [seats, setSeats] = useState("1");
+  const supportsSeats = kind === "experience" && experienceSupportsSeatQuantity(experienceId);
   const [amountValue, setAmountValue] = useState(
     amountSelectOptions[0]?.value ?? "custom",
   );
@@ -331,6 +339,7 @@ export function AdminAddVoucherDrawer({
           shopId,
           kind,
           experienceId: kind === "experience" ? experienceId : undefined,
+          seats: supportsSeats ? Number(seats) : undefined,
           amountCzk,
           buyerName: fullName.trim(),
           buyerEmail: email.trim(),
@@ -470,7 +479,22 @@ export function AdminAddVoucherDrawer({
                 onChange={setExperienceId}
               />
             </div>
-          ) : (
+          ) : null}
+          {supportsSeats ? (
+            <div className="admin-field">
+              <span>Počet osob</span>
+              <AdminSelect
+                ariaLabel="Vyberte počet osob"
+                value={seats}
+                options={Array.from({ length: SEAT_QUANTITY_MAX - SEAT_QUANTITY_MIN + 1 }, (_, i) => {
+                  const n = SEAT_QUANTITY_MIN + i;
+                  return { value: String(n), label: formatPersonsCs(n) };
+                })}
+                onChange={setSeats}
+              />
+            </div>
+          ) : null}
+          {kind === "experience" && hasExperiences ? null : (
             <div className="admin-field">
               <span>Částka</span>
               <AdminSelect

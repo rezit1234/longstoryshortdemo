@@ -26,7 +26,13 @@ import {
   fetchPdfTemplateBytes,
   stampVoucherPdf,
 } from "@/lib/voucher-pdf-overlay";
-import { redeemablePartsForExperienceId } from "@/lib/voucher-redemption";
+import {
+  experienceSupportsSeatQuantity,
+  formatPersonsCs,
+  redeemablePartsForExperienceId,
+  SEAT_QUANTITY_MAX,
+  SEAT_QUANTITY_MIN,
+} from "@/lib/voucher-redemption";
 import {
   formatPaymentMethodLabel,
   normalizeManualPaymentMethodInput,
@@ -43,6 +49,8 @@ export type CreateManualSoldVoucherInput = {
   shopId: ShopId;
   kind: ManualVoucherKind;
   experienceId?: string;
+  /** Počet osob (jen Chef's Table varianty) — 1 poukaz × N osob. */
+  seats?: number;
   amountCzk?: number;
   buyerName: string;
   buyerEmail: string;
@@ -272,6 +280,7 @@ export async function createManualSoldVoucher(
   let unitPrice = 0;
   let experienceId: string | undefined;
   let vatLabel: string | null = null;
+  let seats: number | null = null;
 
   if (input.kind === "experience") {
     experienceId = (input.experienceId ?? "").trim();
@@ -283,6 +292,22 @@ export async function createManualSoldVoucher(
     }
     productName = experience.title;
     unitPrice = experience.price;
+    if (experienceSupportsSeatQuantity(experienceId)) {
+      const count = Math.round(Number(input.seats ?? SEAT_QUANTITY_MIN));
+      if (
+        !Number.isInteger(count) ||
+        count < SEAT_QUANTITY_MIN ||
+        count > SEAT_QUANTITY_MAX
+      ) {
+        throw new Error("Neplatný počet osob.");
+      }
+      seats = count;
+      // Stejně jako u objednávky z webu: cena je za všechny osoby dohromady.
+      unitPrice = experience.price * count;
+      if (count > 1) {
+        productName = `${experience.title} pro ${formatPersonsCs(count)}`;
+      }
+    }
     vatLabel = formatExperienceVatLabel(experience.vat, experience.price);
   } else {
     const amount = Number(input.amountCzk);
@@ -420,6 +445,8 @@ export async function createManualSoldVoucher(
         ? redeemablePartsForExperienceId(experienceId)
         : null,
     is_gift: false,
+    seats,
+    remaining_seats: seats,
     issued_by: input.issuedBy?.trim() || null,
     payment_method: payment.paymentMethod,
     payment_method_note: payment.paymentMethodNote,
