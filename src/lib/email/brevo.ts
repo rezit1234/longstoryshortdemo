@@ -1,4 +1,6 @@
+import nodemailer from "nodemailer";
 import type { ShopId } from "@/data/admin-voucher-settings";
+import { getShopBrand } from "@/data/shops";
 
 type BrevoAttachment = {
   name: string;
@@ -18,6 +20,11 @@ type SendBrevoEmailInput = {
 };
 
 type ParsedSender = { name: string; email: string };
+
+const BREVO_SMTP_HOST = "smtp-relay.brevo.com";
+const BREVO_SMTP_PORT = 587;
+/** Content-ID loga v HTML (`src="cid:brand-logo"`). */
+const INLINE_LOGO_CID = "brand-logo";
 
 function parseSender(raw: string | undefined): ParsedSender | null {
   const value = raw?.trim();
@@ -67,16 +74,126 @@ export function resolveEmailSender(shopId?: ShopId): ParsedSender | null {
   );
 }
 
-export async function sendBrevoEmail(input: SendBrevoEmailInput) {
+function appBaseUrl() {
+  const raw =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "https://longstoryshortwidget.vercel.app";
+  return raw.replace(/\/$/, "");
+}
+
+/** Absolutní URL loga e-mailu daného obchodu (stejná logika jako v šablonách). */
+function shopEmailLogoUrl(shopId: ShopId): string {
+  const brand = getShopBrand(shopId);
+  const logoSrc = brand.emailLogoSrc || brand.logoSrc;
+  if (/^https?:\/\//i.test(logoSrc)) return logoSrc;
+  const path = logoSrc.startsWith("/") ? logoSrc : `/${logoSrc}`;
+  return `${appBaseUrl()}${path}`;
+}
+
+function smtpCredentials(): { user: string; pass: string } | null {
+  const user = process.env.BREVO_SMTP_LOGIN?.trim();
+  const pass = process.env.BREVO_SMTP_KEY?.trim();
+  if (!user || !pass) return null;
+  return { user, pass };
+}
+
+/**
+ * Stáhne logo a připraví ho jako inline přílohu (cid). Brevo API / tracking
+ * přepisuje vzdálené URL obrázků na vlastní doménu (sendibt…), což někde
+ * končí jako rozbitý obrázek. Inline příloha přes SMTP tohle obejde.
+ */
+async function loadInlineLogo(logoUrl: string) {
+  try {
+    const response = await fetch(logoUrl, { cache: "no-store" });
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "image/png";
+    if (!contentType.startsWith("image/")) return null;
+    const content = Buffer.from(await response.arrayBuffer());
+    return { content, contentType };
+  } catch {
+    return null;
+  }
+}
+
+async function sendViaSmtp(
+  input: SendBrevoEmailInput,
+  credentials: { user: string; pass: string },
+  sender: ParsedSender,
+) {
+  let html = input.htmlContent;
+  const inlineAttachments: {
+    filename: string;
+    content: Buffer;
+    contentType: string;
+    cid: string;
+    contentDisposition: "inline";
+  }[] = [];
+
+  if (input.shopId) {
+    const logoUrl = shopEmailLogoUrl(input.shopId);
+    const logo = await loadInlineLogo(logoUrl);
+    if (logo && html.includes(`src="${logoUrl}"`)) {
+      html = html.split(`src="${logoUrl}"`).join(`src="cid:${INLINE_LOGO_CID}"`);
+      inlineAttachments.push({
+        filename: `${input.shopId}-logo.png`,
+        content: logo.content,
+        contentType: logo.contentType,
+        cid: INLINE_LOGO_CID,
+        contentDisposition: "inline",
+      });
+    }
+  }
+
+  const transport = nodemailer.createTransport({
+    host: BREVO_SMTP_HOST,
+    port: BREVO_SMTP_PORT,
+    secure: false,
+    requireTLS: true,
+    auth: credentials,
+  });
+
+  try {
+    const info = await transport.sendMail({
+      from: { name: sender.name, address: sender.email },
+      to: input.toName?.trim()
+        ? { name: input.toName.trim(), address: input.to }
+        : input.to,
+      subject: input.subject,
+      html,
+      text: input.textContent?.trim() || undefined,
+      attachments: [
+        ...(input.attachments ?? []).map((file) => ({
+          filename: file.name,
+          content: file.content,
+        })),
+        ...inlineAttachments,
+      ],
+    });
+    return { ok: true as const, id: info.messageId ?? null };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "SMTP odeslání selhalo";
+    console.error("sendBrevoEmail (SMTP) failed", message);
+    return { ok: false as const, skipped: false as const, error: message };
+  } finally {
+    transport.close();
+  }
+}
+
+export type BrevoSendResult =
+  | { ok: true; id: string | null; skipped?: false; error?: undefined; reason?: undefined }
+  | {
+      ok: false;
+      skipped: boolean;
+      reason?: "no_recipient" | "no_sender" | "no_api_key";
+      error?: string;
+      id?: undefined;
+    };
+
+export async function sendBrevoEmail(input: SendBrevoEmailInput): Promise<BrevoSendResult> {
   const to = input.to.trim();
   if (!to) {
     return { ok: false as const, skipped: true as const, reason: "no_recipient" as const };
-  }
-
-  const apiKey = process.env.BREVO_API_KEY?.trim();
-  if (!apiKey) {
-    console.warn("sendBrevoEmail: chybí BREVO_API_KEY - e-mail přeskočen.");
-    return { ok: false as const, skipped: true as const, reason: "no_api_key" as const };
   }
 
   const sender = resolveEmailSender(input.shopId);
@@ -85,6 +202,17 @@ export async function sendBrevoEmail(input: SendBrevoEmailInput) {
       "sendBrevoEmail: chybí EMAIL_FROM / odesílatel obchodu - e-mail přeskočen.",
     );
     return { ok: false as const, skipped: true as const, reason: "no_sender" as const };
+  }
+
+  const smtp = smtpCredentials();
+  if (smtp) {
+    return sendViaSmtp({ ...input, to }, smtp, sender);
+  }
+
+  const apiKey = process.env.BREVO_API_KEY?.trim();
+  if (!apiKey) {
+    console.warn("sendBrevoEmail: chybí BREVO_API_KEY - e-mail přeskočen.");
+    return { ok: false as const, skipped: true as const, reason: "no_api_key" as const };
   }
 
   const attachments = (input.attachments ?? []).map((file) => ({
