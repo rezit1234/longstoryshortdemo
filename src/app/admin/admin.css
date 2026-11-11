@@ -5707,6 +5707,36 @@
   color: #0a0a0a;
 }
 
+.admin-voucher-note-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.admin-voucher-note-edit textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #d6d6d6;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #0a0a0a;
+  background: #fff;
+  resize: vertical;
+}
+
+.admin-voucher-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.admin-voucher-note-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .admin-voucher-drawer-pdf-link {
   color: inherit;
   text-decoration: underline;

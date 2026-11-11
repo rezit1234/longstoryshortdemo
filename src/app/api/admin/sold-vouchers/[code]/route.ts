@@ -4,7 +4,11 @@ import {
 } from "@/data/admin-vouchers";
 import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import { getSessionProfile } from "@/lib/admin-session";
-import { canCancelVoucher, canEditVoucherValidity } from "@/lib/auth";
+import {
+  canCancelVoucher,
+  canEditVoucherNote,
+  canEditVoucherValidity,
+} from "@/lib/auth";
 import {
   mapSoldVoucherRow,
   toValidUntilIso,
@@ -32,7 +36,7 @@ const CANCELABLE_STATUSES = new Set<AdminVoucherStatus>([
 ]);
 
 const SELECT_FIELDS =
-  "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note, redeemed_note, redeemed_at";
+  "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note, redeemed_note, redeemed_at, note";
 
 function todayDateOnly() {
   const now = new Date();
@@ -61,9 +65,13 @@ export async function PATCH(
     return NextResponse.json({ error: "Neplatný kód." }, { status: 400 });
   }
 
-  let body: { status?: string; validUntil?: string };
+  let body: { status?: string; validUntil?: string; note?: string | null };
   try {
-    body = (await request.json()) as { status?: string; validUntil?: string };
+    body = (await request.json()) as {
+      status?: string;
+      validUntil?: string;
+      note?: string | null;
+    };
   } catch {
     return NextResponse.json({ error: "Neplatný JSON." }, { status: 400 });
   }
@@ -71,12 +79,31 @@ export async function PATCH(
   const status = body.status as AdminVoucherStatus | undefined;
   const hasStatus = Boolean(status);
   const hasValidUntil = body.validUntil !== undefined;
+  const hasNote = body.note !== undefined;
 
-  if (!hasStatus && !hasValidUntil) {
+  if (!hasStatus && !hasValidUntil && !hasNote) {
     return NextResponse.json(
-      { error: "Chybí status nebo platnost." },
+      { error: "Chybí status, platnost nebo poznámka." },
       { status: 400 },
     );
+  }
+
+  let noteValue: string | null = null;
+  if (hasNote) {
+    if (!canEditVoucherNote(session.profile.role)) {
+      return NextResponse.json(
+        { error: "Poznámku může upravit jen recepce nebo vlastník." },
+        { status: 403 },
+      );
+    }
+    const trimmed = typeof body.note === "string" ? body.note.trim() : "";
+    if (trimmed.length > 500) {
+      return NextResponse.json(
+        { error: "Poznámka může mít nejvýše 500 znaků." },
+        { status: 400 },
+      );
+    }
+    noteValue = trimmed || null;
   }
 
   if (hasStatus && (!status || !ALLOWED.includes(status))) {
@@ -149,6 +176,10 @@ export async function PATCH(
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
+
+    if (hasNote) {
+      patch.note = noteValue;
+    }
 
     if (hasStatus && status) {
       let nextStatus = status;

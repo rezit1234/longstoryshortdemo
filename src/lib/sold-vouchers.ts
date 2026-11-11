@@ -40,6 +40,7 @@ export type SoldVoucherRow = {
   payment_method_note?: string | null;
   redeemed_note?: string | null;
   redeemed_at?: string | null;
+  note?: string | null;
 };
 
 function formatDateCs(isoOrDate: string) {
@@ -173,6 +174,8 @@ export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
       isManualPaymentMethod(row.payment_method) ? row.payment_method : null,
       row.payment_method_note,
     ),
+    note:
+      typeof row.note === "string" && row.note.trim() ? row.note.trim() : null,
     redeemedNote:
       typeof row.redeemed_note === "string" && row.redeemed_note.trim()
         ? row.redeemed_note.trim()

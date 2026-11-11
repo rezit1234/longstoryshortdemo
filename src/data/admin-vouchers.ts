@@ -63,6 +63,8 @@ export type AdminSoldVoucher = {
   paymentMethodNote?: string | null;
   /** Hotový label pro UI (včetně „Jiné – …“). */
   paymentMethodLabel?: string | null;
+  /** Interní poznámka k poukazu (recepce / vlastník). */
+  note?: string | null;
   /** Legacy Excel: text z „VYUŽITO…“ (kdy/kde). */
   redeemedNote?: string | null;
   /** Zobrazení v tabulce: poznámka z Excelu nebo jméno admina. */

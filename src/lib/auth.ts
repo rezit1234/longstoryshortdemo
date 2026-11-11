@@ -163,6 +163,11 @@ export function canEditVoucherValidity(role: AdminRole) {
   return isPrivilegedAdmin(role) || role === "reception";
 }
 
+/** Interní poznámka k poukazu — vlastník, developer, recepce. */
+export function canEditVoucherNote(role: AdminRole) {
+  return isPrivilegedAdmin(role) || role === "reception";
+}
+
 /** Vrácení uplatnění po zamčení (starší než hodina) — jen vlastník + developer. */
 export function canUndoLockedRedemption(role: AdminRole | null | undefined) {
   return role ? isPrivilegedAdmin(role) : false;

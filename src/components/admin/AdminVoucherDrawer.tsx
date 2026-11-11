@@ -19,6 +19,7 @@ import { formatCzk } from "@/data/vouchers";
 import { getShopBrand } from "@/data/shops";
 import {
   canCancelVoucher,
+  canEditVoucherNote,
   canEditVoucherValidity,
   canRedeemVoucher,
   canUndoLockedRedemption,
@@ -308,6 +309,9 @@ function AdminVoucherDrawerPanel({
     voucher.validUntilIso ?? "",
   );
   const [validUntilBusy, setValidUntilBusy] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(voucher.note ?? "");
+  const [noteBusy, setNoteBusy] = useState(false);
 
   const openParts = useMemo(
     () => (voucher.redeemableParts ?? []).filter((part) => !part.redeemed),
@@ -362,12 +366,49 @@ function AdminVoucherDrawerPanel({
     setEmailFeedback(null);
     setEditingValidUntil(false);
     setValidUntilDraft(voucher.validUntilIso ?? "");
-  }, [voucher.code, voucher.validUntilIso, openParts]);
+    setEditingNote(false);
+    setNoteDraft(voucher.note ?? "");
+  }, [voucher.code, voucher.validUntilIso, voucher.note, openParts]);
 
   const canEditValidUntil =
     canEditVoucherValidity(user.role) &&
     voucher.status !== "redeemed" &&
     voucher.status !== "cancelled";
+
+  const canEditNote = canEditVoucherNote(user.role);
+
+  const handleNoteSubmit = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault();
+      setNoteBusy(true);
+      setActionError(null);
+      try {
+        const response = await fetch(
+          `/api/admin/sold-vouchers/${encodeURIComponent(voucher.code)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note: noteDraft.trim() || null }),
+          },
+        );
+        const data = (await response.json().catch(() => ({}))) as {
+          voucher?: AdminSoldVoucher;
+          error?: string;
+        };
+        if (!response.ok || !data.voucher) {
+          setActionError(data.error || "Poznámku se nepodařilo uložit.");
+          return;
+        }
+        onUpsert(data.voucher);
+        setEditingNote(false);
+      } catch {
+        setActionError("Poznámku se nepodařilo uložit.");
+      } finally {
+        setNoteBusy(false);
+      }
+    },
+    [noteDraft, onUpsert, voucher.code],
+  );
 
   const handleActivate = useCallback(() => {
     onActivate(voucher.code);
@@ -723,6 +764,78 @@ function AdminVoucherDrawerPanel({
                         onClick={() => {
                           setValidUntilDraft(voucher.validUntilIso ?? "");
                           setEditingValidUntil(true);
+                        }}
+                      >
+                        <svg
+                          width="15"
+                          height="15"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                      </button>
+                    ) : null}
+                  </span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Interní poznámka</dt>
+              <dd>
+                {editingNote ? (
+                  <form
+                    className="admin-voucher-note-edit"
+                    onSubmit={(event) => void handleNoteSubmit(event)}
+                  >
+                    <textarea
+                      value={noteDraft}
+                      onChange={(event) => setNoteDraft(event.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      disabled={noteBusy}
+                      aria-label="Interní poznámka"
+                    />
+                    <div className="admin-voucher-note-actions">
+                      <button
+                        type="submit"
+                        className="admin-voucher-valid-until-save"
+                        disabled={noteBusy}
+                      >
+                        {noteBusy ? "…" : "Uložit"}
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-voucher-valid-until-cancel"
+                        disabled={noteBusy}
+                        onClick={() => {
+                          setEditingNote(false);
+                          setNoteDraft(voucher.note ?? "");
+                        }}
+                      >
+                        <IconCancel className="admin-page-head-btn-icon" />
+                        <span className="admin-page-head-btn-label">Zrušit</span>
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <span className="admin-voucher-note-value">
+                    {voucher.note ?? "—"}
+                    {canEditNote ? (
+                      <button
+                        type="button"
+                        className="admin-voucher-edit-valid-btn"
+                        aria-label="Upravit poznámku"
+                        title="Upravit poznámku"
+                        onClick={() => {
+                          setNoteDraft(voucher.note ?? "");
+                          setEditingNote(true);
                         }}
                       >
                         <svg
