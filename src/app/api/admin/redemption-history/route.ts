@@ -16,6 +16,8 @@ export type RedemptionHistoryItem = {
   kindLabel: string;
   amountCzk: number | null;
   partLabel: string | null;
+  /** Volitelná poznámka zadaná u uplatnění. */
+  note: string | null;
   detailLabel: string;
   undoneAt: string | null;
   isUndone: boolean;
@@ -86,7 +88,7 @@ export async function GET(request: Request) {
     const { data, error, count } = await admin
       .from("voucher_redemptions")
       .select(
-        "id, kind, amount_czk, part_label, undone_at, created_at, created_by, sold_voucher_id, sold_vouchers!inner(id, code, shop_id)",
+        "id, kind, amount_czk, part_label, note, undone_at, created_at, created_by, sold_voucher_id, sold_vouchers!inner(id, code, shop_id)",
         { count: "exact" },
       )
       .order("created_at", { ascending: false })
@@ -145,8 +147,11 @@ export async function GET(request: Request) {
         typeof row.created_by === "string" ? row.created_by : null;
       const undoneAt =
         typeof row.undone_at === "string" ? row.undone_at : null;
+      const note =
+        typeof row.note === "string" && row.note.trim() ? row.note.trim() : null;
 
       return {
+        note,
         id: String(row.id),
         createdAt,
         createdAtLabel: createdAt ? formatDateTime(createdAt) : "—",

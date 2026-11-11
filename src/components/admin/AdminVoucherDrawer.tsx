@@ -298,6 +298,7 @@ function AdminVoucherDrawerPanel({
   const [actionError, setActionError] = useState<string | null>(null);
   const [partialOpen, setPartialOpen] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
+  const [redeemNote, setRedeemNote] = useState("");
   const [selectedPartId, setSelectedPartId] = useState("");
   const [editingValidUntil, setEditingValidUntil] = useState(false);
   const [validUntilDraft, setValidUntilDraft] = useState(
@@ -380,7 +381,11 @@ function AdminVoucherDrawerPanel({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+            body: JSON.stringify(
+              body.action === "undo"
+                ? body
+                : { ...body, note: redeemNote.trim() || undefined },
+            ),
           },
         );
         const data = (await response.json().catch(() => ({}))) as RedeemResponse;
@@ -393,13 +398,14 @@ function AdminVoucherDrawerPanel({
         if (mailNote) setEmailFeedback(mailNote);
         setPartialOpen(false);
         setPartialAmount("");
+        if (body.action !== "undo") setRedeemNote("");
       } catch {
         setActionError("Akci se nepodařilo dokončit.");
       } finally {
         setActionBusy(false);
       }
     },
-    [onUpsert, voucher.code],
+    [onUpsert, redeemNote, voucher.code],
   );
 
   const handlePartialSubmit = useCallback(
@@ -849,6 +855,16 @@ function AdminVoucherDrawerPanel({
 
           {allowRedeem && voucher.status === "active" ? (
             <>
+              <label className="admin-voucher-redeem-note">
+                <span>Poznámka k uplatnění (volitelné)</span>
+                <textarea
+                  value={redeemNote}
+                  maxLength={500}
+                  placeholder="např. přenos ze střediska, číslo účtenky…"
+                  onChange={(event) => setRedeemNote(event.target.value)}
+                  disabled={actionBusy}
+                />
+              </label>
               {canPartial ? (
                 partialOpen ? (
                   <form

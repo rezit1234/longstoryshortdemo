@@ -5,6 +5,8 @@ import {
   type AdminRole,
 } from "@/lib/auth";
 import { isRedemptionUndoLocked } from "@/lib/redemption-undo-lock";
+
+export const REDEMPTION_NOTE_MAX_LENGTH = 500;
 import {
   ADMIN_VOUCHER_STATUS_LABELS,
   type AdminSoldVoucher,
@@ -156,6 +158,7 @@ async function insertRedemption(params: {
   remainingCzkAfter?: number | null;
   before: VoucherRedemptionStateBefore;
   createdBy?: string | null;
+  note?: string | null;
 }) {
   const { error } = await params.admin.from("voucher_redemptions").insert({
     sold_voucher_id: params.soldVoucherId,
@@ -166,6 +169,7 @@ async function insertRedemption(params: {
     remaining_czk_after: params.remainingCzkAfter ?? null,
     state_before: params.before,
     created_by: params.createdBy ?? null,
+    note: params.note ?? null,
   });
   if (error) throw new Error(error.message);
 }
@@ -190,9 +194,18 @@ export async function redeemSoldVoucher(params: {
   partId?: string;
   createdBy?: string | null;
   actorRole?: AdminRole | null;
+  note?: string | null;
 }): Promise<RedeemResult> {
   const code = normalizeVoucherCode(params.code);
   if (!code) throw new Error("Neplatný kód.");
+
+  const trimmedNote = params.note?.trim() ?? "";
+  if (trimmedNote.length > REDEMPTION_NOTE_MAX_LENGTH) {
+    throw new Error(
+      `Poznámka je příliš dlouhá (max. ${REDEMPTION_NOTE_MAX_LENGTH} znaků).`,
+    );
+  }
+  const normalizedNote = trimmedNote || null;
 
   const admin = createAdminClient();
   const row = await loadVoucher(admin, code);
@@ -247,6 +260,7 @@ export async function redeemSoldVoucher(params: {
       remainingCzkAfter: row.item_kind === "amount" ? 0 : null,
       before,
       createdBy: params.createdBy,
+      note: normalizedNote,
     });
 
     const mail = await maybeSendEmail({
@@ -309,6 +323,7 @@ export async function redeemSoldVoucher(params: {
       remainingCzkAfter: nextRemaining,
       before,
       createdBy: params.createdBy,
+      note: normalizedNote,
     });
 
     const mail = await maybeSendEmail({
@@ -362,6 +377,7 @@ export async function redeemSoldVoucher(params: {
       partLabel: part.label,
       before,
       createdBy: params.createdBy,
+      note: normalizedNote,
     });
 
     const remainingLabels = nextParts

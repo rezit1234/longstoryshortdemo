@@ -11,6 +11,7 @@ type HistoryItem = {
   id: string;
   createdAtLabel: string;
   detailLabel: string;
+  note?: string | null;
   isUndone: boolean;
   voucherCode: string;
   redeemedByName: string;
@@ -177,6 +178,11 @@ export function AdminHistorieUplatneni() {
                       >
                         {row.detailLabel}
                       </span>
+                      {row.note ? (
+                        <span className="admin-redemption-note">
+                          Poznámka: {row.note}
+                        </span>
+                      ) : null}
                       {row.isUndone ? (
                         <span className="admin-status is-cancelled admin-redemption-badge">
                           Zrušeno

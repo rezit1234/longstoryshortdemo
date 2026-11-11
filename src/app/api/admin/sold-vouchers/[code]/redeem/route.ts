@@ -2,6 +2,7 @@ import { normalizeVoucherCode } from "@/data/admin-voucher-settings";
 import { getSessionProfile } from "@/lib/admin-session";
 import { canRedeemVoucher } from "@/lib/auth";
 import {
+  REDEMPTION_NOTE_MAX_LENGTH,
   redeemSoldVoucher,
   type RedeemAction,
 } from "@/lib/redeem-sold-voucher";
@@ -37,6 +38,7 @@ export async function POST(
     action?: string;
     amountCzk?: number;
     partId?: string;
+    note?: string;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -49,8 +51,19 @@ export async function POST(
     return NextResponse.json({ error: "Neplatná akce." }, { status: 400 });
   }
 
+  const note = typeof body.note === "string" ? body.note.trim() : "";
+  if (note.length > REDEMPTION_NOTE_MAX_LENGTH) {
+    return NextResponse.json(
+      {
+        error: `Poznámka je příliš dlouhá (max. ${REDEMPTION_NOTE_MAX_LENGTH} znaků).`,
+      },
+      { status: 400 },
+    );
+  }
+
   try {
     const result = await redeemSoldVoucher({
+      note: note || null,
       code,
       action,
       amountCzk: body.amountCzk,
