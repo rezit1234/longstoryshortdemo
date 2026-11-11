@@ -36,7 +36,7 @@ const CANCELABLE_STATUSES = new Set<AdminVoucherStatus>([
 ]);
 
 const SELECT_FIELDS =
-  "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note, redeemed_note, redeemed_at, note";
+  "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note, redeemed_note, redeemed_at, note, tracking_number";
 
 function todayDateOnly() {
   const now = new Date();
@@ -65,12 +65,18 @@ export async function PATCH(
     return NextResponse.json({ error: "Neplatný kód." }, { status: 400 });
   }
 
-  let body: { status?: string; validUntil?: string; note?: string | null };
+  let body: {
+    status?: string;
+    validUntil?: string;
+    note?: string | null;
+    trackingNumber?: string | null;
+  };
   try {
     body = (await request.json()) as {
       status?: string;
       validUntil?: string;
       note?: string | null;
+      trackingNumber?: string | null;
     };
   } catch {
     return NextResponse.json({ error: "Neplatný JSON." }, { status: 400 });
@@ -80,10 +86,11 @@ export async function PATCH(
   const hasStatus = Boolean(status);
   const hasValidUntil = body.validUntil !== undefined;
   const hasNote = body.note !== undefined;
+  const hasTracking = body.trackingNumber !== undefined;
 
-  if (!hasStatus && !hasValidUntil && !hasNote) {
+  if (!hasStatus && !hasValidUntil && !hasNote && !hasTracking) {
     return NextResponse.json(
-      { error: "Chybí status, platnost nebo poznámka." },
+      { error: "Chybí status, platnost, poznámka nebo podací číslo." },
       { status: 400 },
     );
   }
@@ -104,6 +111,25 @@ export async function PATCH(
       );
     }
     noteValue = trimmed || null;
+  }
+
+  let trackingValue: string | null = null;
+  if (hasTracking) {
+    if (!canEditVoucherNote(session.profile.role)) {
+      return NextResponse.json(
+        { error: "Podací číslo může upravit jen recepce nebo vlastník." },
+        { status: 403 },
+      );
+    }
+    const trimmed =
+      typeof body.trackingNumber === "string" ? body.trackingNumber.trim() : "";
+    if (trimmed.length > 60) {
+      return NextResponse.json(
+        { error: "Podací číslo může mít nejvýše 60 znaků." },
+        { status: 400 },
+      );
+    }
+    trackingValue = trimmed || null;
   }
 
   if (hasStatus && (!status || !ALLOWED.includes(status))) {
@@ -179,6 +205,9 @@ export async function PATCH(
 
     if (hasNote) {
       patch.note = noteValue;
+    }
+    if (hasTracking) {
+      patch.tracking_number = trackingValue;
     }
 
     if (hasStatus && status) {

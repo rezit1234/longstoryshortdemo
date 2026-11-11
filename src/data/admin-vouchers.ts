@@ -65,6 +65,8 @@ export type AdminSoldVoucher = {
   paymentMethodLabel?: string | null;
   /** Interní poznámka k poukazu (recepce / vlastník). */
   note?: string | null;
+  /** Podací číslo poštovní zásilky. */
+  trackingNumber?: string | null;
   /** Legacy Excel: text z „VYUŽITO…“ (kdy/kde). */
   redeemedNote?: string | null;
   /** Zobrazení v tabulce: poznámka z Excelu nebo jméno admina. */

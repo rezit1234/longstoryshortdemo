@@ -41,6 +41,7 @@ export type SoldVoucherRow = {
   redeemed_note?: string | null;
   redeemed_at?: string | null;
   note?: string | null;
+  tracking_number?: string | null;
 };
 
 function formatDateCs(isoOrDate: string) {
@@ -176,6 +177,10 @@ export function mapSoldVoucherRow(row: SoldVoucherRow): AdminSoldVoucher {
     ),
     note:
       typeof row.note === "string" && row.note.trim() ? row.note.trim() : null,
+    trackingNumber:
+      typeof row.tracking_number === "string" && row.tracking_number.trim()
+        ? row.tracking_number.trim()
+        : null,
     redeemedNote:
       typeof row.redeemed_note === "string" && row.redeemed_note.trim()
         ? row.redeemed_note.trim()
