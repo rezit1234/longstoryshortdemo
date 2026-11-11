@@ -7,7 +7,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type FormEvent,
   type ReactNode,
 } from "react";
 import {
@@ -27,8 +26,6 @@ import {
 import { AdminActionModal } from "./AdminActionModal";
 import { AdminDismissButton } from "./AdminDismissButton";
 import { useAdminUser } from "./AdminUserProvider";
-import { IconCancel } from "./icons";
-
 type RedeemResponse = {
   voucher?: AdminSoldVoucher;
   emailSent?: boolean;
@@ -299,20 +296,17 @@ function AdminVoucherDrawerPanel({
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<
-    null | "full" | "partial" | "cancel" | "delete"
+    null | "full" | "partial" | "cancel" | "delete" | "validUntil" | "note" | "tracking"
   >(null);
   const [partialAmount, setPartialAmount] = useState("");
   const [redeemNote, setRedeemNote] = useState("");
   const [selectedPartId, setSelectedPartId] = useState("");
-  const [editingValidUntil, setEditingValidUntil] = useState(false);
   const [validUntilDraft, setValidUntilDraft] = useState(
     voucher.validUntilIso ?? "",
   );
   const [validUntilBusy, setValidUntilBusy] = useState(false);
-  const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState(voucher.note ?? "");
   const [noteBusy, setNoteBusy] = useState(false);
-  const [editingTracking, setEditingTracking] = useState(false);
   const [trackingDraft, setTrackingDraft] = useState(
     voucher.trackingNumber ?? "",
   );
@@ -369,19 +363,8 @@ function AdminVoucherDrawerPanel({
     setSelectedPartId(openParts[0]?.id ?? "");
     setActionError(null);
     setEmailFeedback(null);
-    setEditingValidUntil(false);
     setValidUntilDraft(voucher.validUntilIso ?? "");
-    setEditingNote(false);
-    setNoteDraft(voucher.note ?? "");
-    setEditingTracking(false);
-    setTrackingDraft(voucher.trackingNumber ?? "");
-  }, [
-    voucher.code,
-    voucher.validUntilIso,
-    voucher.note,
-    voucher.trackingNumber,
-    openParts,
-  ]);
+  }, [voucher.code, voucher.validUntilIso, openParts]);
 
   const canEditValidUntil =
     canEditVoucherValidity(user.role) &&
@@ -391,8 +374,7 @@ function AdminVoucherDrawerPanel({
   const canEditNote = canEditVoucherNote(user.role);
 
   const handleNoteSubmit = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+    async () => {
       setNoteBusy(true);
       setActionError(null);
       try {
@@ -413,7 +395,7 @@ function AdminVoucherDrawerPanel({
           return;
         }
         onUpsert(data.voucher);
-        setEditingNote(false);
+        setActionModal(null);
       } catch {
         setActionError("Poznámku se nepodařilo uložit.");
       } finally {
@@ -424,8 +406,7 @@ function AdminVoucherDrawerPanel({
   );
 
   const handleTrackingSubmit = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+    async () => {
       setTrackingBusy(true);
       setActionError(null);
       try {
@@ -448,7 +429,7 @@ function AdminVoucherDrawerPanel({
           return;
         }
         onUpsert(data.voucher);
-        setEditingTracking(false);
+        setActionModal(null);
       } catch {
         setActionError("Podací číslo se nepodařilo uložit.");
       } finally {
@@ -508,13 +489,34 @@ function AdminVoucherDrawerPanel({
   }, []);
 
   const openActionModal = useCallback(
-    (kind: "full" | "partial" | "cancel" | "delete") => {
+    (
+      kind:
+        | "full"
+        | "partial"
+        | "cancel"
+        | "delete"
+        | "validUntil"
+        | "note"
+        | "tracking",
+    ) => {
       setActionError(null);
       setRedeemNote("");
       setSelectedPartId(openParts[0]?.id ?? "");
+      if (kind === "validUntil") {
+        setValidUntilDraft(voucher.validUntilIso ?? "");
+      } else if (kind === "note") {
+        setNoteDraft(voucher.note ?? "");
+      } else if (kind === "tracking") {
+        setTrackingDraft(voucher.trackingNumber ?? "");
+      }
       setActionModal(kind);
     },
-    [openParts],
+    [
+      openParts,
+      voucher.validUntilIso,
+      voucher.note,
+      voucher.trackingNumber,
+    ],
   );
 
   const handlePartialSubmit = useCallback(() => {
@@ -535,8 +537,7 @@ function AdminVoucherDrawerPanel({
   ]);
 
   const handleValidUntilSubmit = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+    async () => {
       if (!validUntilDraft.trim()) return;
       setValidUntilBusy(true);
       setActionError(null);
@@ -558,7 +559,7 @@ function AdminVoucherDrawerPanel({
           return;
         }
         onUpsert(data.voucher);
-        setEditingValidUntil(false);
+        setActionModal(null);
       } catch {
         setActionError("Platnost se nepodařilo uložit.");
       } finally {
@@ -765,217 +766,97 @@ function AdminVoucherDrawerPanel({
             <div>
               <dt>Platnost do</dt>
               <dd>
-                {editingValidUntil ? (
-                  <form
-                    className="admin-voucher-valid-until-edit"
-                    onSubmit={(event) => void handleValidUntilSubmit(event)}
-                  >
-                    <input
-                      type="date"
-                      value={validUntilDraft}
-                      onChange={(event) =>
-                        setValidUntilDraft(event.target.value)
-                      }
-                      required
-                      disabled={validUntilBusy}
-                      aria-label="Platnost do"
-                    />
-                    <button
-                      type="submit"
-                      className="admin-voucher-valid-until-save"
-                      disabled={validUntilBusy || !validUntilDraft}
-                    >
-                      {validUntilBusy ? "…" : "Uložit"}
-                    </button>
+                <span className="admin-voucher-valid-until-value">
+                  {voucher.validUntil}
+                  {canEditValidUntil ? (
                     <button
                       type="button"
-                      className="admin-voucher-valid-until-cancel"
-                      disabled={validUntilBusy}
-                      onClick={() => {
-                        setEditingValidUntil(false);
-                        setValidUntilDraft(voucher.validUntilIso ?? "");
-                      }}
+                      className="admin-voucher-edit-valid-btn"
+                      aria-label="Upravit platnost"
+                      title="Upravit platnost"
+                      onClick={() => openActionModal("validUntil")}
                     >
-                      <IconCancel className="admin-page-head-btn-icon" />
-                      <span className="admin-page-head-btn-label">Zrušit</span>
-                    </button>
-                  </form>
-                ) : (
-                  <span className="admin-voucher-valid-until-value">
-                    {voucher.validUntil}
-                    {canEditValidUntil ? (
-                      <button
-                        type="button"
-                        className="admin-voucher-edit-valid-btn"
-                        aria-label="Upravit platnost"
-                        title="Upravit platnost"
-                        onClick={() => {
-                          setValidUntilDraft(voucher.validUntilIso ?? "");
-                          setEditingValidUntil(true);
-                        }}
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
                       >
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                        </svg>
-                      </button>
-                    ) : null}
-                  </span>
-                )}
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </button>
+                  ) : null}
+                </span>
               </dd>
             </div>
             <div>
               <dt>Interní poznámka</dt>
               <dd>
-                {editingNote ? (
-                  <form
-                    className="admin-voucher-note-edit"
-                    onSubmit={(event) => void handleNoteSubmit(event)}
-                  >
-                    <textarea
-                      value={noteDraft}
-                      onChange={(event) => setNoteDraft(event.target.value)}
-                      maxLength={500}
-                      rows={3}
-                      disabled={noteBusy}
-                      aria-label="Interní poznámka"
-                    />
-                    <div className="admin-voucher-note-actions">
-                      <button
-                        type="submit"
-                        className="admin-voucher-valid-until-save"
-                        disabled={noteBusy}
+                <span className="admin-voucher-note-value">
+                  {voucher.note ?? "—"}
+                  {canEditNote ? (
+                    <button
+                      type="button"
+                      className="admin-voucher-edit-valid-btn"
+                      aria-label="Upravit poznámku"
+                      title="Upravit poznámku"
+                      onClick={() => openActionModal("note")}
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
                       >
-                        {noteBusy ? "…" : "Uložit"}
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-voucher-valid-until-cancel"
-                        disabled={noteBusy}
-                        onClick={() => {
-                          setEditingNote(false);
-                          setNoteDraft(voucher.note ?? "");
-                        }}
-                      >
-                        <IconCancel className="admin-page-head-btn-icon" />
-                        <span className="admin-page-head-btn-label">Zrušit</span>
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <span className="admin-voucher-note-value">
-                    {voucher.note ?? "—"}
-                    {canEditNote ? (
-                      <button
-                        type="button"
-                        className="admin-voucher-edit-valid-btn"
-                        aria-label="Upravit poznámku"
-                        title="Upravit poznámku"
-                        onClick={() => {
-                          setNoteDraft(voucher.note ?? "");
-                          setEditingNote(true);
-                        }}
-                      >
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                        </svg>
-                      </button>
-                    ) : null}
-                  </span>
-                )}
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </button>
+                  ) : null}
+                </span>
               </dd>
             </div>
             <div>
               <dt>Podací číslo</dt>
               <dd>
-                {editingTracking ? (
-                  <form
-                    className="admin-voucher-note-edit"
-                    onSubmit={(event) => void handleTrackingSubmit(event)}
-                  >
-                    <input
-                      type="text"
-                      value={trackingDraft}
-                      onChange={(event) => setTrackingDraft(event.target.value)}
-                      maxLength={60}
-                      disabled={trackingBusy}
-                      aria-label="Podací číslo"
-                    />
-                    <div className="admin-voucher-note-actions">
-                      <button
-                        type="submit"
-                        className="admin-voucher-valid-until-save"
-                        disabled={trackingBusy}
+                <span className="admin-voucher-note-value">
+                  {voucher.trackingNumber ?? "—"}
+                  {canEditNote ? (
+                    <button
+                      type="button"
+                      className="admin-voucher-edit-valid-btn"
+                      aria-label="Upravit podací číslo"
+                      title="Upravit podací číslo"
+                      onClick={() => openActionModal("tracking")}
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
                       >
-                        {trackingBusy ? "…" : "Uložit"}
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-voucher-valid-until-cancel"
-                        disabled={trackingBusy}
-                        onClick={() => {
-                          setEditingTracking(false);
-                          setTrackingDraft(voucher.trackingNumber ?? "");
-                        }}
-                      >
-                        <IconCancel className="admin-page-head-btn-icon" />
-                        <span className="admin-page-head-btn-label">Zrušit</span>
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <span className="admin-voucher-note-value">
-                    {voucher.trackingNumber ?? "—"}
-                    {canEditNote ? (
-                      <button
-                        type="button"
-                        className="admin-voucher-edit-valid-btn"
-                        aria-label="Upravit podací číslo"
-                        title="Upravit podací číslo"
-                        onClick={() => {
-                          setTrackingDraft(voucher.trackingNumber ?? "");
-                          setEditingTracking(true);
-                        }}
-                      >
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                        </svg>
-                      </button>
-                    ) : null}
-                  </span>
-                )}
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </button>
+                  ) : null}
+                </span>
               </dd>
             </div>
             <div>
@@ -1238,6 +1119,79 @@ function AdminVoucherDrawerPanel({
             onConfirm={() => void hardDelete()}
             onClose={closeActionModal}
           />
+
+          <AdminActionModal
+            open={actionModal === "validUntil"}
+            title="Upravit platnost"
+            description={
+              <>
+                Poukaz <strong>{voucher.code}</strong>
+              </>
+            }
+            confirmLabel="Uložit"
+            busy={validUntilBusy}
+            confirmDisabled={!validUntilDraft}
+            error={actionError}
+            onConfirm={() => void handleValidUntilSubmit()}
+            onClose={closeActionModal}
+          >
+            <input
+              type="date"
+              value={validUntilDraft}
+              onChange={(event) => setValidUntilDraft(event.target.value)}
+              required
+              disabled={validUntilBusy}
+              aria-label="Platnost do"
+            />
+          </AdminActionModal>
+
+          <AdminActionModal
+            open={actionModal === "note"}
+            title="Interní poznámka"
+            description={
+              <>
+                Poukaz <strong>{voucher.code}</strong>. Vidí ji recepce a vlastník.
+              </>
+            }
+            confirmLabel="Uložit"
+            busy={noteBusy}
+            error={actionError}
+            onConfirm={() => void handleNoteSubmit()}
+            onClose={closeActionModal}
+          >
+            <textarea
+              value={noteDraft}
+              onChange={(event) => setNoteDraft(event.target.value)}
+              maxLength={500}
+              rows={4}
+              disabled={noteBusy}
+              aria-label="Interní poznámka"
+            />
+          </AdminActionModal>
+
+          <AdminActionModal
+            open={actionModal === "tracking"}
+            title="Podací číslo"
+            description={
+              <>
+                Poukaz <strong>{voucher.code}</strong>
+              </>
+            }
+            confirmLabel="Uložit"
+            busy={trackingBusy}
+            error={actionError}
+            onConfirm={() => void handleTrackingSubmit()}
+            onClose={closeActionModal}
+          >
+            <input
+              type="text"
+              value={trackingDraft}
+              onChange={(event) => setTrackingDraft(event.target.value)}
+              maxLength={60}
+              disabled={trackingBusy}
+              aria-label="Podací číslo"
+            />
+          </AdminActionModal>
 
           {footerCta ? (
             <button
