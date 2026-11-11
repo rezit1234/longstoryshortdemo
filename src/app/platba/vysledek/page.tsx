@@ -43,7 +43,7 @@ export default async function PaymentResultPage({
         display: "grid",
         placeItems: "center",
         padding: "2rem 1.25rem",
-        background: "#f4f4f5",
+        background: "#fff",
         color: "#0a0a0a",
         fontFamily: "system-ui, sans-serif",
       }}
@@ -51,10 +51,8 @@ export default async function PaymentResultPage({
       <div
         style={{
           width: "min(100%, 28rem)",
-          background: "#fff",
-          borderRadius: 16,
-          padding: "1.75rem 1.5rem",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.06)",
+          background: "transparent",
+          padding: "1rem 0",
         }}
       >
         <div
