@@ -167,8 +167,16 @@ export function AdminUplatneni() {
                 type="submit"
                 className="admin-primary-btn"
                 disabled={result.kind === "loading"}
+                aria-busy={result.kind === "loading"}
               >
-                {result.kind === "loading" ? "Hledám…" : "Otevřít poukaz"}
+                {result.kind === "loading" ? (
+                  <>
+                    <span className="admin-btn-spinner" aria-hidden />
+                    <span>Hledám…</span>
+                  </>
+                ) : (
+                  "Otevřít poukaz"
+                )}
               </button>
             </form>
 

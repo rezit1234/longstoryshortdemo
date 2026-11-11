@@ -1659,6 +1659,30 @@
   color: var(--admin-muted);
 }
 
+.admin-btn-spinner {
+  display: inline-block;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-right: 0.45rem;
+  vertical-align: -0.15em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: admin-btn-spin 0.7s linear infinite;
+}
+
+@keyframes admin-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-btn-spinner {
+    animation-duration: 2s;
+  }
+}
+
 .admin-redeem-feedback {
   margin: 0.9rem 0 0;
   font-size: 0.92rem;
