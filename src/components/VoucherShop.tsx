@@ -1611,7 +1611,12 @@ function CheckoutPanel({
         throw new Error(data.error || "Platbu se nepodařilo založit.");
       }
 
-      window.location.assign(data.redirectUrl);
+      // V iframe přesměrujeme celé okno, aby platební brána běžela na celou stránku.
+      if (window.top && window.top !== window.self) {
+        window.top.location.assign(data.redirectUrl);
+      } else {
+        window.location.assign(data.redirectUrl);
+      }
     } catch (error) {
       setPayError(
         error instanceof Error

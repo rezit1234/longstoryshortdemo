@@ -104,7 +104,9 @@ export default async function PaymentResultPage({
           </p>
         ) : null}
         <a
-          href={brand.websiteUrl}
+          href={brand.backToShopUrl ?? brand.websiteUrl}
+          target="_top"
+          rel="noopener"
           style={{
             display: "inline-flex",
             marginTop: "1.5rem",

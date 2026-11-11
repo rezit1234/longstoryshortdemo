@@ -15,6 +15,8 @@ export type ShopBrand = {
   emailLogoSrc?: string;
   /** Oficiální web podniku (návrat po platbě u widgetu). */
   websiteUrl: string;
+  /** Kam vede „Zpět do obchodu“ na výsledku platby (např. stránka s poukazy). Když chybí, použije se websiteUrl. */
+  backToShopUrl?: string;
   amountMarkSrc?: string;
   /** Menší středová značka v náhledu částkového poukazu. */
   amountMarkCompact?: boolean;
@@ -46,6 +48,7 @@ export const SHOP_BRANDS: Record<ShopId, ShopBrand> = {
     logoSrc: "/bistrokruh.webp",
     emailLogoSrc: "/bistrokruh.png",
     websiteUrl: "https://www.bistrocentral.cz",
+    backToShopUrl: "https://www.bistrocentral.cz/poukaz",
     amountMarkSrc: "/bistrokruh.webp",
     keepShopBannerInCheckout: true,
   },
