@@ -682,6 +682,13 @@ export function AdminAddVoucherDrawer({
                 Odeslat poukaz e-mailem po uložení
               </span>
             </label>
+            <em className="admin-add-voucher-internal-hint">
+              {!email.trim()
+                ? "Bez e-mailu zákazníka se nic neodesílá – poukaz jen eviduje."
+                : sendEmail
+                  ? "Poukaz (a případná faktura) půjde zákazníkovi e-mailem."
+                  : "Interní vystavení – e-mail se neodešle, poukaz jen eviduje."}
+            </em>
 
             <label
               className={
