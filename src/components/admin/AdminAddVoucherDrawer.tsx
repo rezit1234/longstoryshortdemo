@@ -663,8 +663,7 @@ export function AdminAddVoucherDrawer({
             >
               <input
                 type="checkbox"
-                checked={sendEmail && Boolean(email.trim())}
-                disabled={!email.trim()}
+                checked={sendEmail}
                 onChange={(event) => setSendEmail(event.target.checked)}
               />
               <span className="checkout-invoice-toggle-mark" aria-hidden>
@@ -682,14 +681,6 @@ export function AdminAddVoucherDrawer({
                 Odeslat poukaz e-mailem po uložení
               </span>
             </label>
-            <em className="admin-add-voucher-internal-hint">
-              {!email.trim()
-                ? "Bez e-mailu zákazníka se nic neodesílá – poukaz jen eviduje."
-                : sendEmail
-                  ? "Poukaz (a případná faktura) půjde zákazníkovi e-mailem."
-                  : "Interní vystavení – e-mail se neodešle, poukaz jen eviduje."}
-            </em>
-
             <label
               className={
                 wantInvoice
