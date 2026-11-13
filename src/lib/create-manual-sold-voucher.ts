@@ -29,6 +29,8 @@ import {
 import {
   experienceSupportsSeatQuantity,
   formatPersonsCs,
+  MANUAL_VOUCHER_QUANTITY_MAX,
+  MANUAL_VOUCHER_QUANTITY_MIN,
   redeemablePartsForExperienceId,
   SEAT_QUANTITY_MAX,
   SEAT_QUANTITY_MIN,
@@ -51,9 +53,12 @@ export type CreateManualSoldVoucherInput = {
   experienceId?: string;
   /** Počet osob (jen Chef's Table varianty) — 1 poukaz × N osob. */
   seats?: number;
+  /** Počet kusů částkového poukazu (každý kus = vlastní kód + PDF). */
+  quantity?: number;
   amountCzk?: number;
   buyerName: string;
-  buyerEmail: string;
+  /** Volitelný — bez e-mailu se nic neodesílá. */
+  buyerEmail?: string;
   buyerPhone?: string;
   code?: string;
   sendEmail?: boolean;
@@ -67,6 +72,9 @@ export type CreateManualSoldVoucherInput = {
 function asTrimmed(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
+
+const INVALID_CODE_MESSAGE =
+  "Kód musí mít celkem 7 znaků včetně prefixu (např. LSSK7M2 nebo BCR6FE6).";
 
 function validateManualInvoice(invoice: ManualInvoiceInput | null | undefined) {
   if (!invoice?.wantInvoice) return null;
@@ -252,18 +260,70 @@ async function stampAndUploadPdf(params: {
   });
 }
 
+/**
+ * Vrátí N unikátních kódů (včetně prefixu obchodu), které ještě nejsou v evidenci.
+ * Ruční kód se použije jen u jednoho kusu; u více kusů se kódy generují.
+ */
+async function allocateVoucherCodes(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  shopId: ShopId;
+  count: number;
+  requestedCode?: string;
+}): Promise<string[]> {
+  if (params.count === 1 && params.requestedCode) {
+    const normalized = applyShopCodePrefix(params.requestedCode, params.shopId);
+    if (!isValidNewVoucherCode(normalized)) {
+      throw new Error(INVALID_CODE_MESSAGE);
+    }
+    const { data: existing } = await params.admin
+      .from("sold_vouchers")
+      .select("id")
+      .eq("code_normalized", normalized)
+      .maybeSingle();
+    if (existing) {
+      throw new Error("Tento kód už v evidenci existuje.");
+    }
+    return [normalized];
+  }
+
+  const candidates = new Set<string>();
+  let attempts = 0;
+  while (candidates.size < params.count) {
+    attempts += 1;
+    if (attempts > params.count * 50) {
+      throw new Error("Nepodařilo se vygenerovat unikátní kódy.");
+    }
+    const candidate = applyShopCodePrefix(
+      generateVoucherCode(params.shopId),
+      params.shopId,
+    );
+    if (isValidNewVoucherCode(candidate)) candidates.add(candidate);
+  }
+
+  const list = [...candidates];
+  const { data: existingRows } = await params.admin
+    .from("sold_vouchers")
+    .select("code_normalized")
+    .in("code_normalized", list);
+  if (existingRows && existingRows.length > 0) {
+    // Vyjímečná kolize s existujícím kódem — vygenerovat znovu.
+    return allocateVoucherCodes(params);
+  }
+  return list;
+}
+
 export async function createManualSoldVoucher(
   input: CreateManualSoldVoucherInput,
 ) {
   const shopId = input.shopId;
   const buyerName = input.buyerName.trim();
-  const buyerEmail = input.buyerEmail.trim();
+  const buyerEmail = (input.buyerEmail ?? "").trim();
   const buyerPhone = (input.buyerPhone ?? "").trim();
 
   if (!buyerName) {
     throw new Error("Vyplňte jméno a příjmení.");
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+  if (buyerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
     throw new Error("Zadejte platný e-mail.");
   }
 
@@ -281,6 +341,7 @@ export async function createManualSoldVoucher(
   let experienceId: string | undefined;
   let vatLabel: string | null = null;
   let seats: number | null = null;
+  let quantity = 1;
 
   if (input.kind === "experience") {
     experienceId = (input.experienceId ?? "").trim();
@@ -308,90 +369,105 @@ export async function createManualSoldVoucher(
         productName = `${experience.title} pro ${formatPersonsCs(count)}`;
       }
     }
+    if (!experienceSupportsSeatQuantity(experienceId)) {
+      // Ostatní zážitky: počet kusů = počet samostatných poukazů (kódů).
+      const rawQuantity = Math.round(Number(input.quantity ?? 1));
+      if (
+        !Number.isInteger(rawQuantity) ||
+        rawQuantity < MANUAL_VOUCHER_QUANTITY_MIN ||
+        rawQuantity > MANUAL_VOUCHER_QUANTITY_MAX
+      ) {
+        throw new Error("Neplatný počet kusů.");
+      }
+      quantity = rawQuantity;
+    }
     vatLabel = formatExperienceVatLabel(experience.vat, experience.price);
   } else {
     const amount = Number(input.amountCzk);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error("Zadejte platnou částku.");
     }
+    const rawQuantity = Math.round(Number(input.quantity ?? 1));
+    if (
+      !Number.isInteger(rawQuantity) ||
+      rawQuantity < MANUAL_VOUCHER_QUANTITY_MIN ||
+      rawQuantity > MANUAL_VOUCHER_QUANTITY_MAX
+    ) {
+      throw new Error("Neplatný počet kusů.");
+    }
+    quantity = rawQuantity;
     unitPrice = Math.round(amount);
     productName = `Poukaz ${unitPrice.toLocaleString("cs-CZ")} Kč`;
     vatLabel = "Cenina bez DPH";
   }
 
-  let code = (input.code ?? "").trim().toUpperCase();
-  if (!code) {
-    code = generateVoucherCode(shopId);
-  }
-  const codeNormalized = applyShopCodePrefix(code, shopId);
-  if (!isValidNewVoucherCode(codeNormalized)) {
-    throw new Error(
-      "Kód musí mít celkem 7 znaků včetně prefixu (např. LSSK7M2 nebo BCR6FE6).",
-    );
-  }
-
-  const { data: existing } = await admin
-    .from("sold_vouchers")
-    .select("id")
-    .eq("code_normalized", codeNormalized)
-    .maybeSingle();
-
-  if (existing) {
-    throw new Error("Tento kód už v evidenci existuje.");
-  }
+  const requestedCode = (input.code ?? "").trim().toUpperCase();
+  const codes = await allocateVoucherCodes({
+    admin,
+    shopId,
+    count: quantity,
+    requestedCode: requestedCode || undefined,
+  });
 
   const purchasedAt = new Date();
   const validUntil = toDateOnly(
     addMonths(purchasedAt, settings.validityMonths),
   );
 
-  let pdfUrl: string | null = null;
-  let pdfBytes: Uint8Array | null = null;
   const placement = resolvePlacement(
     settings,
     input.kind,
     experienceId,
     unitPrice,
   );
-  try {
-    if (shopUsesHardcodedA4Pdf(shopId)) {
-      const bytes = await generateA4VoucherPdf({
-        shopId,
-        code: codeNormalized,
-        kind: input.kind === "experience" ? "experience" : "amount",
-        serviceTitle:
-          input.kind === "experience"
-            ? productName
-            : `${Math.round(unitPrice).toLocaleString("cs-CZ")} Kč`,
-        amountCzk: unitPrice,
-        recipientName: buyerName,
-        fromName: null,
-        issuedAt: purchasedAt,
-        validUntil,
-        message: null,
-      });
-      const uploaded = await uploadIssuedPdf({
-        admin,
-        shopId,
-        code: codeNormalized,
-        bytes,
-      });
-      pdfUrl = uploaded.url;
-      pdfBytes = uploaded.bytes;
-    } else if (placement) {
-      const stamped = await stampAndUploadPdf({
-        admin,
-        shopId,
-        code: codeNormalized,
-        placement,
-      });
-      if (stamped) {
-        pdfUrl = stamped.url;
-        pdfBytes = stamped.bytes;
+
+  const makePdf = async (
+    codeNormalized: string,
+  ): Promise<{ url: string; bytes: Uint8Array } | null> => {
+    try {
+      if (shopUsesHardcodedA4Pdf(shopId)) {
+        const bytes = await generateA4VoucherPdf({
+          shopId,
+          code: codeNormalized,
+          kind: input.kind === "experience" ? "experience" : "amount",
+          serviceTitle:
+            input.kind === "experience"
+              ? productName
+              : `${Math.round(unitPrice).toLocaleString("cs-CZ")} Kč`,
+          amountCzk: unitPrice,
+          recipientName: buyerName,
+          fromName: null,
+          issuedAt: purchasedAt,
+          validUntil,
+          message: null,
+        });
+        return await uploadIssuedPdf({
+          admin,
+          shopId,
+          code: codeNormalized,
+          bytes,
+        });
       }
+      if (placement) {
+        return await stampAndUploadPdf({
+          admin,
+          shopId,
+          code: codeNormalized,
+          placement,
+        });
+      }
+      return null;
+    } catch (error) {
+      console.error("createManualSoldVoucher: PDF failed", error);
+      return null;
     }
-  } catch (error) {
-    console.error("createManualSoldVoucher: PDF failed", error);
+  };
+
+  const pdfs: Array<{ code: string; url: string; bytes: Uint8Array } | null> =
+    [];
+  for (const codeNormalized of codes) {
+    const pdf = await makePdf(codeNormalized);
+    pdfs.push(pdf ? { code: codeNormalized, ...pdf } : null);
   }
 
   let invoiceNumber: string | null = null;
@@ -404,8 +480,9 @@ export async function createManualSoldVoucher(
       ) || "Ruční platba";
     const issued = await issueInvoicePdf({
       shopId,
-      totalCzk: unitPrice,
-      productName,
+      totalCzk: unitPrice * quantity,
+      productName:
+        quantity > 1 ? `${productName} (${quantity}×)` : productName,
       buyerName,
       invoice: invoicePayload,
       paymentMethodLabel: paymentLabel,
@@ -416,7 +493,7 @@ export async function createManualSoldVoucher(
     invoicePdfBytes = issued.pdfBytes;
   }
 
-  const row = {
+  const rows = codes.map((codeNormalized, index) => ({
     order_id: null,
     shop_id: shopId,
     code: codeNormalized,
@@ -433,12 +510,12 @@ export async function createManualSoldVoucher(
     buyer_phone: buyerPhone,
     recipient_name: buyerName,
     delivery_method: "email",
-    delivery_email: buyerEmail,
+    delivery_email: buyerEmail || null,
     shipping_address: null,
     message: null,
     vat_label: vatLabel,
     tax_regime: "vouchy",
-    pdf_url: pdfUrl,
+    pdf_url: pdfs[index]?.url ?? null,
     remaining_czk: input.kind === "amount" ? unitPrice : null,
     redeemable_parts:
       input.kind === "experience"
@@ -450,17 +527,16 @@ export async function createManualSoldVoucher(
     issued_by: input.issuedBy?.trim() || null,
     payment_method: payment.paymentMethod,
     payment_method_note: payment.paymentMethodNote,
-  };
+  }));
 
   const { data: inserted, error: insertError } = await admin
     .from("sold_vouchers")
-    .insert(row)
+    .insert(rows)
     .select(
       "code, shop_id, product_name, item_kind, unit_price_czk, shipping_fee_share_czk, status, purchased_at, valid_until, buyer_name, buyer_email, buyer_phone, delivery_method, delivery_email, recipient_name, shipping_address, pdf_url, remaining_czk, redeemable_parts, is_gift, payment_method, payment_method_note",
-    )
-    .single();
+    );
 
-  if (insertError || !inserted) {
+  if (insertError || !inserted || inserted.length === 0) {
     if (insertError?.message?.includes("order_id")) {
       throw new Error(
         "Chybí migrace 014 (order_id nullable) - spusť ji v Supabase.",
@@ -482,8 +558,12 @@ export async function createManualSoldVoucher(
     throw new Error(insertError?.message || "Poukaz se nepodařilo uložit.");
   }
 
+  const vouchers = (inserted as SoldVoucherRow[]).map((row) =>
+    mapSoldVoucherRow(row),
+  );
+
   let emailSent = false;
-  if (input.sendEmail !== false) {
+  if (input.sendEmail !== false && buyerEmail) {
     const to = resolveVoucherEmailRecipient({
       deliveryMethod: "email",
       deliveryEmail: buyerEmail,
@@ -497,11 +577,13 @@ export async function createManualSoldVoucher(
             invoiceNumber &&
             (!invoiceEmail || invoiceEmail.toLowerCase() === to.toLowerCase()),
         );
+        // Všechny kusy přijdou v jednom e-mailu (každý kód vlastní PDF).
         const attachments: Array<{ filename: string; content: Buffer }> = [];
-        if (pdfBytes) {
+        for (const pdf of pdfs) {
+          if (!pdf) continue;
           attachments.push({
-            filename: `poukaz-${codeNormalized}.pdf`,
-            content: Buffer.from(pdfBytes),
+            filename: `poukaz-${pdf.code}.pdf`,
+            content: Buffer.from(pdf.bytes),
           });
         }
         if (attachInvoiceHere && invoicePdfBytes && invoiceNumber) {
@@ -516,7 +598,8 @@ export async function createManualSoldVoucher(
           buyerName,
           recipientName: buyerName,
           productName,
-          code: codeNormalized,
+          code: codes[0],
+          codes,
           validUntil: formatValidUntilLabel(validUntil),
           deliveryMethod: "email",
           purpose: "voucher",
@@ -537,7 +620,7 @@ export async function createManualSoldVoucher(
             buyerName,
             recipientName: buyerName,
             productName,
-            code: codeNormalized,
+            code: codes[0],
             validUntil: formatValidUntilLabel(validUntil),
             deliveryMethod: "email",
             purpose: "invoice_only",
@@ -556,9 +639,10 @@ export async function createManualSoldVoucher(
   }
 
   return {
-    voucher: mapSoldVoucherRow(inserted as SoldVoucherRow),
+    voucher: vouchers[0],
+    vouchers,
     emailSent,
-    pdfGenerated: Boolean(pdfUrl),
+    pdfGenerated: pdfs.some((pdf) => pdf !== null),
     invoiceNumber,
   };
 }

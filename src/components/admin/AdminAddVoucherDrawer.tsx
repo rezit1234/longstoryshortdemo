@@ -19,6 +19,8 @@ import { defaultShopIdForRole } from "@/lib/auth";
 import {
   experienceSupportsSeatQuantity,
   formatPersonsCs,
+  MANUAL_VOUCHER_QUANTITY_MAX,
+  MANUAL_VOUCHER_QUANTITY_MIN,
   SEAT_QUANTITY_MAX,
   SEAT_QUANTITY_MIN,
 } from "@/lib/voucher-redemption";
@@ -70,7 +72,7 @@ export function AdminAddVoucherDrawer({
   onCreated,
 }: {
   onClose: () => void;
-  onCreated?: (voucher: AdminSoldVoucher) => void;
+  onCreated?: (vouchers: AdminSoldVoucher[]) => void;
 }) {
   const { user } = useAdminUser();
   const initialShopId = defaultShopIdForRole(user.role);
@@ -118,6 +120,11 @@ export function AdminAddVoucherDrawer({
     amountSelectOptions[0]?.value ?? "custom",
   );
   const [customAmount, setCustomAmount] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  // Počet kusů: u částek a u zážitků kromě Chef's Table (tam je počet osob).
+  const supportsQuantity =
+    kind === "amount" || (kind === "experience" && !supportsSeats);
+  const isMultiple = supportsQuantity && Number(quantity) > 1;
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -260,7 +267,7 @@ export function AdminAddVoucherDrawer({
       setError("Vyplňte jméno a příjmení.");
       return;
     }
-    if (!isValidEmail(email)) {
+    if (email.trim() && !isValidEmail(email)) {
       setError("Zadejte platný e-mail.");
       return;
     }
@@ -285,7 +292,8 @@ export function AdminAddVoucherDrawer({
       return;
     }
     const normalized = applyShopCodePrefix(code, shopId);
-    if (!isValidNewVoucherCode(normalized)) {
+    // U více kusů se kódy generují automaticky (ruční kód se nepoužije).
+    if (!isMultiple && !isValidNewVoucherCode(normalized)) {
       setError(
         "Kód musí mít celkem 7 znaků včetně prefixu (např. LSSK7M2 nebo BCR6FE6).",
       );
@@ -340,12 +348,13 @@ export function AdminAddVoucherDrawer({
           kind,
           experienceId: kind === "experience" ? experienceId : undefined,
           seats: supportsSeats ? Number(seats) : undefined,
+          quantity: supportsQuantity ? Number(quantity) : undefined,
           amountCzk,
           buyerName: fullName.trim(),
           buyerEmail: email.trim(),
           buyerPhone: phone.trim(),
           code: normalized,
-          sendEmail,
+          sendEmail: Boolean(email.trim()) && sendEmail,
           paymentMethod: paymentMethod as ManualPaymentMethod,
           paymentMethodNote:
             paymentMethod === "jine" ? paymentMethodNote.trim() : null,
@@ -371,13 +380,14 @@ export function AdminAddVoucherDrawer({
       const data = (await response.json().catch(() => null)) as {
         error?: string;
         voucher?: AdminSoldVoucher;
+        vouchers?: AdminSoldVoucher[];
       } | null;
 
       if (!response.ok || !data?.voucher) {
         throw new Error(data?.error || "Poukaz se nepodařilo uložit.");
       }
 
-      onCreated?.(data.voucher);
+      onCreated?.(data.vouchers?.length ? data.vouchers : [data.voucher]);
       setIsClosing(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Uložení selhalo.");
@@ -526,6 +536,33 @@ export function AdminAddVoucherDrawer({
             </div>
           )}
 
+          {supportsQuantity ? (
+            <div className="admin-field">
+              <span>Počet kusů</span>
+              <AdminSelect
+                ariaLabel="Vyberte počet kusů"
+                value={quantity}
+                options={Array.from(
+                  {
+                    length:
+                      MANUAL_VOUCHER_QUANTITY_MAX - MANUAL_VOUCHER_QUANTITY_MIN + 1,
+                  },
+                  (_, i) => {
+                    const n = MANUAL_VOUCHER_QUANTITY_MIN + i;
+                    return { value: String(n), label: `${n}×` };
+                  },
+                )}
+                onChange={setQuantity}
+              />
+              {isMultiple ? (
+                <em>
+                  Vystaví se {quantity} samostatných poukazů, každý s vlastním kódem
+                  a PDF. Všechny přijdou v jednom e-mailu.
+                </em>
+              ) : null}
+            </div>
+          ) : null}
+
           <label className="admin-field">
             <span>Jméno a příjmení</span>
             <input
@@ -537,7 +574,7 @@ export function AdminAddVoucherDrawer({
           </label>
 
           <label className="admin-field">
-            <span>E-mail (povinný)</span>
+            <span>E-mail (volitelný)</span>
             <input
               type="email"
               value={email}
@@ -582,6 +619,12 @@ export function AdminAddVoucherDrawer({
             </label>
           ) : null}
 
+          {isMultiple ? (
+            <div className="admin-field">
+              <span>Kódy poukazů</span>
+              <em>Vygenerují se automaticky (u více kusů nelze zadat ruční kód).</em>
+            </div>
+          ) : (
           <div className="admin-field">
             <span>Kód poukazu</span>
             <div className="admin-redeem-code-control is-full">
@@ -608,6 +651,7 @@ export function AdminAddVoucherDrawer({
               {applyShopCodePrefix(code, shopId) || "LSSK7M2"}.
             </em>
           </div>
+          )}
 
           <div className="checkout-invoice admin-add-voucher-invoice">
             <label
@@ -619,7 +663,8 @@ export function AdminAddVoucherDrawer({
             >
               <input
                 type="checkbox"
-                checked={sendEmail}
+                checked={sendEmail && Boolean(email.trim())}
+                disabled={!email.trim()}
                 onChange={(event) => setSendEmail(event.target.checked)}
               />
               <span className="checkout-invoice-toggle-mark" aria-hidden>
@@ -935,7 +980,11 @@ export function AdminAddVoucherDrawer({
                 fill="currentColor"
               />
             </svg>
-            {saving ? "Ukládám…" : "Uložit poukaz"}
+            {saving
+              ? "Ukládám…"
+              : isMultiple
+                ? `Uložit ${quantity} poukazů`
+                : "Uložit poukaz"}
           </button>
         </div>
       </aside>

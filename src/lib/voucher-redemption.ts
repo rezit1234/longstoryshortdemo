@@ -24,6 +24,10 @@ export function experienceSupportsSeatQuantity(experienceId: string) {
 export const SEAT_QUANTITY_MIN = 1;
 export const SEAT_QUANTITY_MAX = 8;
 
+/** Počet kusů jednoho částkového poukazu při ručním vystavení (každý kus = vlastní kód). */
+export const MANUAL_VOUCHER_QUANTITY_MIN = 1;
+export const MANUAL_VOUCHER_QUANTITY_MAX = 20;
+
 export function formatPersonsCs(count: number, accusative = false) {
   const n = Math.max(0, Math.round(count));
   if (n === 1) return accusative ? "1 osobu" : "1 osoba";

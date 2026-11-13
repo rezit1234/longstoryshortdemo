@@ -499,9 +499,11 @@ export function AdminPoukazy() {
       {addOpen && allowCreate ? (
         <AdminAddVoucherDrawer
           onClose={() => setAddOpen(false)}
-          onCreated={(voucher) => {
-            prependVoucher(voucher);
-            openVoucher(voucher);
+          onCreated={(vouchers) => {
+            for (const voucher of [...vouchers].reverse()) {
+              prependVoucher(voucher);
+            }
+            if (vouchers[0]) openVoucher(vouchers[0]);
             void loadPage();
           }}
         />

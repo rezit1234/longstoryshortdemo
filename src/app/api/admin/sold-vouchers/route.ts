@@ -187,6 +187,12 @@ export async function POST(request: Request) {
         : typeof body.seats === "string"
           ? Number(body.seats)
           : undefined,
+    quantity:
+      typeof body.quantity === "number"
+        ? body.quantity
+        : typeof body.quantity === "string"
+          ? Number(body.quantity)
+          : undefined,
     amountCzk:
       typeof body.amountCzk === "number"
         ? body.amountCzk
@@ -245,6 +251,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       voucher: result.voucher,
+      vouchers: result.vouchers,
       emailSent: result.emailSent,
       pdfGenerated: result.pdfGenerated,
     });
@@ -258,6 +265,7 @@ export async function POST(request: Request) {
       message.includes("Vyberte") ||
       message.includes("Uveďte") ||
       message.includes("Kód musí") ||
+      message.includes("Neplatný") ||
       message.includes("daňového dokladu") ||
       message.includes("IČO")
         ? 400
