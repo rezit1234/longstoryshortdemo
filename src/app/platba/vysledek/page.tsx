@@ -1,11 +1,30 @@
 import Image from "next/image";
+import { MetaPixel } from "@/components/MetaPixel";
+import { MetaPurchaseTracker } from "@/components/MetaPurchaseTracker";
 import { getShopBrand, shopIdFromOrderNumber } from "@/data/shops";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function first(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";
+}
+
+async function loadOrderTotalCzk(orderNumber: string): Promise<number | null> {
+  if (!orderNumber) return null;
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("voucher_orders")
+      .select("total_czk")
+      .eq("order_number", orderNumber)
+      .maybeSingle();
+    if (error || data == null) return null;
+    return typeof data.total_czk === "number" ? data.total_czk : null;
+  } catch {
+    return null;
+  }
 }
 
 export default async function PaymentResultPage({
@@ -17,9 +36,11 @@ export default async function PaymentResultPage({
   const status = first(params.status).toLowerCase();
   const refId = first(params.refId);
   const brand = getShopBrand(shopIdFromOrderNumber(refId));
+  const paid = status === "paid";
+  const valueCzk = paid ? await loadOrderTotalCzk(refId) : null;
 
   const title =
-    status === "paid"
+    paid
       ? "Platba proběhla"
       : status === "cancelled"
         ? "Platba byla zrušena"
@@ -28,7 +49,7 @@ export default async function PaymentResultPage({
           : "Stav platby";
 
   const copy =
-    status === "paid"
+    paid
       ? "Děkujeme. Objednávka je zaplacená a poukaz(y) se právě vystavují. Potvrzení s PDF poukazu (a případně fakturou) vám brzy přijde e-mailem."
       : status === "cancelled"
         ? "Platba neproběhla nebo byla zrušena. Můžete to zkusit znovu."
@@ -48,6 +69,10 @@ export default async function PaymentResultPage({
         fontFamily: "system-ui, sans-serif",
       }}
     >
+      <MetaPixel />
+      {paid && refId ? (
+        <MetaPurchaseTracker orderNumber={refId} valueCzk={valueCzk} />
+      ) : null}
       <div
         style={{
           width: "min(100%, 28rem)",

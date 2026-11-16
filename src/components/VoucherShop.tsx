@@ -27,6 +27,7 @@ import { getShopBrand } from "@/data/shops";
 import { AresCompanyLookup } from "@/components/AresCompanyLookup";
 import { setBlobOrigin } from "@/lib/blobOrigin";
 import { PERSONAL_MESSAGE_MAX_LENGTH } from "@/lib/checkout";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 import {
   settingsToAmountVouchers,
   settingsToExperienceVouchers,
@@ -1639,6 +1640,14 @@ function CheckoutPanel({
       if (!response.ok || !data.redirectUrl) {
         throw new Error(data.error || "Platbu se nepodařilo založit.");
       }
+
+      trackMetaEvent("InitiateCheckout", {
+        value: total,
+        currency: "CZK",
+        content_name: title,
+        num_items: form.quantity,
+        content_type: "product",
+      });
 
       // V iframe přesměrujeme celé okno (cross-origin přímý zápis do window.top je blokovaný,
       // proto přes odkaz s target="_top", který prohlížeč povolí po kliknutí uživatele).
